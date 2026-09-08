@@ -1,0 +1,64 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Models\Brand;
+use App\Support\ActivityLogger;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+
+class BrandApiController extends ApiController
+{
+    public function index(): JsonResponse
+    {
+        return response()->json(['data' => Brand::withCount('products')->get()]);
+    }
+
+    public function show(Brand $brand): JsonResponse
+    {
+        return response()->json(['data' => $brand]);
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        $brand = Brand::create(
+            $this->validated($request) + ['store_id' => active_store_id()]
+        );
+
+        ActivityLogger::log('brand.created', "Membuat brand (API): {$brand->code}", $brand);
+
+        return response()->json(['data' => $brand], 201);
+    }
+
+    public function update(Request $request, Brand $brand): JsonResponse
+    {
+        $brand->update($this->validated($request, $brand->id));
+
+        ActivityLogger::log('brand.updated', "Mengubah brand (API): {$brand->code}", $brand);
+
+        return response()->json(['data' => $brand->fresh()]);
+    }
+
+    public function destroy(Request $request, Brand $brand): JsonResponse
+    {
+        if ($brand->products()->exists()) {
+            return response()->json(['message' => 'Brand masih dipakai produk.'], 422);
+        }
+
+        $brand->delete();
+
+        ActivityLogger::log('brand.deleted', "Menghapus brand (API): {$brand->code}", $brand);
+
+        return response()->json(['message' => 'Brand dihapus.']);
+    }
+
+    private function validated(Request $request, ?string $id = null): array
+    {
+        return $request->validate([
+            'code' => ['required', 'string', 'max:30', Rule::unique('brands', 'code')->ignore($id)],
+            'name' => ['required', 'string', 'max:150'],
+            'is_active' => ['sometimes', 'boolean'],
+        ]);
+    }
+}

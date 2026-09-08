@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="CibrLjZebE9eTfazA56ZwD05suh0AEIPiekcVB3o">
+    <title>Stores · easyPOS Backoffice</title>
+    <script type="text/javascript" nonce="00a22d6a127e4841961097b9a83" src="//local.adguard.org?ts=1788848287596&amp;type=content-script&amp;dmn=localhost:8081&amp;url=http%3A%2F%2Flocalhost%3A8081%2Fadmin%2Fstores&amp;app=curl.exe&amp;css=2&amp;js=1&amp;rel=1&amp;rji=1&amp;sbe=1&amp;stealth=0"></script><link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0" rel="stylesheet">
+    <link rel="stylesheet" href="http://localhost:8081/css/md3.css">
+    <link rel="stylesheet" href="http://localhost:8081/css/md3-components.css">
+</head>
+<body>
+<div class="app-shell">
+    <aside class="nav-drawer" id="nav-drawer">
+        <div class="nav-brand">
+            <span class="material-symbols-rounded">point_of_sale</span>
+            <span class="nav-brand-text">easyPOS</span>
+        </div>
+        <nav class="nav-list">
+            <div class="nav-group" data-section="utama">
+                <button type="button" class="nav-group-header" aria-expanded="true">
+                    <span class="nav-section-label">Utama</span>
+                    <span class="material-symbols-rounded nav-chevron">expand_more</span>
+                </button>
+                <div class="nav-group-body">
+                    <a href="http://localhost:8081/admin" class="">
+            <span class="material-symbols-rounded">dashboard</span>
+            <span>Dashboard</span>
+        </a>
+                </div>
+            </div>
+
+            <div class="nav-group" data-section="konfigurasi">
+                <button type="button" class="nav-group-header" aria-expanded="true">
+                    <span class="nav-section-label">Konfigurasi</span>
+                    <span class="material-symbols-rounded nav-chevron">expand_more</span>
+                </button>
+                <div class="nav-group-body">
+                    <a href="http://localhost:8081/admin/company" class="">
+            <span class="material-symbols-rounded">apartment</span>
+            <span>Company Details</span>
+        </a>
+                    <a href="http://localhost:8081/admin/stores" class="active">
+            <span class="material-symbols-rounded">store</span>
+            <span>Stores</span>
+        </a>
+                    <a href="http://localhost:8081/admin/users" class="">
+            <span class="material-symbols-rounded">group</span>
+            <span>Users</span>
+        </a>
+                                            <a href="http://localhost:8081/admin/numberings" class="">
+            <span class="material-symbols-rounded">pin</span>
+            <span>Penomoran Transaksi</span>
+        </a>
+                        <a href="http://localhost:8081/admin/activity-logs" class="">
+            <span class="material-symbols-rounded">history</span>
+            <span>Log Aktivitas</span>
+        </a>
+                                    </div>
+            </div>
+
+            <div class="nav-group" data-section="katalog">
+                <button type="button" class="nav-group-header" aria-expanded="true">
+                    <span class="nav-section-label">Katalog Produk</span>
+                    <span class="material-symbols-rounded nav-chevron">expand_more</span>
+                </button>
+                <div class="nav-group-body">
+                    <a href="http://localhost:8081/admin/groups" class="">
+            <span class="material-symbols-rounded">category</span>
+            <span>Product Groups</span>
+        </a>
+                    <a href="http://localhost:8081/admin/products" class="">
+            <span class="material-symbols-rounded">inventory_2</span>
+            <span>Products</span>
+        </a>
+                    <a href="http://localhost:8081/admin/price-lists" class="">
+            <span class="material-symbols-rounded">sell</span>
+            <span>Price List</span>
+        </a>
+                    <a href="http://localhost:8081/admin/promotions" class="">
+            <span class="material-symbols-rounded">percent</span>
+            <span>Promotion</span>
+        </a>
+                    <a href="http://localhost:8081/admin/brands" class="">
+            <span class="material-symbols-rounded">verified</span>
+            <span>Brands</span>
+        </a>
+                </div>
+            </div>
+        </nav>
+    </aside>
+    <div class="scrim" id="scrim"></div>
+    <div class="app-main">
+        <header class="top-app-bar">
+            <button class="icon-btn" id="menu-toggle" aria-label="Menu">
+                <span class="material-symbols-rounded">menu</span>
+            </button>
+            <h1 class="top-app-bar-title">Manajemen Store</h1>
+                                        <div class="user-chip" title="Store aktif untuk data master">
+                    <span class="material-symbols-rounded" style="color: var(--md-primary);">store</span>
+                    <div class="user-chip-text">
+                        <span class="user-chip-name">STR001</span>
+                        <span class="user-chip-role">Store Aktif</span>
+                    </div>
+                </div>
+                        <div class="top-app-bar-actions">
+                <div class="user-chip" title="admin@easypos.test">
+                    <span class="avatar">A</span>
+                    <div class="user-chip-text">
+                        <span class="user-chip-name">Administrator</span>
+                        <span class="user-chip-role">Admin</span>
+                    </div>
+                </div>
+                <form method="POST" action="http://localhost:8081/logout">
+                    <input type="hidden" name="_token" value="CibrLjZebE9eTfazA56ZwD05suh0AEIPiekcVB3o" autocomplete="off">                    <button type="submit" class="icon-btn" title="Keluar">
+                        <span class="material-symbols-rounded">logout</span>
+                    </button>
+                </form>
+            </div>
+        </header>
+        <main class="content">
+                                    
+<div class="table-toolbar">
+    <div>
+        <h2 style="margin:0; font-size:16px;">Daftar Store</h2>
+        <p style="margin:2px 0 0; font-size:13px; color:var(--md-on-surface-variant);">
+            Data master (produk, price list, promosi) bekerja pada <strong>store aktif</strong> di bawah.
+        </p>
+    </div>
+    </div>
+
+<div class="table-wrap">
+    <table class="md-table">
+        <thead>
+            <tr>
+                <th>Kode</th>
+                <th>Nama Store</th>
+                <th>Penanggung Jawab</th>
+                <th>PPN</th>
+                <th>User</th>
+                <th>Status Konteks</th>
+                <th style="text-align:right;">Aksi</th>
+            </tr>
+        </thead>
+        <tbody>
+                            <tr>
+                    <td><strong>STR001</strong></td>
+                    <td>
+                        easyPOS Main Store<br>
+                        <span style="font-size:12px; color:var(--md-on-surface-variant);">Jl. Merdeka No. 1, Jakarta</span>
+                    </td>
+                    <td>Administrator<br><span style="font-size:12px; color:var(--md-on-surface-variant);">081200000000</span></td>
+                    <td>11.00%</td>
+                    <td>2</td>
+                    <td>
+                                                    <span class="badge active">Store Aktif</span>
+                                            </td>
+                    <td>
+                        <div class="actions-cell">
+                                                                                        <a href="http://localhost:8081/admin/stores/01a07f86-89fb-7011-ae07-b3795b28a313/edit" class="btn btn-tonal btn-sm">Edit</a>
+                                <form method="POST" action="http://localhost:8081/admin/stores/01a07f86-89fb-7011-ae07-b3795b28a313" onsubmit="return confirm('Hapus store STR001?')">
+                                    <input type="hidden" name="_token" value="CibrLjZebE9eTfazA56ZwD05suh0AEIPiekcVB3o" autocomplete="off"> <input type="hidden" name="_method" value="DELETE">                                    <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
+                                </form>
+                                                    </div>
+                    </td>
+                </tr>
+                    </tbody>
+    </table>
+</div>
+
+<div class="pagination">
+    
+</div>        </main>
+    </div>
+</div>
+<script src="http://localhost:8081/js/admin.js"></script>
+</body>
+</html>

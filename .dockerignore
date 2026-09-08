@@ -1,0 +1,6 @@
+node_modules
+storage/logs/*.log
+.git
+serve.log
+*.html
+co.txt
