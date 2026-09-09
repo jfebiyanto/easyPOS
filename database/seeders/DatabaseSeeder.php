@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Brand;
+use App\Models\Currency;
 use App\Models\Product;
 use App\Models\ProductGroup;
 use App\Models\Store;
@@ -13,6 +14,10 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        // Mata uang default — menjadi sumber dropdown "Mata Uang" di form gerai.
+        Currency::firstOrCreate(['code' => 'IDR'], ['symbol' => 'Rp', 'decimal_places' => 2, 'is_active' => true]);
+        Currency::firstOrCreate(['code' => 'USD'], ['symbol' => '$', 'decimal_places' => 2, 'is_active' => true]);
+
         $store = Store::create([
             'code' => 'STR001',
             'name' => 'easyPOS Main Store',
@@ -21,6 +26,7 @@ class DatabaseSeeder extends Seeder
             'pic_phone' => '081200000000',
             'ppn_enabled' => true,
             'ppn_rate' => 11,
+            'currency' => 'IDR',
         ]);
 
         User::firstOrCreate(

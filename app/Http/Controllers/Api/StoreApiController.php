@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Store;
+use App\Rules\ValidStoreCurrency;
 use App\Support\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -66,11 +67,17 @@ class StoreApiController extends ApiController
             'pic_phone' => ['nullable', 'string', 'max:30'],
             'ppn_enabled' => ['sometimes', 'boolean'],
             'ppn_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'currency' => ['required', 'string', 'max:10'],
+            'currency' => [
+                'required', 'string', 'max:10',
+                new ValidStoreCurrency($id ? Store::whereKey($id)->value('currency') : null),
+            ],
         ]);
 
         $data['ppn_enabled'] = $request->boolean('ppn_enabled');
         $data['ppn_rate'] = $data['ppn_enabled'] ? ($data['ppn_rate'] ?? 11) : 0;
+
+        // Kode mata uang konsisten huruf besar (mengikuti modul Mata Uang).
+        $data['currency'] = strtoupper(trim($data['currency']));
 
         return $data;
     }

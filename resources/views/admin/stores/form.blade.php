@@ -40,10 +40,14 @@
             <div class="field @error('currency') has-error @enderror">
                 <label for="currency">Mata Uang *</label>
                 <select id="currency" name="currency">
-                    @foreach (['IDR' => 'IDR - Rupiah', 'USD' => 'USD - Dollar'] as $c => $label)
-                        <option value="{{ $c }}" @selected(old('currency', $store->currency ?? 'IDR') === $c)>{{ $label }}</option>
-                    @endforeach
+                    @forelse ($currencies as $code => $label)
+                        <option value="{{ $code }}" @selected(old('currency', $store->currency ?? array_key_first($currencies)) === $code)>{{ $label }}</option>
+                    @empty
+                        <option value="">Belum ada mata uang terdaftar</option>
+                    @endforelse
                 </select>
+                @error('currency') <div class="error">{{ $message }}</div> @enderror
+                <div class="hint">Sumber pilihan: <a href="{{ route('admin.currencies.index') }}">modul Mata Uang</a>.</div>
             </div>
             <div class="field">
                 <div class="checkbox-row">

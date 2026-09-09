@@ -37,10 +37,17 @@ Route::prefix('admin')
         // Activity log
         Route::get('/activity-logs', [Admin\ActivityLogController::class, 'index'])->name('logs.index');
 
+        // Tipe pembayaran — global, bisa dipakai di beberapa gerai
+        Route::resource('payment-types', Admin\PaymentTypeController::class)->except('show');
+
+        // Mata uang — global; nominal pecahan dikelola per mata uang (show = halaman pecahan)
+        Route::resource('currencies', Admin\CurrencyController::class)
+            ->parameters(['currencies' => 'currency']);
+        Route::post('currencies/{currency}/denominations', [Admin\CurrencyController::class, 'storeDenomination'])->name('currencies.denominations.store');
+        Route::delete('currencies/{currency}/denominations/{denomination}', [Admin\CurrencyController::class, 'destroyDenomination'])->name('currencies.denominations.destroy');
+
         // Placeholder untuk fitur yang belum dibangun
         $placeholders = [
-            'currencies' => 'Mata Uang',
-            'payment-types' => 'Tipe Pembayaran',
             'bundles' => 'Produk Paket',
             'customer-groups' => 'Grup Pelanggan',
             'supplier-groups' => 'Grup Pemasok',

@@ -11,8 +11,6 @@ use Illuminate\View\View;
 class PlaceholderController extends Controller
 {
     private const PAGES = [
-        'currencies' => ['Mata Uang', 'payments', 'Konfigurasi mata uang yang dipakai aplikasi (kode, simbol, nilai tukar).'],
-        'payment-types' => ['Tipe Pembayaran', 'credit_card', 'Konfigurasi metode pembayaran di gerai: tunai, QRIS, debit/kredit, voucher, dll.'],
         'bundles' => ['Produk Paket', 'workspaces', 'Bundling beberapa produk menjadi satu paket dengan harga khusus.'],
         'customer-groups' => ['Grup Pelanggan', 'diversity_3', 'Kategori pelanggan: member reguler, member grosir, korporat, dll.'],
         'supplier-groups' => ['Grup Pemasok', 'groups_3', 'Kategori pemasok untuk segmentasi pembelian.'],

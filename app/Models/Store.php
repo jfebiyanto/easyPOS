@@ -44,6 +44,26 @@ class Store extends Model
         return $this->hasMany(PriceList::class);
     }
 
+    public function paymentTypes()
+    {
+        return $this->belongsToMany(PaymentType::class);
+    }
+
+    /**
+     * Record mata uang gerai di modul Mata Uang (tabel currencies).
+     * Kolom `currency` menyimpan kode mata uang (IDR, USD, ...), sehingga
+     * akses `$store->currency` tetap berupa kode; gunakan relasi ini untuk
+     * mengambil data lengkap dari modul Mata Uang.
+     *
+     * Nama method sengaja bukan `currency()` agar tidak bentrok dengan
+     * kolom foreign key `currency` (menyebabkan rekursi saat model belum
+     * tersimpan).
+     */
+    public function currencyRecord()
+    {
+        return $this->belongsTo(Currency::class, 'currency', 'code');
+    }
+
     /**
      * The price list used to auto-fill product prices (default + active).
      */

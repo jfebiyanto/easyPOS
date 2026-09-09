@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Admin\Concerns\AuthorizesSuperuser;
 use App\Http\Controllers\Controller;
 use App\Models\CompanyDetail;
+use App\Models\Currency;
 use App\Models\Store;
 use App\Models\User;
+use App\Rules\ValidStoreCurrency;
 use App\Support\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -34,8 +36,9 @@ class StoreController extends Controller
         $this->ensureSuperuser(request());
 
         return view('admin.stores.form', [
-            'store' => new Store(),
+            'store' => new Store,
             'company' => CompanyDetail::current(),
+            'currencies' => $this->currencyOptions(),
         ]);
     }
 
@@ -73,6 +76,7 @@ class StoreController extends Controller
         return view('admin.stores.form', [
             'store' => $store,
             'company' => CompanyDetail::current(),
+            'currencies' => $this->currencyOptions($store->currency),
         ]);
     }
 
@@ -126,7 +130,7 @@ class StoreController extends Controller
 
     private function validated(Request $request, ?string $id = null): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'code' => ['required', 'string', 'max:20', Rule::unique('stores', 'code')->ignore($id)],
             'name' => ['required', 'string', 'max:150'],
             'address' => ['nullable', 'string', 'max:500'],
@@ -134,7 +138,47 @@ class StoreController extends Controller
             'pic_phone' => ['nullable', 'string', 'max:30'],
             'ppn_enabled' => ['sometimes', 'boolean'],
             'ppn_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'currency' => ['required', 'string', 'max:10'],
+            'currency' => [
+                'required', 'string', 'max:10',
+                new ValidStoreCurrency($id ? Store::whereKey($id)->value('currency') : null),
+            ],
         ]);
+
+        // Kode mata uang konsisten huruf besar (mengikuti modul Mata Uang).
+        $data['currency'] = strtoupper(trim($data['currency']));
+
+        return $data;
+    }
+
+    /**
+     * Opsi dropdown "Mata Uang" pada form gerai, bersumber dari modul Mata Uang.
+     * Hanya mata uang aktif yang dapat dipilih; nilai lama milik gerai
+     * (nonaktif / belum terdaftar) tetap ditampilkan agar form edit tidak
+     * kehilangan nilai yang sudah tersimpan.
+     */
+    private function currencyOptions(?string $currentCode = null): array
+    {
+        $options = Currency::query()
+            ->where('is_active', true)
+            ->orderBy('code')
+            ->get()
+            ->mapWithKeys(fn (Currency $currency) => [
+                $currency->code => $currency->code.' - '.$currency->symbol,
+            ])
+            ->all();
+
+        $current = strtoupper(trim((string) $currentCode));
+
+        if ($current === '' || array_key_exists($current, $options)) {
+            return $options;
+        }
+
+        $registered = Currency::query()->where('code', $current)->first();
+
+        $options[$current] = $registered
+            ? $registered->code.' - '.$registered->symbol.' (nonaktif)'
+            : $current.' (belum terdaftar di modul Mata Uang)';
+
+        return $options;
     }
 }

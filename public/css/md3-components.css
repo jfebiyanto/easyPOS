@@ -51,6 +51,8 @@
 .field input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--md-primary); }
 .field .checkbox-row { display: flex; align-items: center; gap: 10px; }
 .field .checkbox-row label { margin: 0; }
+.field .checkbox-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px 18px; padding: 12px 14px; background: var(--md-surface-container-high); border: 1px solid var(--md-outline); border-radius: var(--md-radius-sm); }
+.field.has-error .checkbox-grid { border-color: var(--md-error); }
 .field .hint { font-size: 12px; color: var(--md-on-surface-variant); margin-top: 4px; }
 .field .error { font-size: 12px; color: var(--md-error); margin-top: 4px; }
 .field.has-error input, .field.has-error select, .field.has-error textarea { border-color: var(--md-error); }
