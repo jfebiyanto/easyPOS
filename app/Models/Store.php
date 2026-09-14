@@ -9,14 +9,23 @@ class Store extends Model
 {
     use HasUuid7;
 
-    protected $fillable = ['code', 'name', 'address', 'pic_name', 'pic_phone', 'ppn_enabled', 'ppn_rate', 'currency'];
+    protected $fillable = [
+        'company_id', 'code', 'name', 'address', 'pic_name', 'pic_phone',
+        'ppn_enabled', 'ppn_rate', 'currency', 'is_active',
+    ];
 
     protected function casts(): array
     {
         return [
             'ppn_enabled' => 'boolean',
             'ppn_rate' => 'decimal:2',
+            'is_active' => 'boolean',
         ];
+    }
+
+    public function company()
+    {
+        return $this->belongsTo(CompanyDetail::class, 'company_id');
     }
 
     public function users()
@@ -24,24 +33,14 @@ class Store extends Model
         return $this->hasMany(User::class);
     }
 
-    public function products()
-    {
-        return $this->hasMany(Product::class);
-    }
-
-    public function productGroups()
-    {
-        return $this->hasMany(ProductGroup::class);
-    }
-
-    public function brands()
-    {
-        return $this->hasMany(Brand::class);
-    }
-
+    /**
+     * Pricelist yang di-assign ke store ini (company-level atau store-level).
+     */
     public function priceLists()
     {
-        return $this->hasMany(PriceList::class);
+        return $this->belongsToMany(PriceList::class, 'store_price_lists')
+            ->withPivot('is_default')
+            ->withTimestamps();
     }
 
     public function paymentTypes()
@@ -49,29 +48,8 @@ class Store extends Model
         return $this->belongsToMany(PaymentType::class);
     }
 
-    /**
-     * Record mata uang gerai di modul Mata Uang (tabel currencies).
-     * Kolom `currency` menyimpan kode mata uang (IDR, USD, ...), sehingga
-     * akses `$store->currency` tetap berupa kode; gunakan relasi ini untuk
-     * mengambil data lengkap dari modul Mata Uang.
-     *
-     * Nama method sengaja bukan `currency()` agar tidak bentrok dengan
-     * kolom foreign key `currency` (menyebabkan rekursi saat model belum
-     * tersimpan).
-     */
     public function currencyRecord()
     {
         return $this->belongsTo(Currency::class, 'currency', 'code');
-    }
-
-    /**
-     * The price list used to auto-fill product prices (default + active).
-     */
-    public function defaultPriceList()
-    {
-        return $this->hasOne(PriceList::class)
-            ->where('is_active', true)
-            ->orderByDesc('is_default')
-            ->orderBy('effective_from');
     }
 }

@@ -21,12 +21,10 @@ class DashboardController extends Controller
             'store' => $store,
             'storeCount' => Store::count(),
             'userCount' => User::when($store, fn ($q) => $q->where('store_id', $store->id))->count(),
-            'productCount' => Product::when($store, fn ($q) => $q->where('store_id', $store->id))->count(),
-            'groupCount' => ProductGroup::when($store, fn ($q) => $q->where('store_id', $store->id))->count(),
-            'brandCount' => Brand::when($store, fn ($q) => $q->where('store_id', $store->id))->count(),
-            'promoCount' => Promotion::where('is_active', true)
-                ->when($store, fn ($q) => $q->where('store_id', $store->id))
-                ->count(),
+            'productCount' => Product::count(),
+            'groupCount' => ProductGroup::count(),
+            'brandCount' => Brand::count(),
+            'promoCount' => Promotion::where('is_active', true)->count(),
         ]);
     }
 }

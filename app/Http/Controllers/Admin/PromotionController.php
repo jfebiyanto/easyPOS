@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Concerns\AuthorizesCompany;
 use App\Http\Controllers\Controller;
+use App\Models\Product;
 use App\Models\Promotion;
 use App\Support\ActivityLogger;
 use Illuminate\Http\Request;
@@ -11,6 +13,7 @@ use Illuminate\View\View;
 
 class PromotionController extends Controller
 {
+    use AuthorizesCompany;
     public function index(): View
     {
         return view('admin.products.promotions.index', [
@@ -33,7 +36,7 @@ class PromotionController extends Controller
 
     public function store(Request $request)
     {
-        $promotion = Promotion::create($this->validated($request) + ['store_id' => active_store_id()]);
+        $promotion = Promotion::create($this->validated($request) + ['company_id' => current_company_id()]);
 
         ActivityLogger::log('promotion.created', "Membuat promosi: {$promotion->code} · {$promotion->name}", $promotion);
 
@@ -42,6 +45,8 @@ class PromotionController extends Controller
 
     public function edit(Promotion $promotion): View
     {
+        $this->ensureCompany($promotion->company_id);
+
         return view('admin.products.promotions.form', [
             'promotion' => $promotion,
             'products' => Product::orderBy('name')->get(),
@@ -50,6 +55,8 @@ class PromotionController extends Controller
 
     public function update(Request $request, Promotion $promotion)
     {
+        $this->ensureCompany($promotion->company_id);
+
         $promotion->update($this->validated($request, $promotion->id));
 
         ActivityLogger::log('promotion.updated', "Mengubah promosi: {$promotion->code} · {$promotion->name}", $promotion);
@@ -59,6 +66,8 @@ class PromotionController extends Controller
 
     public function destroy(Promotion $promotion)
     {
+        $this->ensureCompany($promotion->company_id);
+
         $label = $promotion->code.' · '.$promotion->name;
         $promotion->delete();
 
@@ -74,7 +83,7 @@ class PromotionController extends Controller
             'name' => ['required', 'string', 'max:150'],
             'type' => ['required', Rule::in(array_keys(Promotion::TYPES))],
             'value' => ['required', 'numeric', 'min:0'],
-            'product_id' => ['nullable', 'exists:products,id'],
+            'product_id' => ['nullable', Rule::exists('products', 'id')->where('company_id', current_company_id())],
             'min_qty' => ['nullable', 'integer', 'min:1'],
             'starts_at' => ['nullable', 'date'],
             'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],

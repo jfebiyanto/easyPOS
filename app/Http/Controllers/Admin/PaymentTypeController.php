@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Concerns\AuthorizesSuperuser;
+use App\Http\Controllers\Concerns\AuthorizesCompany;
 use App\Http\Controllers\Controller;
 use App\Models\PaymentType;
 use App\Models\Store;
@@ -12,8 +14,12 @@ use Illuminate\View\View;
 
 class PaymentTypeController extends Controller
 {
+    use AuthorizesSuperuser, AuthorizesCompany;
+
     public function index(): View
     {
+        $this->ensureSuperuser(request());
+
         return view('admin.payment-types.index', [
             'paymentTypes' => apply_sort(
                 PaymentType::with('stores:id,code,name'),
@@ -26,18 +32,22 @@ class PaymentTypeController extends Controller
 
     public function create(): View
     {
+        $this->ensureSuperuser(request());
+
         return view('admin.payment-types.form', [
             'paymentType' => new PaymentType(),
-            'stores' => Store::orderBy('code')->get(['id', 'code', 'name']),
+            'stores' => Store::where('company_id', current_company_id())->orderBy('code')->get(['id', 'code', 'name']),
         ]);
     }
 
     public function store(Request $request)
     {
+        $this->ensureSuperuser($request);
+
         $paymentType = PaymentType::create($this->validated($request) + [
+            'company_id' => current_company_id(),
             'is_active' => $request->boolean('is_active'),
         ]);
-        // store_ids sudah tervalidasi; sinkronkan ke pivot gerai.
         $paymentType->stores()->sync($request->input('store_ids'));
 
         ActivityLogger::log('payment_type.created', "Membuat tipe pembayaran: {$paymentType->code}", $paymentType);
@@ -47,14 +57,20 @@ class PaymentTypeController extends Controller
 
     public function edit(PaymentType $paymentType): View
     {
+        $this->ensureSuperuser(request());
+        $this->ensureCompany($paymentType->company_id);
+
         return view('admin.payment-types.form', [
             'paymentType' => $paymentType->load('stores:id,code,name'),
-            'stores' => Store::orderBy('code')->get(['id', 'code', 'name']),
+            'stores' => Store::where('company_id', current_company_id())->orderBy('code')->get(['id', 'code', 'name']),
         ]);
     }
 
     public function update(Request $request, PaymentType $paymentType)
     {
+        $this->ensureSuperuser($request);
+        $this->ensureCompany($paymentType->company_id);
+
         $paymentType->update($this->validated($request, $paymentType->id) + [
             'is_active' => $request->boolean('is_active'),
         ]);
@@ -67,6 +83,9 @@ class PaymentTypeController extends Controller
 
     public function destroy(PaymentType $paymentType)
     {
+        $this->ensureSuperuser(request());
+        $this->ensureCompany($paymentType->company_id);
+
         $label = $paymentType->code;
         $paymentType->delete();
 
@@ -78,16 +97,15 @@ class PaymentTypeController extends Controller
     private function validated(Request $request, ?string $id = null): array
     {
         $data = $request->validate([
-            'code' => ['required', 'string', 'max:30', Rule::unique('payment_types', 'code')->ignore($id)],
+            'code' => ['required', 'string', 'max:30', Rule::unique('payment_types', 'code')->where('company_id', current_company_id())->ignore($id)],
             'description' => ['nullable', 'string', 'max:500'],
             'order_number' => ['required', 'integer', 'min:1'],
             'count_type' => ['required', Rule::in(array_keys(PaymentType::COUNT_TYPES))],
             'store_ids' => ['required', 'array', 'min:1'],
-            'store_ids.*' => ['string', 'exists:stores,id'],
+            'store_ids.*' => ['string', Rule::exists('stores', 'id')->where('company_id', current_company_id())],
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
-        // store_ids hanya untuk sinkronisasi pivot, bukan kolom payment_types.
         unset($data['store_ids']);
 
         return $data;

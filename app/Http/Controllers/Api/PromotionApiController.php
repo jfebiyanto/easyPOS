@@ -12,7 +12,7 @@ class PromotionApiController extends ApiController
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Promotion::query()->with('product');
+        $query = Promotion::where('company_id', $this->companyId($request))->with('product');
 
         if ($request->boolean('only_active')) {
             $query->where('is_active', true)
@@ -23,14 +23,16 @@ class PromotionApiController extends ApiController
         return response()->json(['data' => $query->get()]);
     }
 
-    public function show(Promotion $promotion): JsonResponse
+    public function show(Request $request, Promotion $promotion): JsonResponse
     {
+        $this->authorizeCompany($request, $promotion->company_id);
+
         return response()->json(['data' => $promotion->load('product')]);
     }
 
     public function store(Request $request): JsonResponse
     {
-        $promotion = Promotion::create($this->validated($request) + ['store_id' => active_store_id()]);
+        $promotion = Promotion::create($this->validated($request) + ['company_id' => $this->companyId($request)]);
 
         ActivityLogger::log('promotion.created', "Membuat promosi (API): {$promotion->code}", $promotion);
 
@@ -39,6 +41,8 @@ class PromotionApiController extends ApiController
 
     public function update(Request $request, Promotion $promotion): JsonResponse
     {
+        $this->authorizeCompany($request, $promotion->company_id);
+
         $promotion->update($this->validated($request, $promotion->id));
 
         ActivityLogger::log('promotion.updated', "Mengubah promosi (API): {$promotion->code}", $promotion);
@@ -48,6 +52,8 @@ class PromotionApiController extends ApiController
 
     public function destroy(Request $request, Promotion $promotion): JsonResponse
     {
+        $this->authorizeCompany($request, $promotion->company_id);
+
         $label = $promotion->code;
         $promotion->delete();
 
@@ -59,11 +65,11 @@ class PromotionApiController extends ApiController
     private function validated(Request $request, ?string $id = null): array
     {
         return $request->validate([
-            'code' => ['required', 'string', 'max:30', Rule::unique('promotions', 'code')->ignore($id)],
+            'code' => ['required', 'string', 'max:30', Rule::unique('promotions', 'code')->where('company_id', $this->companyId($request))->ignore($id)],
             'name' => ['required', 'string', 'max:150'],
             'type' => ['required', Rule::in(array_keys(Promotion::TYPES))],
             'value' => ['required', 'numeric', 'min:0'],
-            'product_id' => ['nullable', 'exists:products,id'],
+            'product_id' => ['nullable', Rule::exists('products', 'id')->where('company_id', $this->companyId($request))],
             'min_qty' => ['nullable', 'integer', 'min:1'],
             'starts_at' => ['nullable', 'date'],
             'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],

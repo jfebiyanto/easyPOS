@@ -10,21 +10,25 @@ use Illuminate\Validation\Rule;
 
 class BrandApiController extends ApiController
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return response()->json(['data' => Brand::withCount('products')->get()]);
+        return response()->json([
+            'data' => Brand::where('company_id', $this->companyId($request))
+                ->withCount('products')
+                ->get(),
+        ]);
     }
 
-    public function show(Brand $brand): JsonResponse
+    public function show(Request $request, Brand $brand): JsonResponse
     {
+        $this->authorizeCompany($request, $brand->company_id);
+
         return response()->json(['data' => $brand]);
     }
 
     public function store(Request $request): JsonResponse
     {
-        $brand = Brand::create(
-            $this->validated($request) + ['store_id' => active_store_id()]
-        );
+        $brand = Brand::create($this->validated($request) + ['company_id' => $this->companyId($request)]);
 
         ActivityLogger::log('brand.created', "Membuat brand (API): {$brand->code}", $brand);
 
@@ -33,6 +37,8 @@ class BrandApiController extends ApiController
 
     public function update(Request $request, Brand $brand): JsonResponse
     {
+        $this->authorizeCompany($request, $brand->company_id);
+
         $brand->update($this->validated($request, $brand->id));
 
         ActivityLogger::log('brand.updated', "Mengubah brand (API): {$brand->code}", $brand);
@@ -42,6 +48,8 @@ class BrandApiController extends ApiController
 
     public function destroy(Request $request, Brand $brand): JsonResponse
     {
+        $this->authorizeCompany($request, $brand->company_id);
+
         if ($brand->products()->exists()) {
             return response()->json(['message' => 'Brand masih dipakai produk.'], 422);
         }
@@ -56,7 +64,7 @@ class BrandApiController extends ApiController
     private function validated(Request $request, ?string $id = null): array
     {
         return $request->validate([
-            'code' => ['required', 'string', 'max:30', Rule::unique('brands', 'code')->ignore($id)],
+            'code' => ['required', 'string', 'max:30', Rule::unique('brands', 'code')->where('company_id', $this->companyId($request))->ignore($id)],
             'name' => ['required', 'string', 'max:150'],
             'is_active' => ['sometimes', 'boolean'],
         ]);

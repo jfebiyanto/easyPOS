@@ -18,6 +18,39 @@ if (! function_exists('navitem')) {
     }
 }
 
+if (! function_exists('current_company_id')) {
+    /**
+     * ID perusahaan aktif (single-row). Tidak membuat baris baru saat dibaca.
+     */
+    function current_company_id(): ?string
+    {
+        return \App\Models\CompanyDetail::query()->orderBy('created_at')->value('id');
+    }
+}
+
+if (! function_exists('company_timezone')) {
+    function company_timezone(): string
+    {
+        return \App\Models\CompanyDetail::query()->value('timezone') ?: 'Asia/Jakarta';
+    }
+}
+
+if (! function_exists('company_today')) {
+    function company_today(): string
+    {
+        return now(company_timezone())->toDateString();
+    }
+}
+
+if (! function_exists('company_business_date')) {
+    function company_business_date($at = null): string
+    {
+        $at = $at ? \Illuminate\Support\Carbon::parse($at) : now();
+
+        return $at->setTimezone(company_timezone())->toDateString();
+    }
+}
+
 if (! function_exists('active_store_id')) {
     /**
      * ID store yang menjadi konteks data master saat ini.
@@ -29,7 +62,7 @@ if (! function_exists('active_store_id')) {
             return $id;
         }
 
-        $id = auth()->user()?->store_id ?? Store::query()->orderBy('code')->value('id');
+        $id = auth()->user()?->store_id ?? \App\Models\Store::query()->orderBy('code')->value('id');
 
         if ($id) {
             session()->put('active_store_id', $id);

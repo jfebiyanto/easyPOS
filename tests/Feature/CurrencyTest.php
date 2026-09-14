@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\CompanyDetail;
 use App\Models\Currency;
 use App\Models\Store;
 use App\Models\User;
@@ -12,6 +13,8 @@ class CurrencyTest extends TestCase
 {
     use RefreshDatabase;
 
+    private CompanyDetail $company;
+
     private User $admin;
 
     private Store $store;
@@ -20,7 +23,10 @@ class CurrencyTest extends TestCase
     {
         parent::setUp();
 
+        $this->company = CompanyDetail::create(['name' => 'Test Co']);
+
         $this->store = Store::create([
+            'company_id' => $this->company->id,
             'code' => 'GR01',
             'name' => 'Gerai Satu',
             'address' => 'Jl. Testing No. 1',
@@ -32,15 +38,27 @@ class CurrencyTest extends TestCase
         ]);
 
         $this->admin = User::create([
+            'company_id' => $this->company->id,
             'store_id' => $this->store->id,
             'name' => 'Admin Test',
             'username' => 'admintest',
             'email' => 'admin@test.local',
             'phone' => '081200000000',
-            'type' => 'admin',
-            'is_superuser' => true,
+            'role' => User::ROLE_OWNER,
             'is_active' => true,
             'password' => 'password',
+        ]);
+    }
+
+    private function makeCurrency(string $code, string $symbol = 'Rp', bool $active = true): Currency
+    {
+        return Currency::create([
+            'company_id' => $this->company->id,
+            'code' => $code,
+            'symbol' => $symbol,
+            'has_rounding' => false,
+            'decimal_places' => 2,
+            'is_active' => $active,
         ]);
     }
 
@@ -57,13 +75,7 @@ class CurrencyTest extends TestCase
 
     public function test_halaman_index_form_dan_pecahan_dapat_diakses(): void
     {
-        $currency = Currency::create([
-            'code' => 'IDR',
-            'symbol' => 'Rp',
-            'has_rounding' => false,
-            'decimal_places' => 2,
-            'is_active' => true,
-        ]);
+        $currency = $this->makeCurrency('IDR');
 
         $this->actingAs($this->admin);
 
@@ -89,13 +101,7 @@ class CurrencyTest extends TestCase
 
     public function test_kode_mata_uang_harus_unik(): void
     {
-        Currency::create([
-            'code' => 'IDR',
-            'symbol' => 'Rp',
-            'has_rounding' => false,
-            'decimal_places' => 2,
-            'is_active' => true,
-        ]);
+        $this->makeCurrency('IDR');
 
         $this->actingAs($this->admin)
             ->post(route('admin.currencies.store'), $this->validPayload(['code' => 'IDR']))
@@ -108,26 +114,17 @@ class CurrencyTest extends TestCase
             ->post(route('admin.currencies.store'), [])
             ->assertSessionHasErrors(['code', 'symbol', 'decimal_places']);
 
-        // Kode bukan 3 huruf ditolak (ISO 4217).
         $this->post(route('admin.currencies.store'), $this->validPayload(['code' => 'IDRX']))
             ->assertSessionHasErrors('code');
 
-        // Kode non-alfabet ditolak.
         $this->post(route('admin.currencies.store'), $this->validPayload(['code' => '1DR']))
             ->assertSessionHasErrors('code');
     }
 
     public function test_admin_dapat_mengelola_nominal_pecahan(): void
     {
-        $currency = Currency::create([
-            'code' => 'IDR',
-            'symbol' => 'Rp',
-            'has_rounding' => false,
-            'decimal_places' => 2,
-            'is_active' => true,
-        ]);
+        $currency = $this->makeCurrency('IDR');
 
-        // Tambah pecahan.
         $this->actingAs($this->admin)
             ->post(route('admin.currencies.denominations.store', $currency), ['value' => '100000', 'is_active' => '1'])
             ->assertRedirect(route('admin.currencies.show', $currency))
@@ -137,22 +134,13 @@ class CurrencyTest extends TestCase
         $this->assertNotNull($denomination);
         $this->assertTrue($denomination->is_active);
 
-        // Nominal sama pada mata uang yang sama ditolak.
         $this->post(route('admin.currencies.denominations.store', $currency), ['value' => '100000'])
             ->assertSessionHasErrors('value');
 
-        // Nominal sama pada mata uang lain diperbolehkan.
-        $usd = Currency::create([
-            'code' => 'USD',
-            'symbol' => '$',
-            'has_rounding' => false,
-            'decimal_places' => 2,
-            'is_active' => true,
-        ]);
+        $usd = $this->makeCurrency('USD', '$');
         $this->post(route('admin.currencies.denominations.store', $usd), ['value' => '100000'])
             ->assertRedirect(route('admin.currencies.show', $usd));
 
-        // Hapus pecahan.
         $this->delete(route('admin.currencies.denominations.destroy', [$currency, $denomination]))
             ->assertRedirect(route('admin.currencies.show', $currency));
 
@@ -162,20 +150,13 @@ class CurrencyTest extends TestCase
 
     public function test_update_status_aktif_dan_digit_desimal(): void
     {
-        $currency = Currency::create([
-            'code' => 'USD',
-            'symbol' => '$',
-            'has_rounding' => false,
-            'decimal_places' => 2,
-            'is_active' => true,
-        ]);
+        $currency = $this->makeCurrency('USD', '$');
 
         $payload = $this->validPayload([
             'code' => 'USD',
             'symbol' => '$',
             'decimal_places' => 0,
         ]);
-        // Checkbox "Aktif" & "Rounding" tidak dicentang = field tidak dikirim.
         unset($payload['is_active'], $payload['has_rounding']);
 
         $this->actingAs($this->admin)
@@ -190,13 +171,7 @@ class CurrencyTest extends TestCase
 
     public function test_hapus_mata_uang_menghapus_pecahannya(): void
     {
-        $currency = Currency::create([
-            'code' => 'SGD',
-            'symbol' => 'S$',
-            'has_rounding' => false,
-            'decimal_places' => 2,
-            'is_active' => true,
-        ]);
+        $currency = $this->makeCurrency('SGD', 'S$');
         $currency->denominations()->create(['value' => 10, 'is_active' => true]);
         $currency->denominations()->create(['value' => 50, 'is_active' => true]);
 

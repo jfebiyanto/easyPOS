@@ -14,10 +14,11 @@
                     <option value="{{ $store->id }}" @selected(request('store') == $store->id)>{{ $store->code }} · {{ $store->name }}</option>
                 @endforeach
             </select>
-            <select name="type" class="field" style="margin:0; padding:9px 12px;" onchange="this.form.submit()">
-                <option value="">Semua Tipe</option>
-                <option value="admin" @selected(request('type') === 'admin')>Admin</option>
-                <option value="cashier" @selected(request('type') === 'cashier')>Cashier</option>
+            <select name="role" class="field" style="margin:0; padding:9px 12px;" onchange="this.form.submit()">
+                <option value="">Semua Role</option>
+                @foreach ($roles as $role)
+                    <option value="{{ $role }}" @selected(request('role') === $role)>{{ ucfirst(str_replace('_', ' ', $role)) }}</option>
+                @endforeach
             </select>
         </form>
         <a href="{{ route('admin.users.create') }}" class="btn btn-filled">
@@ -33,7 +34,7 @@
                 <th>{!! sort_link('Nama', 'name') !!}</th>
                 <th>{!! sort_link('Username', 'username') !!}</th>
                 <th>Store</th>
-                <th>{!! sort_link('Tipe', 'type') !!}</th>
+                <th>{!! sort_link('Role', 'role') !!}</th>
                 <th>{!! sort_link('Status', 'is_active') !!}</th>
                 <th style="text-align:right;">Aksi</th>
             </tr>
@@ -45,8 +46,7 @@
                     <td><strong>{{ $user->username }}</strong></td>
                     <td>{{ $user->store ? $user->store->code.' · '.$user->store->name : '-' }}</td>
                     <td>
-                        <span class="badge {{ $user->type }}">{{ ucfirst($user->type) }}</span>
-                        @if ($user->is_superuser)<span class="badge info">Superuser</span>@endif
+                        <span class="badge {{ $user->role }}">{{ ucfirst(str_replace('_', ' ', $user->role)) }}</span>
                     </td>
                     <td><span class="badge {{ $user->is_active ? 'active' : 'inactive' }}">{{ $user->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
                     <td>

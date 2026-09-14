@@ -4,7 +4,7 @@ namespace App\Models;
 
 class Brand extends MasterModel
 {
-    protected $fillable = ['store_id', 'code', 'name', 'is_active'];
+    protected $fillable = ['company_id', 'code', 'name', 'is_active'];
 
     protected function casts(): array
     {

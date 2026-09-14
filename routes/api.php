@@ -4,7 +4,11 @@ use App\Http\Controllers\Api;
 use Illuminate\Support\Facades\Route;
 
 // Autentikasi API (token Sanctum)
-Route::post('/auth/login', [Api\AuthController::class, 'login'])->middleware('throttle:10,1');
+Route::post('/auth/login', [Api\AuthController::class, 'login'])->middleware('throttle:login');
+
+// Webhook payment gateway (diverifikasi lewat callback token provider).
+Route::post('/webhooks/payments/xendit', [Api\PaymentWebhookController::class, 'xendit']);
+
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [Api\AuthController::class, 'logout']);
     Route::get('/auth/me', [Api\AuthController::class, 'me']);

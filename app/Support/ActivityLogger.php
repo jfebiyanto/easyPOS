@@ -16,9 +16,12 @@ class ActivityLogger
         ?Model $subject = null,
         ?array $properties = null
     ): void {
+        $user = request()->user('sanctum') ?? auth()->user();
+
         ActivityLog::create([
-            'actor_id' => auth()->id(),
-            'actor_name' => auth()->user()->name ?? 'system',
+            'company_id' => $user?->company_id ?? current_company_id(),
+            'actor_id' => $user?->getKey(),
+            'actor_name' => $user?->name ?? 'system',
             'action' => $action,
             'subject_type' => $subject ? class_basename($subject) : null,
             'subject_id' => $subject?->getKey(),

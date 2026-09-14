@@ -4,7 +4,7 @@ namespace App\Models;
 
 class Currency extends MasterModel
 {
-    protected $fillable = ['code', 'symbol', 'has_rounding', 'decimal_places', 'is_active'];
+    protected $fillable = ['company_id', 'code', 'symbol', 'has_rounding', 'decimal_places', 'is_active'];
 
     protected function casts(): array
     {

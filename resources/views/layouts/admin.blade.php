@@ -6,9 +6,11 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'easyPOS') · easyPOS Backoffice</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/md3.css') }}?v={{ filemtime(public_path('css/md3.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/md3-components.css') }}?v={{ filemtime(public_path('css/md3-components.css')) }}">
+    <link rel="stylesheet" href="{{ asset('css/tokens.css') }}?v={{ filemtime(public_path('css/tokens.css')) }}">
 </head>
 <body>
 <div class="app-shell">
@@ -29,13 +31,16 @@
                 </button>
                 <div class="nav-group-body">
                     {!! navitem('admin.company.edit', 'apartment', 'Identitas Perusahaan') !!}
-                    {!! navitem('admin.stores.index', 'store', 'Daftar Gerai') !!}
-                    {!! navitem('admin.users.index', 'group', 'Daftar User') !!}
                     @if (auth()->user()->isSuperuser())
+                        {!! navitem('admin.stores.index', 'store', 'Daftar Gerai') !!}
+                        {!! navitem('admin.users.index', 'group', 'Daftar User') !!}
+                        {!! navitem('admin.member-levels.index', 'workspace_premium', 'Level Member') !!}
                         {!! navitem('admin.numberings.index', 'pin', 'Penomoran') !!}
                     @endif
-                    {!! navitem('admin.currencies.index', 'payments', 'Mata Uang') !!}
-                    {!! navitem('admin.payment-types.index', 'credit_card', 'Tipe Pembayaran') !!}
+                    @if (auth()->user()->isSuperuser())
+                        {!! navitem('admin.currencies.index', 'payments', 'Mata Uang') !!}
+                        {!! navitem('admin.payment-types.index', 'credit_card', 'Tipe Pembayaran') !!}
+                    @endif
                 </div>
             </div>
 
@@ -46,11 +51,24 @@
                 </button>
                 <div class="nav-group-body">
                     {!! navitem('admin.groups.index', 'category', 'Kategori Produk') !!}
+                    {!! navitem('admin.units.index', 'straighten', 'Satuan') !!}
                     {!! navitem('admin.brands.index', 'verified', 'Daftar Merk') !!}
                     {!! navitem('admin.products.index', 'inventory_2', 'Daftar Produk') !!}
                     {!! navitem('admin.bundles.index', 'workspaces', 'Produk Paket') !!}
                     {!! navitem('admin.price-lists.index', 'sell', 'Daftar Harga') !!}
                     {!! navitem('admin.promotions.index', 'percent', 'Promosi') !!}
+                </div>
+            </div>
+
+            <div class="nav-group" data-section="stok">
+                <button type="button" class="nav-group-header" aria-expanded="true">
+                    <span class="nav-section-label">Stok</span>
+                    <span class="material-symbols-rounded nav-chevron">expand_more</span>
+                </button>
+                <div class="nav-group-body">
+                    {!! navitem('admin.stock.index', 'warehouse', 'Saldo Stok') !!}
+                    {!! navitem('admin.stock-adjustments.index', 'tune', 'Penyesuaian Stok') !!}
+                    {!! navitem('admin.stock-transfers.index', 'swap_horiz', 'Transfer Stok') !!}
                 </div>
             </div>
 
@@ -64,6 +82,9 @@
                     {!! navitem('admin.supplier-groups.index', 'groups_3', 'Grup Pemasok') !!}
                     {!! navitem('admin.customers.index', 'person', 'Daftar Pelanggan') !!}
                     {!! navitem('admin.suppliers.index', 'local_shipping', 'Daftar Pemasok') !!}
+                    {!! navitem('admin.deliveries.index', 'local_shipping', 'Pengiriman') !!}
+                    {!! navitem('admin.stock-review.index', 'rule', 'Review Stok') !!}
+                    {!! navitem('admin.eod.index', 'lock', 'Tutup Toko') !!}
                 </div>
             </div>
 
@@ -73,6 +94,7 @@
                     <span class="material-symbols-rounded nav-chevron">expand_more</span>
                 </button>
                 <div class="nav-group-body">
+                    {!! navitem('admin.reports.index', 'bar_chart', 'Laporan Penjualan') !!}
                     @if (auth()->user()->isSuperuser())
                         {!! navitem('admin.logs.index', 'history', 'Log Aktivitas') !!}
                     @endif
@@ -104,7 +126,7 @@
                     <span class="avatar">{{ strtoupper(substr(auth()->user()->name, 0, 1)) }}</span>
                     <div class="user-chip-text">
                         <span class="user-chip-name">{{ auth()->user()->name }}</span>
-                        <span class="user-chip-role">{{ ucfirst(auth()->user()->type) }}</span>
+                        <span class="user-chip-role">{{ ucfirst(str_replace('_', ' ', auth()->user()->role)) }}</span>
                     </div>
                 </div>
                 <form method="POST" action="{{ route('logout') }}">

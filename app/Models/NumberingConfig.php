@@ -15,6 +15,7 @@ class NumberingConfig extends Model
     public const TYPES = [
         'sales' => 'Sales',
         'sales_return' => 'Return',
+        'stock_adjustment' => 'Stock Adjustment',
         'stock_request' => 'Stock Request',
         'stock_transfer_shipment' => 'Stock Transfer Shipment',
         'stock_transfer_receipt' => 'Stock Transfer Receipt',
@@ -34,7 +35,7 @@ class NumberingConfig extends Model
     ];
 
     protected $fillable = [
-        'transaction_type', 'prefix', 'padding', 'separator', 'reset_period', 'last_period', 'last_number',
+        'company_id', 'transaction_type', 'prefix', 'padding', 'separator', 'reset_period', 'last_period', 'last_number',
     ];
 
     protected function casts(): array
@@ -48,13 +49,16 @@ class NumberingConfig extends Model
     /**
      * Ambil konfigurasi semua tipe transaksi, dibuat otomatis bila belum ada.
      */
-    public static function allTypes(): \Illuminate\Support\Collection
+    public static function allTypes(?string $companyId = null): \Illuminate\Support\Collection
     {
-        $existing = static::query()->pluck('transaction_type')->flip();
+        $companyId = $companyId ?? current_company_id();
+
+        $existing = static::query()->where('company_id', $companyId)->pluck('transaction_type')->flip();
 
         foreach (array_keys(self::TYPES) as $type) {
             if (! $existing->has($type)) {
                 static::create([
+                    'company_id' => $companyId,
                     'transaction_type' => $type,
                     'prefix' => strtoupper(substr($type, 0, 3)),
                     'padding' => 4,
@@ -65,7 +69,7 @@ class NumberingConfig extends Model
             }
         }
 
-        $configs = static::query()->get()->keyBy('transaction_type');
+        $configs = static::query()->where('company_id', $companyId)->get()->keyBy('transaction_type');
 
         return collect(array_keys(self::TYPES))
             ->map(fn ($type) => $configs->get($type))
@@ -104,9 +108,30 @@ class NumberingConfig extends Model
      * Ambil nomor berikutnya untuk tipe transaksi.
      * Counter otomatis ter-reset ketika periode berganti (harian/bulanan/tahunan).
      */
-    public static function nextNumber(string $transactionType, $now = null): string
+    public static function nextNumber(string $transactionType, $now = null, ?string $companyId = null): string
     {
-        $config = static::query()->where('transaction_type', $transactionType)->firstOrFail();
+        $companyId = $companyId ?? current_company_id();
+
+        $config = static::query()
+            ->where('company_id', $companyId)
+            ->where('transaction_type', $transactionType)
+            ->first();
+
+        if (! $config) {
+            if (! array_key_exists($transactionType, self::TYPES)) {
+                abort(404, 'Tipe transaksi tidak dikenal.');
+            }
+
+            $config = static::create([
+                'company_id' => $companyId,
+                'transaction_type' => $transactionType,
+                'prefix' => strtoupper(substr($transactionType, 0, 3)),
+                'padding' => 4,
+                'separator' => '/',
+                'reset_period' => 'monthly',
+                'last_number' => 0,
+            ]);
+        }
 
         $now = $now ? \Illuminate\Support\Carbon::parse($now) : now();
         $period = $config->periodPart($now);

@@ -52,7 +52,10 @@
                     <td>
                         <div class="actions-cell">
                             @if ($store->id !== $activeStoreId && auth()->user()->isSuperuser())
-                                <a href="{{ route('admin.stores.switch', $store) }}" class="btn btn-tonal btn-sm">Jadikan Aktif</a>
+                                <form method="POST" action="{{ route('admin.stores.switch', $store) }}">
+                                    @csrf
+                                    <button type="submit" class="btn btn-tonal btn-sm">Jadikan Aktif</button>
+                                </form>
                             @endif
                             @if (auth()->user()->isSuperuser())
                                 <a href="{{ route('admin.stores.edit', $store) }}" class="btn btn-tonal btn-sm">Edit</a>

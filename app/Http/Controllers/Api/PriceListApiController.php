@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\PriceList;
 use App\Models\PriceListItem;
+use App\Models\Product;
 use App\Support\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -11,21 +12,25 @@ use Illuminate\Validation\Rule;
 
 class PriceListApiController extends ApiController
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return response()->json(['data' => PriceList::withCount('items')->get()]);
+        return response()->json([
+            'data' => PriceList::where('company_id', $this->companyId($request))
+                ->withCount('items')
+                ->get(),
+        ]);
     }
 
-    public function show(PriceList $priceList): JsonResponse
+    public function show(Request $request, PriceList $priceList): JsonResponse
     {
+        $this->authorizeCompany($request, $priceList->company_id);
+
         return response()->json(['data' => $priceList->load(['items.product'])]);
     }
 
     public function store(Request $request): JsonResponse
     {
-        $this->ensureSuperuser($request);
-
-        $priceList = PriceList::create($this->validated($request) + ['store_id' => active_store_id()]);
+        $priceList = PriceList::create($this->validated($request) + ['company_id' => $this->companyId($request)]);
 
         ActivityLogger::log('price_list.created', "Membuat price list (API): {$priceList->code}", $priceList);
 
@@ -34,7 +39,7 @@ class PriceListApiController extends ApiController
 
     public function update(Request $request, PriceList $priceList): JsonResponse
     {
-        $this->ensureSuperuser($request);
+        $this->authorizeCompany($request, $priceList->company_id);
 
         $priceList->update($this->validated($request, $priceList->id));
 
@@ -45,7 +50,7 @@ class PriceListApiController extends ApiController
 
     public function destroy(Request $request, PriceList $priceList): JsonResponse
     {
-        $this->ensureSuperuser($request);
+        $this->authorizeCompany($request, $priceList->company_id);
 
         $label = $priceList->code;
         $priceList->delete();
@@ -55,20 +60,28 @@ class PriceListApiController extends ApiController
         return response()->json(['message' => 'Price list dihapus.']);
     }
 
-    public function items(PriceList $priceList): JsonResponse
+    public function items(Request $request, PriceList $priceList): JsonResponse
     {
+        $this->authorizeCompany($request, $priceList->company_id);
+
         return response()->json(['data' => $priceList->items()->with('product')->get()]);
     }
 
     public function storeItem(Request $request, PriceList $priceList): JsonResponse
     {
-        $this->ensureSuperuser($request);
+        $this->authorizeCompany($request, $priceList->company_id);
 
         $data = $request->validate([
-            'product_id' => ['required', 'exists:products,id'],
+            'product_id' => ['required', Rule::exists('products', 'id')->where('company_id', $priceList->company_id)],
             'price' => ['required', 'numeric', 'min:0'],
             'min_qty' => ['required', 'integer', 'min:1'],
         ]);
+
+        abort_unless(
+            Product::whereKey($data['product_id'])->where('company_id', $priceList->company_id)->exists(),
+            422,
+            'Produk tidak berada pada company yang sama dengan price list.'
+        );
 
         $item = $priceList->items()->updateOrCreate(
             ['product_id' => $data['product_id'], 'min_qty' => $data['min_qty']],
@@ -82,7 +95,9 @@ class PriceListApiController extends ApiController
 
     public function destroyItem(Request $request, PriceList $priceList, PriceListItem $item): JsonResponse
     {
-        $this->ensureSuperuser($request);
+        $this->authorizeCompany($request, $priceList->company_id);
+
+        abort_unless($item->price_list_id === $priceList->id, 404);
 
         $item->delete();
 
@@ -94,7 +109,8 @@ class PriceListApiController extends ApiController
     private function validated(Request $request, ?string $id = null): array
     {
         return $request->validate([
-            'code' => ['required', 'string', 'max:30', Rule::unique('price_lists', 'code')->ignore($id)],
+            'store_id' => ['nullable', Rule::exists('stores', 'id')->where('company_id', $this->companyId($request))],
+            'code' => ['required', 'string', 'max:30', Rule::unique('price_lists', 'code')->where('company_id', $this->companyId($request))->ignore($id)],
             'name' => ['required', 'string', 'max:150'],
             'is_default' => ['sometimes', 'boolean'],
             'effective_from' => ['nullable', 'date'],

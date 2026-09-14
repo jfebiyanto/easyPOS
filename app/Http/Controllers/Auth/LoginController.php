@@ -3,12 +3,20 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 class LoginController extends Controller
 {
+    /**
+     * Hash dummy untuk menyamakan waktu respons saat username tidak ditemukan
+     * (mencegah enumerasi akun lewat timing).
+     */
+    private const DUMMY_HASH = '$2y$12$M7SRwho8c6LaONdrf2ruyOHE4jYpyO6RvL.PUPGV.lR73wnoDR87m';
+
     public function showLoginForm()
     {
         return view('auth.login');
@@ -23,19 +31,18 @@ class LoginController extends Controller
 
         $remember = $request->boolean('remember');
 
-        if (! Auth::attempt([
-            'username' => $credentials['username'],
-            'password' => $credentials['password'],
-            'is_active' => true,
-        ], $remember)) {
+        $user = User::where('username', $credentials['username'])->first();
+        $passwordValid = Hash::check($credentials['password'], $user?->password ?? self::DUMMY_HASH);
+
+        if (! $user || ! $passwordValid || ! $user->is_active) {
             throw ValidationException::withMessages([
                 'username' => 'Username atau password salah, atau akun tidak aktif.',
             ]);
         }
 
-        $request->session()->regenerate();
+        Auth::login($user, $remember);
 
-        $user = Auth::user();
+        $request->session()->regenerate();
 
         // Keep the active store in session for store-scoped master data.
         if (! $request->session()->has('active_store_id')) {
@@ -45,8 +52,12 @@ class LoginController extends Controller
             );
         }
 
-        // Admin -> backoffice. Cashier will later be routed to the POS module.
-        return redirect()->intended(route('admin.dashboard'));
+        // Admin (owner/manager) -> backoffice. Kasir -> halaman POS.
+        if ($user->canAccessBackoffice()) {
+            return redirect()->intended(route('admin.dashboard'));
+        }
+
+        return redirect()->intended(route('pos.index'));
     }
 
     public function logout(Request $request)

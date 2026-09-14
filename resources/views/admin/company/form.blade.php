@@ -5,12 +5,12 @@
 
 @section('content')
 
-@php $canManage = auth()->user()->isSuperuser(); @endphp
+@php $canManage = auth()->user()->isOwner(); @endphp
 
 @if (! $canManage)
     <div class="md-snackbar error">
         <span class="material-symbols-rounded">lock</span>
-        Anda adalah Admin non-superuser: halaman ini bersifat read-only.
+        Anda tidak memiliki hak Owner: halaman ini bersifat read-only.
     </div>
 @endif
 
@@ -67,6 +67,49 @@
                 <label for="ppn_rate">Tarif PPN (%)</label>
                 <input type="number" id="ppn_rate" name="ppn_rate" step="0.01" min="0" max="100" value="{{ old('ppn_rate', $company->ppn_rate ?? 11) }}" @disabled(! $canManage)>
                 @error('ppn_rate') <div class="error">{{ $message }}</div> @enderror
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="card-title">Kebijakan Global</h2>
+        <p class="card-subtitle">Mata uang dasar, timezone, kebijakan stok, dan retur berlaku untuk seluruh gerai.</p>
+
+        <div class="form-grid">
+            <div class="field @error('base_currency_code') has-error @enderror">
+                <label for="base_currency_code">Mata Uang Dasar *</label>
+                <input type="text" id="base_currency_code" name="base_currency_code" value="{{ old('base_currency_code', $company->base_currency_code ?? 'IDR') }}" maxlength="10" @disabled(! $canManage)>
+                @error('base_currency_code') <div class="error">{{ $message }}</div> @enderror
+            </div>
+            <div class="field @error('timezone') has-error @enderror">
+                <label for="timezone">Timezone *</label>
+                <input type="text" id="timezone" name="timezone" value="{{ old('timezone', $company->timezone ?? 'Asia/Jakarta') }}" maxlength="40" @disabled(! $canManage)>
+                @error('timezone') <div class="error">{{ $message }}</div> @enderror
+            </div>
+            <div class="field">
+                <div class="checkbox-row">
+                    <input type="checkbox" id="ppn_inclusive" name="ppn_inclusive" value="1" @checked(old('ppn_inclusive', $company->ppn_inclusive)) @disabled(! $canManage)>
+                    <label for="ppn_inclusive">Harga jual sudah termasuk PPN (inclusive)</label>
+                </div>
+                <div class="hint">Jika tidak dicentang, PPN ditambahkan di atas harga (exclusive).</div>
+            </div>
+            <div class="field">
+                <div class="checkbox-row">
+                    <input type="checkbox" id="allow_negative_stock" name="allow_negative_stock" value="1" @checked(old('allow_negative_stock', $company->allow_negative_stock)) @disabled(! $canManage)>
+                    <label for="allow_negative_stock">Izinkan stok negatif</label>
+                </div>
+                <div class="hint">Jika aktif, transaksi offline yang membuat stok negatif dianggap sah tanpa review.</div>
+            </div>
+            <div class="field @error('return_window_days') has-error @enderror">
+                <label for="return_window_days">Batas waktu retur (hari)</label>
+                <input type="number" id="return_window_days" name="return_window_days" min="0" max="3650" value="{{ old('return_window_days', $company->return_window_days ?? 30) }}" @disabled(! $canManage)>
+                @error('return_window_days') <div class="error">{{ $message }}</div> @enderror
+            </div>
+            <div class="field">
+                <div class="checkbox-row">
+                    <input type="checkbox" id="return_require_receipt" name="return_require_receipt" value="1" @checked(old('return_require_receipt', $company->return_require_receipt ?? true)) @disabled(! $canManage)>
+                    <label for="return_require_receipt">Retur wajib menunjukkan struk</label>
+                </div>
             </div>
         </div>
     </div>

@@ -9,9 +9,10 @@ done
 echo "[easypos] menjalankan migrasi..."
 php artisan migrate --force
 
-echo "[easypos] seed hanya jika database masih kosong..."
-COUNT=$(php artisan tinker --execute='echo App\Models\User::count();' 2>/dev/null | tail -n 1)
-if [ "$COUNT" = "0" ] || [ -z "$COUNT" ]; then
+# Seeder hanya berjalan bila diminta eksplisit (RUN_SEEDER=true) agar
+# kredensial default tidak pernah terbuat otomatis di produksi.
+if [ "${RUN_SEEDER:-false}" = "true" ] || [ "${RUN_SEEDER:-false}" = "1" ]; then
+    echo "[easypos] seeding (RUN_SEEDER aktif)..."
     php artisan db:seed --force
 fi
 

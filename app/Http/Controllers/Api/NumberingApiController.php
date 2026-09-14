@@ -45,7 +45,10 @@ class NumberingApiController extends ApiController
                 continue;
             }
 
-            $config = NumberingConfig::query()->where('transaction_type', $type)->first();
+            $config = NumberingConfig::query()
+                ->where('company_id', $this->companyId($request))
+                ->where('transaction_type', $type)
+                ->first();
             if (! $config) {
                 continue;
             }

@@ -5,11 +5,17 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    /**
+     * Hash dummy (valid bcrypt) untuk menyamakan waktu respons saat username
+     * tidak ditemukan, sehingga tidak bisa dipakai untuk enumerasi akun.
+     */
+    private const DUMMY_HASH = '$2y$12$M7SRwho8c6LaONdrf2ruyOHE4jYpyO6RvL.PUPGV.lR73wnoDR87m';
+
     public function login(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -20,7 +26,9 @@ class AuthController extends Controller
 
         $user = \App\Models\User::where('username', $data['username'])->first();
 
-        if (! $user || ! Auth::validate(['username' => $data['username'], 'password' => $data['password']]) || ! $user->is_active) {
+        $passwordValid = Hash::check($data['password'], $user?->password ?? self::DUMMY_HASH);
+
+        if (! $user || ! $passwordValid || ! $user->is_active) {
             throw ValidationException::withMessages([
                 'username' => ['Username atau password salah, atau akun tidak aktif.'],
             ]);
@@ -31,7 +39,7 @@ class AuthController extends Controller
         return response()->json([
             'token' => $token,
             'token_type' => 'Bearer',
-            'user' => $user->only(['id', 'name', 'username', 'email', 'type', 'is_superuser', 'store_id']),
+            'user' => $this->userPayload($user),
         ]);
     }
 
@@ -47,8 +55,14 @@ class AuthController extends Controller
         $user = $request->user('sanctum');
 
         return response()->json([
-            'user' => $user->only(['id', 'name', 'username', 'email', 'type', 'is_superuser', 'store_id']),
-            'is_superuser' => $user->isSuperuser(),
+            'user' => $this->userPayload($user),
+        ]);
+    }
+
+    private function userPayload(\App\Models\User $user): array
+    {
+        return $user->only([
+            'id', 'name', 'username', 'email', 'phone', 'role', 'is_active', 'store_id', 'company_id',
         ]);
     }
 }

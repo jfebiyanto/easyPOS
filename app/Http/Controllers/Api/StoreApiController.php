@@ -11,13 +11,17 @@ use Illuminate\Validation\Rule;
 
 class StoreApiController extends ApiController
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return response()->json(['data' => Store::withCount('users')->orderBy('code')->get()]);
+        return response()->json([
+            'data' => Store::where('company_id', $this->companyId($request))->withCount('users')->orderBy('code')->get(),
+        ]);
     }
 
-    public function show(Store $store): JsonResponse
+    public function show(Request $request, Store $store): JsonResponse
     {
+        $this->authorizeCompany($request, $store->company_id);
+
         return response()->json(['data' => $store->loadCount('users')]);
     }
 
@@ -25,7 +29,10 @@ class StoreApiController extends ApiController
     {
         $this->ensureSuperuser($request);
 
-        $store = Store::create($this->validated($request));
+        $store = Store::create($this->validated($request) + [
+            'company_id' => $this->companyId($request),
+            'is_active' => $request->boolean('is_active', true),
+        ]);
 
         ActivityLogger::log('store.created', "Membuat store baru (API): {$store->code} · {$store->name}", $store);
 
@@ -35,8 +42,9 @@ class StoreApiController extends ApiController
     public function update(Request $request, Store $store): JsonResponse
     {
         $this->ensureSuperuser($request);
+        $this->authorizeCompany($request, $store->company_id);
 
-        $store->update($this->validated($request, $store->id));
+        $store->update($this->validated($request, $store->id) + ['is_active' => $request->boolean('is_active')]);
 
         ActivityLogger::log('store.updated', "Mengubah store (API): {$store->code} · {$store->name}", $store);
 
@@ -46,9 +54,10 @@ class StoreApiController extends ApiController
     public function destroy(Request $request, Store $store): JsonResponse
     {
         $this->ensureSuperuser($request);
+        $this->authorizeCompany($request, $store->company_id);
 
-        if ($store->users()->exists() || $store->products()->exists()) {
-            return response()->json(['message' => 'Store masih memiliki data terkait, tidak dapat dihapus.'], 422);
+        if ($store->users()->exists()) {
+            return response()->json(['message' => 'Store masih memiliki user, tidak dapat dihapus.'], 422);
         }
 
         ActivityLogger::log('store.deleted', "Menghapus store (API): {$store->code} · {$store->name}", $store);
@@ -60,7 +69,7 @@ class StoreApiController extends ApiController
     private function validated(Request $request, ?string $id = null): array
     {
         $data = $request->validate([
-            'code' => ['required', 'string', 'max:20', Rule::unique('stores', 'code')->ignore($id)],
+            'code' => ['required', 'string', 'max:20', Rule::unique('stores', 'code')->where('company_id', $this->companyId($request))->ignore($id)],
             'name' => ['required', 'string', 'max:150'],
             'address' => ['nullable', 'string', 'max:500'],
             'pic_name' => ['required', 'string', 'max:150'],
@@ -71,12 +80,11 @@ class StoreApiController extends ApiController
                 'required', 'string', 'max:10',
                 new ValidStoreCurrency($id ? Store::whereKey($id)->value('currency') : null),
             ],
+            'is_active' => ['sometimes', 'boolean'],
         ]);
 
         $data['ppn_enabled'] = $request->boolean('ppn_enabled');
         $data['ppn_rate'] = $data['ppn_enabled'] ? ($data['ppn_rate'] ?? 11) : 0;
-
-        // Kode mata uang konsisten huruf besar (mengikuti modul Mata Uang).
         $data['currency'] = strtoupper(trim($data['currency']));
 
         return $data;

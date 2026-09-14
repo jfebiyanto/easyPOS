@@ -12,21 +12,33 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasUuid7, HasFactory, Notifiable;
 
+    public const ROLE_OWNER = 'owner';
+    public const ROLE_STORE_MANAGER = 'store_manager';
+    public const ROLE_CASHIER = 'cashier';
+
+    public const ROLES = [
+        self::ROLE_OWNER,
+        self::ROLE_STORE_MANAGER,
+        self::ROLE_CASHIER,
+    ];
+
     protected $fillable = [
-        'store_id', 'name', 'username', 'email', 'phone', 'type', 'is_superuser', 'is_active', 'password',
+        'company_id', 'store_id', 'name', 'username', 'email', 'phone', 'role', 'is_active', 'password',
     ];
 
     protected $hidden = ['password', 'remember_token'];
-
-    public const TYPES = ['admin', 'cashier'];
 
     protected function casts(): array
     {
         return [
             'is_active' => 'boolean',
-            'is_superuser' => 'boolean',
             'password' => 'hashed',
         ];
+    }
+
+    public function company()
+    {
+        return $this->belongsTo(CompanyDetail::class, 'company_id');
     }
 
     public function store()
@@ -34,17 +46,43 @@ class User extends Authenticatable
         return $this->belongsTo(Store::class);
     }
 
-    public function isAdmin(): bool
+    public function isOwner(): bool
     {
-        return $this->type === 'admin';
+        return $this->role === self::ROLE_OWNER;
+    }
+
+    public function isStoreManager(): bool
+    {
+        return $this->role === self::ROLE_STORE_MANAGER;
+    }
+
+    public function isCashier(): bool
+    {
+        return $this->role === self::ROLE_CASHIER;
     }
 
     /**
-     * Superuser: admin dengan hak penuh (kelola store, product group, price list).
-     * Admin non-superuser hanya read-only pada modul-modul tersebut.
+     * Bisa masuk ke backoffice (admin): Owner dan Store Manager.
+     * Kasir hanya untuk halaman POS.
+     */
+    public function canAccessBackoffice(): bool
+    {
+        return $this->isOwner() || $this->isStoreManager();
+    }
+
+    /**
+     * Alias lama agar kompatibel: admin backoffice = owner/manager.
+     */
+    public function isAdmin(): bool
+    {
+        return $this->canAccessBackoffice();
+    }
+
+    /**
+     * Owner memiliki hak tertinggi (setara superuser lama).
      */
     public function isSuperuser(): bool
     {
-        return $this->isAdmin() && $this->is_superuser;
+        return $this->isOwner();
     }
 }

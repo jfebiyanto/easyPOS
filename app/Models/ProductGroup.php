@@ -4,7 +4,7 @@ namespace App\Models;
 
 class ProductGroup extends MasterModel
 {
-    protected $fillable = ['store_id', 'code', 'name', 'description', 'is_active'];
+    protected $fillable = ['company_id', 'code', 'name', 'description', 'is_active'];
 
     protected function casts(): array
     {
@@ -13,6 +13,6 @@ class ProductGroup extends MasterModel
 
     public function products()
     {
-        return $this->hasMany(Product::class);
+        return $this->hasMany(Product::class, 'product_group_id');
     }
 }

@@ -31,7 +31,10 @@ class NumberingController extends Controller
                 continue;
             }
 
-            $config = NumberingConfig::query()->where('transaction_type', $type)->first();
+            $config = NumberingConfig::query()
+                ->where('company_id', current_company_id())
+                ->where('transaction_type', $type)
+                ->first();
             if (! $config) {
                 continue;
             }

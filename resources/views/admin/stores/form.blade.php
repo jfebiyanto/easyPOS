@@ -66,6 +66,36 @@
                 <input type="number" id="ppn_rate" name="ppn_rate" step="0.01" min="0" max="100" value="{{ old('ppn_rate', $store->exists ? $store->ppn_rate : ($company->ppn_rate ?? 11)) }}">
                 @error('ppn_rate') <div class="error">{{ $message }}</div> @enderror
             </div>
+            <div class="field">
+                <div class="checkbox-row">
+                    <input type="checkbox" id="is_active" name="is_active" value="1" @checked(old('is_active', $store->exists ? $store->is_active : true))>
+                    <label for="is_active">Store aktif</label>
+                </div>
+            </div>
+            <div class="field" style="grid-column: 1 / -1;">
+                <label>Pricelist yang dipakai gerai ini</label>
+                <div class="checkbox-grid">
+                    @forelse ($priceLists as $pl)
+                        <div class="checkbox-row">
+                            <input type="checkbox" id="pl_{{ $pl->id }}" name="price_list_ids[]" value="{{ $pl->id }}" @checked(in_array($pl->id, old('price_list_ids', $assigned)))>
+                            <label for="pl_{{ $pl->id }}">{{ $pl->code }} · {{ $pl->name }} <span class="hint">{{ $pl->store_id ? '(store)' : '(company)' }}</span></label>
+                        </div>
+                    @empty
+                        <div class="hint">Belum ada pricelist. Buat di <a href="{{ route('admin.price-lists.index') }}">Daftar Harga</a>.</div>
+                    @endforelse
+                </div>
+                @if ($priceLists->isNotEmpty())
+                    <div style="margin-top:10px; max-width:360px;">
+                        <label for="default_price_list_id" style="display:block; font-size:13px; font-weight:500; color:var(--md-on-surface-variant); margin-bottom:6px;">Pricelist default</label>
+                        <select id="default_price_list_id" name="default_price_list_id" style="width:100%; padding:12px 14px; border:1px solid var(--md-outline); border-radius:var(--md-radius-sm); background:var(--md-surface-container-high);">
+                            <option value="">- Tidak ada -</option>
+                            @foreach ($priceLists as $pl)
+                                <option value="{{ $pl->id }}" @selected(old('default_price_list_id', $defaultPriceListId) == $pl->id)>{{ $pl->code }} · {{ $pl->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                @endif
+            </div>
         </div>
         <div class="form-actions">
             <button type="submit" class="btn btn-filled">

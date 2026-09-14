@@ -10,6 +10,8 @@ class ActivityLogApiController extends ApiController
 {
     public function index(Request $request): JsonResponse
     {
+        $this->ensureSuperuser($request);
+
         $query = ActivityLog::query();
 
         if ($action = $request->query('action')) {

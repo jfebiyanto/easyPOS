@@ -2,16 +2,36 @@
 
 use App\Http\Controllers\Admin;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Pos\PosController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/login');
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
-    Route::post('/login', [LoginController::class, 'login'])->name('login.attempt');
+    Route::post('/login', [LoginController::class, 'login'])
+        ->middleware('throttle:login')
+        ->name('login.attempt');
 });
 
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
+
+// Modul POS (React) — sesi web + CSRF.
+Route::middleware('auth')->prefix('pos')->name('pos.')->group(function () {
+    Route::get('/', [PosController::class, 'shell'])->name('index');
+    Route::get('/bootstrap', [PosController::class, 'bootstrap'])->name('bootstrap');
+    Route::get('/products', [PosController::class, 'products'])->name('products');
+    Route::get('/sales-lookup', [PosController::class, 'lookupSale'])->name('sales.lookup');
+    Route::post('/sales', [PosController::class, 'storeSale'])->name('sales.store');
+    Route::get('/sales/{sale}', [PosController::class, 'showSale'])->name('sales.show');
+    Route::post('/sales/{sale}/void', [PosController::class, 'voidSale'])->name('sales.void');
+    Route::post('/returns', [PosController::class, 'storeReturn'])->name('returns.store');
+    Route::get('/customers', [PosController::class, 'customers'])->name('customers.index');
+    Route::post('/customers', [PosController::class, 'storeCustomer'])->name('customers.store');
+    Route::get('/holds', [PosController::class, 'holds'])->name('holds.index');
+    Route::post('/holds', [PosController::class, 'storeHold'])->name('holds.store');
+    Route::delete('/holds/{draft}', [PosController::class, 'destroyHold'])->name('holds.destroy');
+});
 
 Route::prefix('admin')
     ->name('admin.')
@@ -20,7 +40,7 @@ Route::prefix('admin')
         Route::get('/', [Admin\DashboardController::class, 'index'])->name('dashboard');
 
         // Store management (HO can manage multiple stores)
-        Route::get('/stores/switch/{store}', [Admin\StoreController::class, 'switch'])->name('stores.switch');
+        Route::post('/stores/switch/{store}', [Admin\StoreController::class, 'switch'])->name('stores.switch');
         Route::resource('stores', Admin\StoreController::class);
 
         // Company details
@@ -51,7 +71,6 @@ Route::prefix('admin')
             'bundles' => 'Produk Paket',
             'customer-groups' => 'Grup Pelanggan',
             'supplier-groups' => 'Grup Pemasok',
-            'customers' => 'Daftar Pelanggan',
             'suppliers' => 'Daftar Pemasok',
         ];
 
@@ -68,7 +87,50 @@ Route::prefix('admin')
         // Users
         Route::resource('users', Admin\UserController::class)->except('show');
 
+        // Customer & loyalty
+        Route::resource('customers', Admin\CustomerController::class);
+        Route::post('customers/{customer}/adjust-points', [Admin\CustomerController::class, 'adjustPoints'])->name('customers.adjust-points');        Route::get('member-levels', [Admin\MemberLevelController::class, 'index'])->name('member-levels.index');
+        Route::get('member-levels/create', [Admin\MemberLevelController::class, 'create'])->name('member-levels.create');
+        Route::post('member-levels', [Admin\MemberLevelController::class, 'store'])->name('member-levels.store');
+        Route::put('member-levels/config', [Admin\MemberLevelController::class, 'updateConfig'])->name('member-levels.config');
+        Route::get('member-levels/{memberLevel}/edit', [Admin\MemberLevelController::class, 'edit'])->name('member-levels.edit');
+        Route::put('member-levels/{memberLevel}', [Admin\MemberLevelController::class, 'update'])->name('member-levels.update');
+        Route::delete('member-levels/{memberLevel}', [Admin\MemberLevelController::class, 'destroy'])->name('member-levels.destroy');
+
+        // Tutup toko (EOD) + review stok
+        Route::get('/eod', [Admin\StoreClosureController::class, 'index'])->name('eod.index');
+        Route::post('/eod', [Admin\StoreClosureController::class, 'store'])->name('eod.store');
+        Route::get('/stock-review', [Admin\StockReviewController::class, 'index'])->name('stock-review.index');
+        Route::post('/stock-review/{sale}/resolve', [Admin\StockReviewController::class, 'resolve'])->name('stock-review.resolve');
+
+        // Pengiriman
+        Route::get('/deliveries', [Admin\DeliveryController::class, 'index'])->name('deliveries.index');
+        Route::put('/deliveries/{delivery}', [Admin\DeliveryController::class, 'update'])->name('deliveries.update');
+
+        // Laporan
+        Route::get('/reports', [Admin\ReportController::class, 'index'])->name('reports.index');
+        Route::get('/reports/export', [Admin\ReportController::class, 'export'])->name('reports.export');
+        Route::get('/reports/{report}', [Admin\ReportController::class, 'show'])->name('reports.show');
+
+        // Stock: saldo, ledger, adjustment, transfer
+        Route::get('/stock', [Admin\StockController::class, 'index'])->name('stock.index');
+        Route::get('/stock/{product}/ledger', [Admin\StockController::class, 'ledger'])->name('stock.ledger');
+
+        Route::get('/stock-adjustments', [Admin\StockAdjustmentController::class, 'index'])->name('stock-adjustments.index');
+        Route::get('/stock-adjustments/create', [Admin\StockAdjustmentController::class, 'create'])->name('stock-adjustments.create');
+        Route::post('/stock-adjustments', [Admin\StockAdjustmentController::class, 'store'])->name('stock-adjustments.store');
+        Route::post('/stock-adjustments/{stockAdjustment}/post', [Admin\StockAdjustmentController::class, 'post'])->name('stock-adjustments.post');
+
+        Route::get('/stock-transfers', [Admin\StockTransferController::class, 'index'])->name('stock-transfers.index');
+        Route::get('/stock-transfers/create', [Admin\StockTransferController::class, 'create'])->name('stock-transfers.create');
+        Route::post('/stock-transfers', [Admin\StockTransferController::class, 'store'])->name('stock-transfers.store');
+        Route::post('/stock-transfers/{stockTransfer}/ship', [Admin\StockTransferController::class, 'ship'])->name('stock-transfers.ship');
+        Route::get('/stock-transfers/{stockTransfer}/receive', [Admin\StockTransferController::class, 'receiveForm'])->name('stock-transfers.receive-form');
+        Route::post('/stock-transfers/{stockTransfer}/receive', [Admin\StockTransferController::class, 'receive'])->name('stock-transfers.receive');
+        Route::post('/stock-transfers/{stockTransfer}/cancel', [Admin\StockTransferController::class, 'cancel'])->name('stock-transfers.cancel');
+
         // Product catalog
+        Route::resource('units', Admin\UnitController::class)->except('show');
         Route::resource('groups', Admin\ProductGroupController::class)->except('show')->names('groups');
         Route::resource('brands', Admin\BrandController::class)->except('show')->names('brands');
         Route::resource('products', Admin\ProductController::class)->except('show');

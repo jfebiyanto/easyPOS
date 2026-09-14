@@ -33,10 +33,6 @@
                 Masuk
             </button>
         </form>
-
-        <p class="login-footer">
-            <strong>admin</strong> / <strong>admin12345</strong> &nbsp;·&nbsp; <strong>kasir</strong> / <strong>kasir12345</strong>
-        </p>
     </div>
 </div>
 @endsection

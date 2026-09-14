@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Admin\Concerns\AuthorizesSuperuser;
+use App\Http\Controllers\Concerns\AuthorizesCompany;
 use App\Http\Controllers\Controller;
 use App\Models\PriceList;
 use App\Models\PriceListItem;
@@ -14,13 +14,12 @@ use Illuminate\View\View;
 
 class PriceListController extends Controller
 {
-    use AuthorizesSuperuser;
-
+    use AuthorizesCompany;
     public function index(): View
     {
         return view('admin.products.price_lists.index', [
             'priceLists' => apply_sort(
-                PriceList::withCount('items'),
+                PriceList::withCount('items')->with('store'),
                 request('sort'), request('dir'),
                 ['code', 'name', 'items_count', 'is_active', 'created_at'],
                 'created_at'
@@ -30,17 +29,17 @@ class PriceListController extends Controller
 
     public function create(): View
     {
-        $this->ensureSuperuser(request());
-
-        return view('admin.products.price_lists.form', ['priceList' => new PriceList()]);
+        return view('admin.products.price_lists.form', [
+            'priceList' => new PriceList(),
+        ]);
     }
 
     public function store(Request $request)
     {
-        $this->ensureSuperuser($request);
         $data = $this->validated($request);
+        $data['company_id'] = current_company_id();
 
-        $priceList = PriceList::create($data + ['store_id' => active_store_id()]);
+        $priceList = PriceList::create($data);
 
         ActivityLogger::log('price_list.created', "Membuat price list: {$priceList->code} · {$priceList->name}", $priceList, $data);
 
@@ -49,14 +48,15 @@ class PriceListController extends Controller
 
     public function edit(PriceList $priceList): View
     {
-        $this->ensureSuperuser(request());
+        $this->ensureCompany($priceList->company_id);
 
         return view('admin.products.price_lists.form', ['priceList' => $priceList]);
     }
 
     public function update(Request $request, PriceList $priceList)
     {
-        $this->ensureSuperuser($request);
+        $this->ensureCompany($priceList->company_id);
+
         $priceList->update($this->validated($request, $priceList->id));
 
         ActivityLogger::log('price_list.updated', "Mengubah price list: {$priceList->code} · {$priceList->name}", $priceList);
@@ -66,17 +66,20 @@ class PriceListController extends Controller
 
     public function show(PriceList $priceList): View
     {
+        $this->ensureCompany($priceList->company_id);
+
         return view('admin.products.price_lists.items', [
             'priceList' => $priceList->load('items.product'),
-            'products' => Product::where('is_active', true)->orderBy('name')->get(),
+            'products' => Product::where('is_active', true)->where('company_id', $priceList->company_id)->orderBy('name')->get(),
         ]);
     }
 
     public function storeItem(Request $request, PriceList $priceList)
     {
-        $this->ensureSuperuser($request);
+        $this->ensureCompany($priceList->company_id);
+
         $data = $request->validate([
-            'product_id' => ['required', 'exists:products,id'],
+            'product_id' => ['required', Rule::exists('products', 'id')->where('company_id', $priceList->company_id)],
             'price' => ['required', 'numeric', 'min:0'],
             'min_qty' => ['required', 'integer', 'min:1'],
         ]);
@@ -97,7 +100,8 @@ class PriceListController extends Controller
 
     public function destroyItem(PriceList $priceList, PriceListItem $item)
     {
-        $this->ensureSuperuser(request());
+        $this->ensureCompany($priceList->company_id);
+        abort_unless($item->price_list_id === $priceList->id, 404);
 
         $label = "Item {$item->product?->sku} dari price list {$priceList->code}";
         $item->delete();
@@ -109,7 +113,7 @@ class PriceListController extends Controller
 
     public function destroy(PriceList $priceList)
     {
-        $this->ensureSuperuser(request());
+        $this->ensureCompany($priceList->company_id);
 
         $label = $priceList->code.' · '.$priceList->name;
         $priceList->delete();
@@ -122,7 +126,8 @@ class PriceListController extends Controller
     private function validated(Request $request, ?string $id = null): array
     {
         return $request->validate([
-            'code' => ['required', 'string', 'max:30', Rule::unique('price_lists', 'code')->ignore($id)],
+            'store_id' => ['nullable', Rule::exists('stores', 'id')->where('company_id', current_company_id())],
+            'code' => ['required', 'string', 'max:30', Rule::unique('price_lists', 'code')->where('company_id', current_company_id())->ignore($id)],
             'name' => ['required', 'string', 'max:150'],
             'is_default' => ['sometimes', 'boolean'],
             'effective_from' => ['nullable', 'date'],

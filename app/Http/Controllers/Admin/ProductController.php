@@ -2,22 +2,24 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Concerns\AuthorizesCompany;
 use App\Http\Controllers\Controller;
 use App\Models\Brand;
-use App\Models\PriceList;
-use App\Models\PriceListItem;
 use App\Models\Product;
 use App\Models\ProductGroup;
+use App\Models\Unit;
 use App\Support\ActivityLogger;
+use App\Support\PriceListSync;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class ProductController extends Controller
 {
+    use AuthorizesCompany;
     public function index(Request $request): View
     {
-        $query = Product::with(['group', 'brand']);
+        $query = Product::with(['group', 'brand', 'unit']);
 
         if ($search = $request->string('q')->toString()) {
             $query->where(fn ($q) => $q->where('name', 'like', "%{$search}%")
@@ -48,14 +50,15 @@ class ProductController extends Controller
             'product' => new Product(),
             'groups' => ProductGroup::orderBy('name')->get(),
             'brands' => Brand::orderBy('name')->get(),
+            'units' => Unit::where('is_active', true)->orderBy('name')->get(),
         ]);
     }
 
     public function store(Request $request)
     {
-        $product = Product::create($this->validated($request) + ['store_id' => active_store_id()]);
+        $product = Product::create($this->validated($request) + ['company_id' => current_company_id()]);
 
-        $this->syncDefaultPriceList($product);
+        PriceListSync::syncBasePrice($product);
 
         ActivityLogger::log('product.created', "Membuat produk: {$product->sku} · {$product->name} (harga Rp ".number_format($product->base_price, 0, ',', '.').')', $product);
 
@@ -64,21 +67,26 @@ class ProductController extends Controller
 
     public function edit(Product $product): View
     {
+        $this->ensureCompany($product->company_id);
+
         return view('admin.products.products.form', [
             'product' => $product,
             'groups' => ProductGroup::orderBy('name')->get(),
             'brands' => Brand::orderBy('name')->get(),
+            'units' => Unit::where('is_active', true)->orderBy('name')->get(),
         ]);
     }
 
     public function update(Request $request, Product $product)
     {
+        $this->ensureCompany($product->company_id);
+
         $oldBasePrice = $product->base_price;
 
         $product->update($this->validated($request, $product->id));
 
         if ($oldBasePrice != $product->base_price) {
-            $this->syncDefaultPriceList($product);
+            PriceListSync::syncBasePrice($product);
         }
 
         ActivityLogger::log('product.updated', "Mengubah produk: {$product->sku} · {$product->name}", $product, [
@@ -92,6 +100,8 @@ class ProductController extends Controller
 
     public function destroy(Product $product)
     {
+        $this->ensureCompany($product->company_id);
+
         $label = $product->sku.' · '.$product->name;
         $product->delete();
 
@@ -100,40 +110,19 @@ class ProductController extends Controller
         return redirect()->route('admin.products.index')->with('success', 'Produk berhasil dihapus.');
     }
 
-    /**
-     * Sinkronkan harga jual produk ke price list aktif (default) milik store.
-     * Item dibuat/diperbarui dengan min_qty = 1.
-     */
-    private function syncDefaultPriceList(Product $product): void
-    {
-        $priceList = PriceList::where('store_id', $product->store_id)
-            ->where('is_active', true)
-            ->orderByDesc('is_default')
-            ->orderBy('effective_from')
-            ->first();
-
-        if (! $priceList) {
-            return;
-        }
-
-        PriceListItem::updateOrCreate(
-            ['price_list_id' => $priceList->id, 'product_id' => $product->id, 'min_qty' => 1],
-            ['price' => $product->base_price]
-        );
-    }
-
     private function validated(Request $request, ?string $id = null): array
     {
         return $request->validate([
-            'product_group_id' => ['required', 'exists:product_groups,id'],
-            'brand_id' => ['nullable', 'exists:brands,id'],
-            'sku' => ['required', 'string', 'max:40', Rule::unique('products', 'sku')->ignore($id)],
-            'barcode' => ['nullable', 'string', 'max:60'],
+            'product_group_id' => ['required', Rule::exists('product_groups', 'id')->where('company_id', current_company_id())],
+            'brand_id' => ['nullable', Rule::exists('brands', 'id')->where('company_id', current_company_id())],
+            'unit_id' => ['required', Rule::exists('units', 'id')->where('company_id', current_company_id())],
+            'sku' => ['required', 'string', 'max:40', Rule::unique('products', 'sku')->where('company_id', current_company_id())->ignore($id)],
+            'barcode' => ['nullable', 'string', 'max:60', Rule::unique('products', 'barcode')->where('company_id', current_company_id())->ignore($id)],
             'name' => ['required', 'string', 'max:150'],
             'description' => ['nullable', 'string', 'max:500'],
-            'unit' => ['required', 'string', 'max:20'],
             'base_price' => ['required', 'numeric', 'min:0'],
             'cost_price' => ['nullable', 'numeric', 'min:0'],
+            'track_stock' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
     }

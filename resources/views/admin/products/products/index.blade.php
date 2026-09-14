@@ -6,6 +6,7 @@
 @section('content')
 <div class="tabs">
     <a href="{{ route('admin.groups.index') }}">Kategori Produk</a>
+    <a href="{{ route('admin.units.index') }}">Satuan</a>
     <a href="{{ route('admin.products.index') }}" class="active">Daftar Produk</a>
     <a href="{{ route('admin.price-lists.index') }}">Daftar Harga</a>
     <a href="{{ route('admin.promotions.index') }}">Promosi</a>
@@ -42,7 +43,7 @@
                     <td>{{ $product->name }}</td>
                     <td>{{ $product->group->name ?? '-' }}</td>
                     <td>{{ $product->brand->name ?? '-' }}</td>
-                    <td>{{ $product->unit }}</td>
+                    <td>{{ $product->unit?->code ?? '-' }}</td>
                     <td>Rp {{ number_format($product->base_price, 0, ',', '.') }}</td>
                     <td><span class="badge {{ $product->is_active ? 'active' : 'inactive' }}">{{ $product->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
                     <td>

@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Admin\Concerns\AuthorizesSuperuser;
+use App\Http\Controllers\Concerns\AuthorizesCompany;
 use App\Http\Controllers\Controller;
 use App\Models\CompanyDetail;
 use App\Models\Currency;
+use App\Models\PriceList;
 use App\Models\Store;
 use App\Models\User;
 use App\Rules\ValidStoreCurrency;
@@ -16,10 +18,12 @@ use Illuminate\View\View;
 
 class StoreController extends Controller
 {
-    use AuthorizesSuperuser;
+    use AuthorizesSuperuser, AuthorizesCompany;
 
     public function index(): View
     {
+        $this->ensureSuperuser(request());
+
         return view('admin.stores.index', [
             'stores' => apply_sort(
                 Store::withCount('users'),
@@ -39,6 +43,9 @@ class StoreController extends Controller
             'store' => new Store,
             'company' => CompanyDetail::current(),
             'currencies' => $this->currencyOptions(),
+            'priceLists' => $this->priceListOptions(),
+            'assigned' => [],
+            'defaultPriceListId' => null,
         ]);
     }
 
@@ -47,19 +54,18 @@ class StoreController extends Controller
         $this->ensureSuperuser($request);
 
         $company = CompanyDetail::current();
-
         $data = $this->validated($request);
 
-        // Default pajak mengikuti konfigurasi di level Company Details:
-        // jika PPN aktif di company, store baru default aktif dan tarifnya mengikuti.
+        $data['company_id'] = $company->id;
         $data['ppn_enabled'] = $company->ppn_enabled ? $request->boolean('ppn_enabled', $company->ppn_enabled) : $request->boolean('ppn_enabled');
         $data['ppn_rate'] = $data['ppn_enabled']
             ? ($request->filled('ppn_rate') ? $data['ppn_rate'] : $company->ppn_rate)
             : 0;
+        $data['is_active'] = $request->boolean('is_active', true);
 
         $store = Store::create($data);
+        $this->syncPriceLists($store, $request);
 
-        // First store created becomes the active context automatically.
         if (! $request->session()->has('active_store_id')) {
             $request->session()->put('active_store_id', $store->id);
         }
@@ -72,19 +78,28 @@ class StoreController extends Controller
     public function edit(Store $store): View
     {
         $this->ensureSuperuser(request());
+        $this->ensureCompany($store->company_id);
 
         return view('admin.stores.form', [
             'store' => $store,
             'company' => CompanyDetail::current(),
             'currencies' => $this->currencyOptions($store->currency),
+            'priceLists' => $this->priceListOptions(),
+            'assigned' => $store->priceLists()->pluck('price_lists.id')->all(),
+            'defaultPriceListId' => $store->priceLists()->wherePivot('is_default', true)->value('price_lists.id'),
         ]);
     }
 
     public function update(Request $request, Store $store)
     {
         $this->ensureSuperuser($request);
+        $this->ensureCompany($store->company_id);
 
-        $store->update($this->validated($request, $store->id));
+        $data = $this->validated($request, $store->id);
+        $data['is_active'] = $request->boolean('is_active');
+
+        $store->update($data);
+        $this->syncPriceLists($store, $request);
 
         ActivityLogger::log('store.updated', "Mengubah store: {$store->code} · {$store->name}", $store);
 
@@ -94,14 +109,13 @@ class StoreController extends Controller
     public function destroy(Store $store)
     {
         $this->ensureSuperuser(request());
+        $this->ensureCompany($store->company_id);
+
         if (User::where('store_id', $store->id)->exists()) {
             return back()->with('error', 'Store masih memiliki user, tidak dapat dihapus.');
         }
 
-        if ($store->products()->exists() || $store->productGroups()->exists() || $store->brands()->exists()) {
-            return back()->with('error', 'Store masih memiliki data produk, tidak dapat dihapus.');
-        }
-
+        $store->priceLists()->detach();
         $store->delete();
 
         if (session('active_store_id') === $store->id) {
@@ -113,12 +127,10 @@ class StoreController extends Controller
         return redirect()->route('admin.stores.index')->with('success', 'Store berhasil dihapus.');
     }
 
-    /**
-     * Set which store the master-data context (products, price lists, ...) operates on.
-     */
     public function switch(Request $request, Store $store)
     {
         $this->ensureSuperuser($request);
+        $this->ensureCompany($store->company_id);
 
         $request->session()->put('active_store_id', $store->id);
 
@@ -128,10 +140,22 @@ class StoreController extends Controller
             ->with('success', 'Store aktif: '.$store->code.' · '.$store->name);
     }
 
+    private function syncPriceLists(Store $store, Request $request): void
+    {
+        $ids = collect($request->input('price_list_ids', []))->filter()->all();
+        $defaultId = $request->input('default_price_list_id');
+
+        $sync = collect($ids)->mapWithKeys(fn ($id) => [
+            $id => ['is_default' => (string) $id === (string) $defaultId],
+        ])->all();
+
+        $store->priceLists()->sync($sync);
+    }
+
     private function validated(Request $request, ?string $id = null): array
     {
         $data = $request->validate([
-            'code' => ['required', 'string', 'max:20', Rule::unique('stores', 'code')->ignore($id)],
+            'code' => ['required', 'string', 'max:20', Rule::unique('stores', 'code')->where('company_id', current_company_id())->ignore($id)],
             'name' => ['required', 'string', 'max:150'],
             'address' => ['nullable', 'string', 'max:500'],
             'pic_name' => ['required', 'string', 'max:150'],
@@ -142,20 +166,25 @@ class StoreController extends Controller
                 'required', 'string', 'max:10',
                 new ValidStoreCurrency($id ? Store::whereKey($id)->value('currency') : null),
             ],
+            'is_active' => ['sometimes', 'boolean'],
+            'price_list_ids' => ['nullable', 'array'],
+            'price_list_ids.*' => ['string', Rule::exists('price_lists', 'id')->where('company_id', current_company_id())],
+            'default_price_list_id' => ['nullable', 'string', Rule::exists('price_lists', 'id')->where('company_id', current_company_id())],
         ]);
 
-        // Kode mata uang konsisten huruf besar (mengikuti modul Mata Uang).
         $data['currency'] = strtoupper(trim($data['currency']));
 
         return $data;
     }
 
-    /**
-     * Opsi dropdown "Mata Uang" pada form gerai, bersumber dari modul Mata Uang.
-     * Hanya mata uang aktif yang dapat dipilih; nilai lama milik gerai
-     * (nonaktif / belum terdaftar) tetap ditampilkan agar form edit tidak
-     * kehilangan nilai yang sudah tersimpan.
-     */
+    private function priceListOptions(): \Illuminate\Support\Collection
+    {
+        return PriceList::where('company_id', current_company_id())
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'code', 'name', 'store_id']);
+    }
+
     private function currencyOptions(?string $currentCode = null): array
     {
         $options = Currency::query()

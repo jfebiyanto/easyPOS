@@ -35,6 +35,12 @@ class CompanyController extends Controller
             'email' => ['nullable', 'email', 'max:150'],
             'ppn_enabled' => ['sometimes', 'boolean'],
             'ppn_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'ppn_inclusive' => ['sometimes', 'boolean'],
+            'base_currency_code' => ['required', 'string', 'max:10'],
+            'timezone' => ['required', 'string', 'max:40'],
+            'allow_negative_stock' => ['sometimes', 'boolean'],
+            'return_window_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
+            'return_require_receipt' => ['sometimes', 'boolean'],
             'sap_enabled' => ['sometimes', 'boolean'],
             'sap_allow_self_signed' => ['sometimes', 'boolean'],
             'sap_endpoint_url' => ['nullable', 'url', 'max:255'],
@@ -44,7 +50,11 @@ class CompanyController extends Controller
         ]);
 
         $data['ppn_enabled'] = $request->boolean('ppn_enabled');
+        $data['ppn_inclusive'] = $request->boolean('ppn_inclusive');
         $data['ppn_rate'] = $data['ppn_enabled'] ? ($data['ppn_rate'] ?? 11) : 0;
+
+        $data['allow_negative_stock'] = $request->boolean('allow_negative_stock');
+        $data['return_require_receipt'] = $request->boolean('return_require_receipt');
 
         // Toggle integrasi: OFF = aplikasi berjalan standalone.
         $data['sap_enabled'] = $request->boolean('sap_enabled');
@@ -96,6 +106,8 @@ class CompanyController extends Controller
             $url .= '/Login';
         }
 
+        $this->assertSafeSapUrl($url);
+
         try {
             $response = \Illuminate\Support\Facades\Http::timeout(15)
                 ->acceptJson()
@@ -108,15 +120,9 @@ class CompanyController extends Controller
             return response()->json([
                 'success' => $success,
                 'http_status' => $status,
-                'url' => $url,
                 'message' => $success
                     ? "Koneksi ke SAP B1 berhasil (HTTP {$status})."
                     : "SAP B1 merespons, tetapi login gagal (HTTP {$status}). Periksa kredensial atau URL.",
-                'request' => [
-                    'url' => $url,
-                    'body' => $payload,
-                ],
-                'response' => $response->json(),
             ]);
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
             return response()->json([
@@ -128,6 +134,30 @@ class CompanyController extends Controller
                 'success' => false,
                 'message' => 'Gagal menguji koneksi: '.\Illuminate\Support\Str::limit($e->getMessage(), 180),
             ]);
+        }
+    }
+
+    /**
+     * Cegah SSRF: endpoint SAP tidak boleh menunjuk ke alamat internal/privat
+     * (loopback, RFC1918, link-local/metadata, dst).
+     */
+    private function assertSafeSapUrl(string $url): void
+    {
+        $parts = parse_url($url);
+        $scheme = strtolower($parts['scheme'] ?? '');
+        $host = $parts['host'] ?? '';
+
+        abort_if(! in_array($scheme, ['http', 'https'], true) || $host === '', 422, 'URL endpoint SAP tidak valid.');
+
+        $ips = filter_var($host, FILTER_VALIDATE_IP)
+            ? [$host]
+            : (gethostbynamel($host) ?: []);
+
+        abort_if($ips === [], 422, 'Host endpoint SAP tidak dapat di-resolve.');
+
+        foreach ($ips as $ip) {
+            $public = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+            abort_if($public === false, 422, 'Endpoint SAP tidak boleh mengarah ke alamat internal/privat.');
         }
     }
 }

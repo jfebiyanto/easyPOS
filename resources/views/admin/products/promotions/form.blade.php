@@ -26,7 +26,7 @@
             <div class="field @error('type') has-error @enderror">
                 <label for="type">Tipe *</label>
                 <select id="type" name="type">
-                    @foreach (\App\Models\Promosi::TYPES as $value => $label)
+                    @foreach (\App\Models\Promotion::TYPES as $value => $label)
                         <option value="{{ $value }}" @selected(old('type', $promotion->type ?? 'discount_percent') === $value)>{{ $label }}</option>
                     @endforeach
                 </select>

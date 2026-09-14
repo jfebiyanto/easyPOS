@@ -6,9 +6,10 @@ services:
     environment:
       POSTGRES_DB: easypos
       POSTGRES_USER: easypos
-      POSTGRES_PASSWORD: secret
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-easypos_local_dev}
     ports:
-      - "5432:5432"
+      # Hanya bind ke localhost. Jangan publikasikan DB ke 0.0.0.0 di produksi.
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -26,13 +27,18 @@ services:
     environment:
       # Override .env di dalam container (env variabel menang atas .env)
       APP_ENV: production
-      APP_DEBUG: "true"
+      APP_DEBUG: "false"
+      SESSION_ENCRYPT: "true"
+      # Compose ini melayani HTTP (localhost:8081) sehingga cookie Secure
+      # tidak bisa dipakai. Di produksi nyata (HTTPS) hapus baris ini agar
+      # cookie otomatis ber-flag Secure (default APP_ENV=production).
+      SESSION_SECURE_COOKIE: "false"
       DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: "5432"
       DB_DATABASE: easypos
       DB_USERNAME: easypos
-      DB_PASSWORD: secret
+      DB_PASSWORD: ${DB_PASSWORD:-easypos_local_dev}
     volumes:
       - ./:/var/www
     depends_on:

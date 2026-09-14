@@ -10,11 +10,11 @@ class EnsureUserIsAdmin
 {
     public function handle(Request $request, Closure $next): Response
     {
-        // Dukung guard session (web) dan token Sanctum (API).
-        $user = $request->user('sanctum') ?? $request->user();
+        // Web (session) diprioritaskan; fallback ke token Sanctum untuk API.
+        $user = $request->user() ?? $request->user('sanctum');
 
         if (! $user || ! $user->is_active || ! $user->isAdmin()) {
-            abort(403, 'Hanya user tipe Admin yang dapat mengakses modul backoffice.');
+            abort(403, 'Hanya user Owner/Store Manager yang dapat mengakses modul backoffice.');
         }
 
         return $next($request);

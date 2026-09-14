@@ -15,7 +15,10 @@
         <div class="form-grid">
             <div class="field @error('sku') has-error @enderror">
                 <label for="sku">SKU *</label>
-                <input type="text" id="sku" name="sku" value="{{ old('sku', $product->sku) }}" required maxlength="40">
+                <input type="text" id="sku" name="sku" value="{{ old('sku', $product->sku) }}" required maxlength="40" @readonly($product->exists)>
+                @if ($product->exists)
+                    <div class="hint">SKU tidak dapat diubah. Jika salah, nonaktifkan produk ini dan buat SKU baru.</div>
+                @endif
                 @error('sku') <div class="error">{{ $message }}</div> @enderror
             </div>
             <div class="field @error('barcode') has-error @enderror">
@@ -48,14 +51,16 @@
                 </select>
                 @error('brand_id') <div class="error">{{ $message }}</div> @enderror
             </div>
-            <div class="field @error('unit') has-error @enderror">
-                <label for="unit">Satuan *</label>
-                <select id="unit" name="unit">
-                    @foreach (['PCS', 'KG', 'GR', 'LTR', 'ML', 'PACK', 'DUS', 'BOX'] as $u)
-                        <option value="{{ $u }}" @selected(old('unit', $product->unit ?? 'PCS') === $u)>{{ $u }}</option>
+            <div class="field @error('unit_id') has-error @enderror">
+                <label for="unit_id">Satuan *</label>
+                <select id="unit_id" name="unit_id" required>
+                    <option value="">- Pilih Satuan -</option>
+                    @foreach ($units as $unit)
+                        <option value="{{ $unit->id }}" @selected(old('unit_id', $product->unit_id) == $unit->id)>{{ $unit->code }} · {{ $unit->name }}</option>
                     @endforeach
                 </select>
-                @error('unit') <div class="error">{{ $message }}</div> @enderror
+                @error('unit_id') <div class="error">{{ $message }}</div> @enderror
+                <div class="hint">Kelola pilihan di <a href="{{ route('admin.units.index') }}">modul Satuan</a>.</div>
             </div>
             <div class="field @error('cost_price') has-error @enderror">
                 <label for="cost_price">Harga Beli (Rp)</label>
@@ -71,6 +76,12 @@
                 <label for="description">Deskripsi</label>
                 <textarea id="description" name="description" rows="2">{{ old('description', $product->description) }}</textarea>
                 @error('description') <div class="error">{{ $message }}</div> @enderror
+            </div>
+            <div class="field">
+                <div class="checkbox-row">
+                    <input type="checkbox" id="track_stock" name="track_stock" value="1" @checked(old('track_stock', $product->exists ? $product->track_stock : true))>
+                    <label for="track_stock">Lacak stok</label>
+                </div>
             </div>
             <div class="field">
                 <div class="checkbox-row">

@@ -4,3 +4,6 @@ storage/logs/*.log
 serve.log
 *.html
 co.txt
+.env
+.env.*
+!.env.example

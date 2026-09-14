@@ -7,8 +7,9 @@
 <div class="card">
     <h2 class="card-title">{{ $user->exists ? 'Ubah User' : 'User Baru' }}</h2>
     <p class="card-subtitle">
-        <strong>Cashier</strong> hanya bisa login ke modul POS.
-        <strong>Admin</strong> dapat login ke POS (sebagai cashier/approver) dan modul backoffice ini.
+        <strong>Kasir</strong> hanya bisa login ke modul POS.
+        <strong>Store Manager</strong> mengelola gerainya (produk, harga, stok, customer, EOD).
+        <strong>Owner</strong> memiliki akses tertinggi termasuk setting perusahaan, gerai, dan user.
     </p>
 
     <form method="POST" action="{{ $user->exists ? route('admin.users.update', $user) : route('admin.users.store') }}">
@@ -36,14 +37,16 @@
                 <input type="text" id="phone" name="phone" value="{{ old('phone', $user->phone) }}" maxlength="30">
                 @error('phone') <div class="error">{{ $message }}</div> @enderror
             </div>
-            <div class="field @error('type') has-error @enderror">
-                <label for="type">Tipe User *</label>
-                <select id="type" name="type">
-                    @foreach (['cashier' => 'Cashier (modul POS saja)', 'admin' => 'Admin (POS + Backoffice)'] as $value => $label)
-                        <option value="{{ $value }}" @selected(old('type', $user->type ?? 'cashier') === $value)>{{ $label }}</option>
+            <div class="field @error('role') has-error @enderror">
+                <label for="role">Role *</label>
+                <select id="role" name="role">
+                    @foreach ($roles as $role)
+                        <option value="{{ $role }}" @selected(old('role', $user->role ?? 'cashier') === $role)>
+                            {{ ['owner' => 'Owner (akses penuh perusahaan)', 'store_manager' => 'Store Manager (kelola gerai)', 'cashier' => 'Kasir (modul POS saja)'][$role] ?? $role }}
+                        </option>
                     @endforeach
                 </select>
-                @error('type') <div class="error">{{ $message }}</div> @enderror
+                @error('role') <div class="error">{{ $message }}</div> @enderror
             </div>
             <div class="field @error('store_id') has-error @enderror">
                 <label for="store_id">Store</label>
@@ -67,14 +70,8 @@
                 </div>
             </div>
             <div class="field" style="grid-column: 1 / -1;">
-                <div class="checkbox-row">
-                    <input type="checkbox" id="is_superuser" name="is_superuser" value="1" @checked(old('is_superuser', $user->exists ? $user->is_superuser : false))>
-                    <label for="is_superuser"><strong>Superuser</strong></label>
-                </div>
                 <div class="hint">
-                    Hanya berlaku untuk user tipe <strong>Admin</strong>.
-                    Admin biasa (non-superuser) hanya <em>read-only</em> pada modul Store, Kategori Produk, dan Daftar Harga —
-                    Superuser memiliki hak penuh termasuk membuat store baru, kategori produk baru, dan mengubah price list.
+                    Minimal harus selalu ada <strong>1 Owner aktif</strong>. Sistem akan menolak perubahan yang membuat tidak ada Owner aktif.
                 </div>
             </div>
         </div>

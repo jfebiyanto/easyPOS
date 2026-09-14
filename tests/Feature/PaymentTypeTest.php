@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\CompanyDetail;
 use App\Models\PaymentType;
 use App\Models\Store;
 use App\Models\User;
@@ -11,6 +12,8 @@ use Tests\TestCase;
 class PaymentTypeTest extends TestCase
 {
     use RefreshDatabase;
+
+    private CompanyDetail $company;
 
     private User $admin;
 
@@ -22,7 +25,10 @@ class PaymentTypeTest extends TestCase
     {
         parent::setUp();
 
+        $this->company = CompanyDetail::create(['name' => 'Test Co']);
+
         $this->storeA = Store::create([
+            'company_id' => $this->company->id,
             'code' => 'GR01',
             'name' => 'Gerai Satu',
             'address' => 'Jl. Testing No. 1',
@@ -34,6 +40,7 @@ class PaymentTypeTest extends TestCase
         ]);
 
         $this->storeB = Store::create([
+            'company_id' => $this->company->id,
             'code' => 'GR02',
             'name' => 'Gerai Dua',
             'address' => 'Jl. Testing No. 2',
@@ -45,13 +52,13 @@ class PaymentTypeTest extends TestCase
         ]);
 
         $this->admin = User::create([
+            'company_id' => $this->company->id,
             'store_id' => $this->storeA->id,
             'name' => 'Admin Test',
             'username' => 'admintest',
             'email' => 'admin@test.local',
             'phone' => '081200000000',
-            'type' => 'admin',
-            'is_superuser' => true,
+            'role' => User::ROLE_OWNER,
             'is_active' => true,
             'password' => 'password',
         ]);
@@ -98,6 +105,7 @@ class PaymentTypeTest extends TestCase
     public function test_kode_tipe_pembayaran_harus_unik(): void
     {
         PaymentType::create([
+            'company_id' => $this->company->id,
             'code' => 'CASH',
             'description' => null,
             'order_number' => 1,
@@ -120,6 +128,7 @@ class PaymentTypeTest extends TestCase
     public function test_update_menyinkronkan_gerai_dan_status_aktif(): void
     {
         $paymentType = PaymentType::create([
+            'company_id' => $this->company->id,
             'code' => 'QRIS',
             'description' => null,
             'order_number' => 2,
@@ -133,7 +142,6 @@ class PaymentTypeTest extends TestCase
             'order_number' => 3,
             'count_type' => 'detail',
         ]);
-        // Checkbox "Aktif" tidak dicentang = field is_active tidak dikirim.
         unset($payload['is_active']);
 
         $this->actingAs($this->admin)
@@ -150,6 +158,7 @@ class PaymentTypeTest extends TestCase
     public function test_hapus_tipe_pembayaran_menghapus_relasi_gerai(): void
     {
         $paymentType = PaymentType::create([
+            'company_id' => $this->company->id,
             'code' => 'VOUCHER',
             'description' => null,
             'order_number' => 4,

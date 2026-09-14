@@ -1,0 +1,207 @@
+<?php
+
+namespace App\Support;
+
+use App\Models\CompanyDetail;
+use App\Models\Delivery;
+use App\Models\NumberingConfig;
+use App\Models\Product;
+use App\Models\Sale;
+use App\Models\StockLedger;
+use App\Models\User;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * Pembuatan transaksi penjualan POS: hitung pajak per baris (dibulatkan di
+ * level dokumen), simpan snapshot harga, kurangi stok, dan catat pembayaran.
+ */
+class SaleService
+{
+    public static function create(array $data, User $cashier): Sale
+    {
+        $companyId = $cashier->company_id;
+        $storeId = $data['store_id'];
+        $clientUuid = $data['client_uuid'] ?? null;
+
+        if ($clientUuid) {
+            $existing = Sale::where('client_uuid', $clientUuid)->first();
+            if ($existing) {
+                return $existing->load('lines', 'payments', 'delivery');
+            }
+        }
+
+        $company = CompanyDetail::findOrFail($companyId);
+        $rate = (float) ($company->ppn_rate ?? 0);
+        $inclusive = (bool) ($company->ppn_inclusive ?? false);
+        $taxEnabled = (bool) ($company->ppn_enabled ?? false) && $rate > 0;
+
+        $origin = $data['origin'] ?? 'online';
+        $enforceStock = $origin !== 'offline';
+        $soldAt = isset($data['sold_at']) ? Carbon::parse($data['sold_at']) : now();
+        $businessDate = $soldAt->copy()->setTimezone($company->timezone ?: 'Asia/Jakarta')->toDateString();
+
+        return DB::transaction(function () use ($data, $cashier, $company, $companyId, $storeId, $clientUuid, $rate, $inclusive, $taxEnabled, $origin, $enforceStock, $soldAt, $businessDate) {
+            $subtotal = 0.0;
+            $taxSum = 0.0;
+            $discountTotal = 0.0;
+            $reviewNeeded = false;
+            $reviewReason = null;
+            $prepared = [];
+
+            foreach ($data['lines'] as $line) {
+                $product = Product::where('company_id', $companyId)->findOrFail($line['product_id']);
+                $qty = (float) $line['qty'];
+                $unitPrice = isset($line['unit_price']) && $line['unit_price'] !== null
+                    ? (float) $line['unit_price']
+                    : PricingService::resolve($storeId, $product, $qty);
+                $discount = (float) ($line['discount'] ?? 0);
+                $base = max(0, round($unitPrice * $qty - $discount, 2));
+
+                if ($taxEnabled) {
+                    if ($inclusive) {
+                        $tax = $base - ($base / (1 + $rate / 100));
+                        $lineTotal = $base;
+                    } else {
+                        $tax = $base * $rate / 100;
+                        $lineTotal = $base + $tax;
+                    }
+                } else {
+                    $tax = 0.0;
+                    $lineTotal = $base;
+                }
+
+                $subtotal += $base;
+                $taxSum += $tax;
+                $discountTotal += $discount;
+
+                $prepared[] = compact('product', 'qty', 'unitPrice', 'discount', 'tax', 'lineTotal');
+            }
+
+            $taxTotal = round($taxSum, 2);
+            $shippingCost = (float) ($data['shipping_cost'] ?? 0);
+            $total = round($subtotal + ($inclusive ? 0 : $taxTotal) + $shippingCost, 2);
+
+            $paidTotal = round((float) collect($data['payments'] ?? [])->sum('amount'), 2);
+            $change = round(max(0, $paidTotal - $total), 2);
+
+            $sale = Sale::create([
+                'company_id' => $companyId,
+                'store_id' => $storeId,
+                'number' => NumberingConfig::nextNumber('sales', null, $companyId),
+                'client_uuid' => $clientUuid,
+                'origin' => $origin,
+                'sync_status' => 'synced',
+                'business_date' => $businessDate,
+                'type' => 'sale',
+                'customer_id' => $data['customer_id'] ?? null,
+                'cashier_id' => $cashier->id,
+                'status' => Sale::STATUS_COMPLETED,
+                'subtotal' => $subtotal,
+                'discount_total' => $discountTotal,
+                'tax_total' => $taxTotal,
+                'shipping_cost' => $shippingCost,
+                'total' => $total,
+                'paid_total' => $paidTotal,
+                'change_total' => $change,
+                'currency_code' => $company->base_currency_code ?? 'IDR',
+                'sold_at' => $soldAt,
+            ]);
+
+            foreach ($prepared as $p) {
+                $sale->lines()->create([
+                    'product_id' => $p['product']->id,
+                    'sku_snapshot' => $p['product']->sku,
+                    'name_snapshot' => $p['product']->name,
+                    'unit_price' => $p['unitPrice'],
+                    'qty' => $p['qty'],
+                    'discount' => $p['discount'],
+                    'tax_amount' => round($p['tax'], 2),
+                    'line_total' => round($p['lineTotal'], 2),
+                ]);
+
+                if ($p['product']->track_stock) {
+                    if ($enforceStock) {
+                        StockService::assertNonNegative($storeId, $p['product']->id, -$p['qty']);
+                    } elseif (! StockService::allowsNegative()
+                        && (StockService::balance($storeId, $p['product']->id) - $p['qty']) < 0) {
+                        $reviewNeeded = true;
+                        $reviewReason = "Stok tidak mencukupi saat sinkron untuk {$p['product']->sku}.";
+                    }
+
+                    StockService::record($storeId, $p['product']->id, StockLedger::TYPE_SALE, -$p['qty'], [
+                        'company_id' => $companyId,
+                        'ref_type' => 'sale',
+                        'ref_id' => $sale->id,
+                        'created_by' => $cashier->id,
+                    ]);
+                }
+            }
+
+            if ($reviewNeeded) {
+                $sale->update([
+                    'stock_review_status' => 'pending',
+                    'review_reason' => $reviewReason,
+                ]);
+            }
+
+            foreach ($data['payments'] ?? [] as $pay) {
+                $sale->payments()->create([
+                    'payment_type_id' => $pay['payment_type_id'] ?? null,
+                    'amount' => (float) $pay['amount'],
+                    'status' => $pay['status'] ?? 'confirmed',
+                    'provider' => $pay['provider'] ?? null,
+                ]);
+            }
+
+            if (! empty($data['delivery'])) {
+                $d = $data['delivery'];
+                Delivery::create([
+                    'sale_id' => $sale->id,
+                    'recipient_name' => $d['recipient_name'],
+                    'phone' => $d['phone'] ?? null,
+                    'address' => $d['address'],
+                    'shipping_cost' => $shippingCost,
+                    'status' => 'pending',
+                    'note' => $d['note'] ?? null,
+                ]);
+            }
+
+            LoyaltyService::earnForSale($sale);
+
+            return $sale->load('lines', 'payments', 'delivery', 'customer');
+        });
+    }
+
+    /**
+     * Void transaksi: kembalikan stok, tandai void.
+     */
+    public static function void(Sale $sale, User $user, string $reason): Sale
+    {
+        abort_if($sale->isVoid(), 422, 'Transaksi sudah void.');
+
+        return DB::transaction(function () use ($sale, $user, $reason) {
+            foreach ($sale->lines as $line) {
+                if ($line->product_id) {
+                    StockService::record($sale->store_id, $line->product_id, StockLedger::TYPE_SALE_RETURN, (float) $line->qty, [
+                        'company_id' => $sale->company_id,
+                        'ref_type' => 'sale_void',
+                        'ref_id' => $sale->id,
+                        'note' => $reason,
+                        'created_by' => $user->id,
+                    ]);
+                }
+            }
+
+            $sale->update([
+                'status' => Sale::STATUS_VOID,
+                'voided_at' => now(),
+                'void_reason' => $reason,
+            ]);
+
+            LoyaltyService::reverseForVoid($sale);
+
+            return $sale->fresh(['lines', 'payments', 'delivery']);
+        });
+    }
+}

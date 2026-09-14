@@ -5,7 +5,7 @@ namespace App\Models;
 class Promotion extends MasterModel
 {
     protected $fillable = [
-        'store_id', 'code', 'name', 'type', 'value', 'product_id', 'min_qty',
+        'company_id', 'code', 'name', 'type', 'value', 'product_id', 'min_qty',
         'starts_at', 'ends_at', 'is_active', 'description',
     ];
 

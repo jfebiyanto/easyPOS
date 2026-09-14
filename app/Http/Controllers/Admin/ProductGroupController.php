@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Admin\Concerns\AuthorizesSuperuser;
+use App\Http\Controllers\Concerns\AuthorizesCompany;
 use App\Http\Controllers\Controller;
 use App\Models\ProductGroup;
 use App\Support\ActivityLogger;
@@ -12,8 +12,7 @@ use Illuminate\View\View;
 
 class ProductGroupController extends Controller
 {
-    use AuthorizesSuperuser;
-
+    use AuthorizesCompany;
     public function index(): View
     {
         return view('admin.products.groups.index', [
@@ -28,15 +27,12 @@ class ProductGroupController extends Controller
 
     public function create(): View
     {
-        $this->ensureSuperuser(request());
-
         return view('admin.products.groups.form', ['group' => new ProductGroup()]);
     }
 
     public function store(Request $request)
     {
-        $this->ensureSuperuser($request);
-        $group = ProductGroup::create($this->validated($request) + ['store_id' => active_store_id()]);
+        $group = ProductGroup::create($this->validated($request) + ['company_id' => current_company_id()]);
 
         ActivityLogger::log('product_group.created', "Membuat product group: {$group->code} · {$group->name}", $group);
 
@@ -45,14 +41,15 @@ class ProductGroupController extends Controller
 
     public function edit(ProductGroup $group): View
     {
-        $this->ensureSuperuser(request());
+        $this->ensureCompany($group->company_id);
 
         return view('admin.products.groups.form', ['group' => $group]);
     }
 
     public function update(Request $request, ProductGroup $group)
     {
-        $this->ensureSuperuser($request);
+        $this->ensureCompany($group->company_id);
+
         $group->update($this->validated($request, $group->id));
 
         ActivityLogger::log('product_group.updated', "Mengubah product group: {$group->code} · {$group->name}", $group);
@@ -62,7 +59,8 @@ class ProductGroupController extends Controller
 
     public function destroy(ProductGroup $group)
     {
-        $this->ensureSuperuser(request());
+        $this->ensureCompany($group->company_id);
+
         if ($group->products()->exists()) {
             return back()->with('error', 'Group masih memiliki produk, tidak dapat dihapus.');
         }
@@ -78,7 +76,7 @@ class ProductGroupController extends Controller
     private function validated(Request $request, ?string $id = null): array
     {
         return $request->validate([
-            'code' => ['required', 'string', 'max:30', Rule::unique('product_groups', 'code')->ignore($id)],
+            'code' => ['required', 'string', 'max:30', Rule::unique('product_groups', 'code')->where('company_id', current_company_id())->ignore($id)],
             'name' => ['required', 'string', 'max:150'],
             'description' => ['nullable', 'string', 'max:500'],
             'is_active' => ['sometimes', 'boolean'],

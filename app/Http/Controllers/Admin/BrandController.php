@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Concerns\AuthorizesCompany;
 use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Support\ActivityLogger;
@@ -11,6 +12,7 @@ use Illuminate\View\View;
 
 class BrandController extends Controller
 {
+    use AuthorizesCompany;
     public function index(): View
     {
         return view('admin.products.brands.index', [
@@ -30,7 +32,7 @@ class BrandController extends Controller
 
     public function store(Request $request)
     {
-        $brand = Brand::create($this->validated($request) + ['store_id' => active_store_id()]);
+        $brand = Brand::create($this->validated($request) + ['company_id' => current_company_id()]);
 
         ActivityLogger::log('brand.created', "Membuat brand: {$brand->code} · {$brand->name}", $brand);
 
@@ -39,11 +41,15 @@ class BrandController extends Controller
 
     public function edit(Brand $brand): View
     {
+        $this->ensureCompany($brand->company_id);
+
         return view('admin.products.brands.form', ['brand' => $brand]);
     }
 
     public function update(Request $request, Brand $brand)
     {
+        $this->ensureCompany($brand->company_id);
+
         $brand->update($this->validated($request, $brand->id));
 
         ActivityLogger::log('brand.updated', "Mengubah brand: {$brand->code} · {$brand->name}", $brand);
@@ -53,6 +59,8 @@ class BrandController extends Controller
 
     public function destroy(Brand $brand)
     {
+        $this->ensureCompany($brand->company_id);
+
         if ($brand->products()->exists()) {
             return back()->with('error', 'Brand masih dipakai oleh produk, tidak dapat dihapus.');
         }
@@ -68,7 +76,7 @@ class BrandController extends Controller
     private function validated(Request $request, ?string $id = null): array
     {
         return $request->validate([
-            'code' => ['required', 'string', 'max:30', Rule::unique('brands', 'code')->ignore($id)],
+            'code' => ['required', 'string', 'max:30', Rule::unique('brands', 'code')->where('company_id', current_company_id())->ignore($id)],
             'name' => ['required', 'string', 'max:150'],
             'is_active' => ['sometimes', 'boolean'],
         ]);

@@ -8,16 +8,19 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Tipe pembayaran bersifat global (bukan milik satu store) karena
-        // bisa dipakai lintas gerai lewat tabel pivot payment_type_store.
+        // Tipe pembayaran bersifat global per company; bisa dipakai lintas gerai.
         Schema::create('payment_types', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->string('code', 30)->unique();
+            $table->foreignUuid('company_id')->constrained('company_details')->cascadeOnDelete();
+            $table->string('code', 30);
             $table->text('description')->nullable();
             $table->unsignedInteger('order_number')->default(1);
             $table->enum('count_type', ['summary', 'detail'])->default('summary');
+            $table->boolean('is_offline_allowed')->default(true);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
+
+            $table->unique(['company_id', 'code']);
         });
 
         Schema::create('payment_type_store', function (Blueprint $table) {

@@ -29,7 +29,7 @@
                 <tr>
                     <td><strong>{{ $promotion->code }}</strong></td>
                     <td>{{ $promotion->name }}</td>
-                    <td><span class="badge info">{{ \App\Models\Promosi::TYPES[$promotion->type] ?? $promotion->type }}</span></td>
+                    <td><span class="badge info">{{ \App\Models\Promotion::TYPES[$promotion->type] ?? $promotion->type }}</span></td>
                     <td>
                         @if (in_array($promotion->type, ['discount_percent']))
                             {{ rtrim(rtrim($promotion->value, '0'), '.') }}%

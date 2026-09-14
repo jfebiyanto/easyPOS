@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('activity_logs', function (Blueprint $table) {
             $table->uuid('id')->primary();
+            $table->foreignUuid('company_id')->nullable()->constrained('company_details')->nullOnDelete();
             $table->foreignUuid('actor_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('actor_name');
             $table->string('action', 60);

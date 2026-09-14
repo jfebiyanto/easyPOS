@@ -7,7 +7,7 @@
 <div class="card">
     <h2 class="card-title">Konfigurasi Penomoran</h2>
     <p class="card-subtitle">
-        Format nomor per tipe transaksi: <code>PREFIX{!! ($configs->first()?->separator ?: '/') !!}PERIODE{!! ($configs->first()?->separator ?: '/') !!}NOMOR</code>.
+        Format nomor per tipe transaksi: <code>PREFIX{{ $configs->first()?->separator ?: '/' }}PERIODE{{ $configs->first()?->separator ?: '/' }}NOMOR</code>.
         Bagian periode otomatis hilang jika reset = "Tidak pernah", dan counter ter-reset otomatis saat periode berganti.
     </p>
 
