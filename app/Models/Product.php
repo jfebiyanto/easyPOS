@@ -5,7 +5,7 @@ namespace App\Models;
 class Product extends MasterModel
 {
     protected $fillable = [
-        'company_id', 'product_group_id', 'brand_id', 'unit_id', 'sku', 'barcode', 'name',
+        'company_id', 'product_group_id', 'brand_id', 'unit_id', 'sku', 'barcode', 'name', 'image_path',
         'description', 'base_price', 'cost_price', 'track_stock', 'is_active',
     ];
 
@@ -17,6 +17,19 @@ class Product extends MasterModel
             'base_price' => 'decimal:2',
             'cost_price' => 'decimal:2',
         ];
+    }
+
+    protected $appends = ['image_url'];
+
+    public function getImageUrlAttribute(): ?string
+    {
+        if (! $this->image_path) {
+            return null;
+        }
+
+        // Pakai host dari request (bukan APP_URL statis) agar origin-nya sama
+        // dengan halaman yang menampilkannya — menghindari blokir CSP lintas origin.
+        return url('storage/'.$this->image_path);
     }
 
     public function group()

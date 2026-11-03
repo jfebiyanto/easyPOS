@@ -18,8 +18,8 @@ class ActivityLogApiController extends ApiController
             $query->where('action', $action);
         }
         if ($search = $request->query('q')) {
-            $query->where(fn ($q) => $q->where('description', 'like', "%{$search}%")
-                ->orWhere('actor_name', 'like', "%{$search}%"));
+            $query->where(fn ($q) => $q->whereLike('description', "%{$search}%")
+                ->orWhereLike('actor_name', "%{$search}%"));
         }
 
         return response()->json([

@@ -9,6 +9,7 @@ use App\Models\PaymentType;
 use App\Models\PriceList;
 use App\Models\Product;
 use App\Models\ProductGroup;
+use App\Models\Promotion;
 use App\Models\Sale;
 use App\Models\StockLedger;
 use App\Models\Store;
@@ -16,6 +17,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Support\StockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class ReportTest extends TestCase
@@ -65,7 +67,7 @@ class ReportTest extends TestCase
     private function sell(float $qty, ?string $customerId): Sale
     {
         $this->actingAs($this->cashier)->postJson('/pos/sales', [
-            'client_uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'client_uuid' => (string) Str::uuid(),
             'origin' => 'online',
             'customer_id' => $customerId,
             'lines' => [['product_id' => $this->product->id, 'qty' => $qty]],
@@ -83,6 +85,27 @@ class ReportTest extends TestCase
             ->get(route('admin.reports.show', ['report' => 'sales_by_store']))
             ->assertOk()
             ->assertSee('STR001');
+    }
+
+    public function test_laporan_penjualan_per_gerai_menampilkan_diskon_promosi(): void
+    {
+        Promotion::create([
+            'company_id' => $this->company->id,
+            'code' => 'B2G1',
+            'name' => 'Beli 2 Gratis 1',
+            'type' => 'buy_x_get_y',
+            'product_id' => $this->product->id,
+            'buy_qty' => 2,
+            'get_qty' => 1,
+            'is_active' => true,
+        ]);
+
+        $this->sell(3, null);
+
+        $this->actingAs($this->owner)
+            ->get(route('admin.reports.show', ['report' => 'sales_by_store']))
+            ->assertOk()
+            ->assertSeeInOrder(['Diskon', 'Subtotal', 'STR001', '1', 'Rp 10.000', 'Rp 20.000']);
     }
 
     public function test_produk_terlaris_menampilkan_sku(): void

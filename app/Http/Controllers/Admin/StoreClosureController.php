@@ -12,13 +12,16 @@ use App\Models\Sale;
 use App\Models\Store;
 use App\Models\StoreClosure;
 use App\Support\ActivityLogger;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class StoreClosureController extends Controller
 {
-    use ScopesToStore, AuthorizesCompany;
+    use AuthorizesCompany, ScopesToStore;
 
     public function index(Request $request): View
     {
@@ -51,9 +54,9 @@ class StoreClosureController extends Controller
             ->where('code', $company->base_currency_code)
             ->first()
             ?->denominations()
-                ->where('is_active', true)
-                ->orderByDesc('value')
-                ->get() ?? collect();
+            ->where('is_active', true)
+            ->orderByDesc('value')
+            ->get() ?? collect();
 
         return view('admin.eod.index', [
             'store' => $store,
@@ -84,6 +87,10 @@ class StoreClosureController extends Controller
         $company = CompanyDetail::current();
         $store = Store::findOrFail($storeId);
         $businessDate = $data['business_date'];
+
+        if (StoreClosure::isClosed($store->id, $businessDate)) {
+            return back()->withInput()->with('error', "EOD tanggal {$businessDate} sudah ditutup. Buka ulang EOD terlebih dahulu.");
+        }
 
         $pending = Sale::where('store_id', $store->id)
             ->whereDate('business_date', $businessDate)
@@ -163,7 +170,49 @@ class StoreClosureController extends Controller
             ->with('success', 'Tutup toko berhasil. Kas dihitung: Rp '.number_format($cashCounted, 0, ',', '.'));
     }
 
-    private function reportStores(Request $request): \Illuminate\Support\Collection
+    /**
+     * Buka ulang EOD: hanya untuk tanggal bisnis hari ini (tanggal sistem) dan wajib beralasan.
+     */
+    public function reopen(Request $request): RedirectResponse
+    {
+        $storeId = $this->resolveStoreId($request, $request->input('store_id'));
+        abort_unless($storeId && in_array($storeId, $this->allowedStoreIds($request), true), 422, 'Store tidak valid.');
+
+        $data = $request->validate([
+            'business_date' => ['required', 'date'],
+            'reopen_reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        $store = Store::findOrFail($storeId);
+        $businessDate = Carbon::parse($data['business_date'])->toDateString();
+
+        if ($businessDate !== company_today()) {
+            return back()->with('error', "EOD tanggal {$businessDate} tidak dapat dibuka ulang. Hanya EOD tanggal bisnis hari ini (".company_today().') yang dapat dibuka ulang.');
+        }
+
+        $closure = StoreClosure::where('store_id', $store->id)
+            ->whereDate('business_date', $businessDate)
+            ->whereNotNull('closed_at')
+            ->first();
+
+        if (! $closure) {
+            return back()->with('error', "EOD tanggal {$businessDate} belum ditutup.");
+        }
+
+        $closure->update([
+            'closed_at' => null,
+            'reopened_at' => now(),
+            'reopened_by' => $request->user()->id,
+            'reopen_reason' => $data['reopen_reason'],
+        ]);
+
+        ActivityLogger::log('store.reopened', "Buka ulang EOD {$store->code} tanggal {$businessDate}: {$data['reopen_reason']}", $store);
+
+        return redirect()->route('admin.eod.index', ['store' => $store->id, 'date' => $businessDate])
+            ->with('success', 'EOD berhasil dibuka ulang. Transaksi POS dapat dilanjutkan.');
+    }
+
+    private function reportStores(Request $request): Collection
     {
         if (! $request->user()->isOwner()) {
             return collect();

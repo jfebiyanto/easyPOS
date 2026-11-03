@@ -1,0 +1,128 @@
+/* Section "Penjualan Hari Ini" di dashboard admin */
+.today-sales {
+    --ts-green: #34C38F;
+    --ts-amber: #F9B92A;
+    --ts-red: #E0245E;
+    --ts-blue: #1E9CFF;
+    --ts-text: #3D4148;
+    --ts-label: #9AA0AC;
+    --ts-title: #5B6B86;
+    --ts-bg: #EEF1F5;
+    --ts-track: #E9ECF2;
+
+    font-family: 'Inter', system-ui, sans-serif;
+    color: var(--ts-text);
+    background: var(--ts-bg);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 24px;
+}
+
+.ts-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.ts-heading h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--ts-text); }
+.ts-date { font-size: 13px; color: var(--ts-label); }
+
+.ts-error {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding: 10px 14px;
+    border-radius: 10px; background: #FDE7EE; color: var(--ts-red); font-size: 13px;
+}
+.ts-error[hidden] { display: none; }
+.ts-error button { margin-left: auto; border: none; background: var(--ts-red); color: #fff; border-radius: 999px; padding: 6px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+
+.ts-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+
+.ts-card {
+    background: #fff; border-radius: 14px; padding: 18px 20px;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 4px 14px rgba(16, 24, 40, .06);
+    display: flex; flex-direction: column; min-width: 0;
+}
+.ts-card-head { display: flex; align-items: center; gap: 10px; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--ts-track); position: relative; }
+.ts-card-head h3 { margin: 0; flex: 1; font-size: 15px; font-weight: 700; color: var(--ts-title); }
+.ts-card-icon { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; }
+.ts-card-icon .material-symbols-rounded { font-size: 20px; }
+.ts-accent-green .ts-card-icon { background: rgba(52, 195, 143, .14); color: var(--ts-green); }
+.ts-accent-amber .ts-card-icon { background: rgba(249, 185, 42, .18); color: #C98A00; }
+.ts-accent-blue .ts-card-icon { background: rgba(30, 156, 255, .14); color: var(--ts-blue); }
+
+.ts-menu-btn { border: none; background: transparent; color: var(--ts-label); width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; }
+.ts-menu-btn:hover { background: var(--ts-bg); color: var(--ts-text); }
+.ts-menu-list { position: absolute; right: 0; top: 40px; z-index: 10; min-width: 170px; margin: 0; padding: 6px; list-style: none; background: #fff; border-radius: 10px; box-shadow: 0 8px 24px rgba(16, 24, 40, .14); }
+.ts-menu-list[hidden] { display: none; }
+.ts-menu-list a, .ts-menu-list button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: none; background: none; border-radius: 8px; font: inherit; font-size: 13px; color: var(--ts-text); text-decoration: none; cursor: pointer; }
+.ts-menu-list a:hover, .ts-menu-list button:hover { background: var(--ts-bg); }
+.ts-menu-list .material-symbols-rounded { font-size: 18px; color: var(--ts-label); }
+
+.ts-label { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ts-label); display: flex; align-items: center; gap: 8px; }
+.ts-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ts-amber); box-shadow: 0 0 0 4px rgba(249, 185, 42, .2); flex-shrink: 0; }
+
+.ts-metric { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.ts-value { font-size: 26px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.ts-metric .ts-delta { margin-left: auto; }
+.ts-sub { font-size: 12px; color: var(--ts-label); margin-top: 2px; }
+
+.ts-arrow { font-size: 22px; }
+.ts-delta { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; font-weight: 600; }
+.ts-delta .material-symbols-rounded { font-size: 15px; }
+.ts-tone-up { color: var(--ts-green); }
+.ts-tone-down { color: var(--ts-red); }
+.ts-tone-muted { color: var(--ts-label); }
+
+.ts-chart { margin: 8px -20px 4px; min-height: 110px; }
+
+.ts-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ts-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--ts-track); font-size: 13px; }
+.ts-row:last-child { border-bottom: none; }
+.ts-row-name { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ts-row-name small { display: block; font-weight: 500; font-size: 11px; color: var(--ts-label); }
+.ts-row-value { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.ts-pill { padding: 3px 9px; border-radius: 999px; background: #2F3542; color: #fff; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.ts-avatar { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: #fff; background: linear-gradient(135deg, var(--ts-blue), #6C5CE7); }
+.ts-chevron { color: var(--ts-amber); font-size: 20px; }
+.ts-empty { padding: 14px 0; font-size: 13px; color: var(--ts-label); text-align: center; }
+.ts-list + .ts-label, .ts-chart + .ts-label { margin-top: 8px; }
+.ts-row:not(:has(.ts-chevron)) { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+
+/* Donut ring persentase */
+.ts-ring { --p: 0; --size: 36px; --hole: 7px; position: relative; width: var(--size); height: var(--size); border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; }
+.ts-ring::before { content: ''; position: absolute; inset: var(--hole); border-radius: 50%; background: #fff; }
+.ts-ring > span { position: relative; font-size: 9px; font-weight: 700; color: var(--ts-text); }
+.ts-ring-warm { background: conic-gradient(#FF9F43 0%, var(--ts-red) calc(var(--p) * 1%), var(--ts-track) 0); }
+.ts-ring-blue { background: conic-gradient(var(--ts-blue) calc(var(--p) * 1%), var(--ts-track) 0); }
+.ts-ring-lg { --size: 64px; --hole: 9px; }
+.ts-ring-lg > span { font-size: 13px; }
+
+/* Kartu 3 */
+.ts-perf { display: flex; align-items: center; gap: 14px; padding: 10px 0; }
+.ts-perf + .ts-perf { border-top: 1px dashed var(--ts-track); }
+.ts-perf-label { font-size: 12px; color: var(--ts-label); }
+.ts-perf .ts-value { font-size: 22px; }
+.ts-value-income { color: var(--ts-green); }
+.ts-value-expense { color: var(--ts-red); }
+
+.ts-segmented { display: flex; margin: 14px 0 6px; padding: 4px; border-radius: 12px; background: rgba(30, 156, 255, .12); }
+.ts-segmented button { flex: 1; padding: 8px 10px; border: none; border-radius: 9px; background: transparent; color: var(--ts-blue); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .2s, color .2s; }
+.ts-segmented button[aria-pressed="true"] { background: var(--ts-blue); color: #fff; box-shadow: 0 2px 8px rgba(30, 156, 255, .35); }
+
+.ts-target-head h4 { margin: 10px 0 0; font-size: 14px; font-weight: 700; color: var(--ts-title); }
+.ts-target-head p { margin: 2px 0 0; font-size: 12px; color: var(--ts-label); }
+.ts-target-chart { margin: 0 -8px; min-height: 230px; }
+
+/* Loading: angka & daftar diganti shimmer sampai data pertama tiba */
+.today-sales.is-loading .ts-value,
+.today-sales.is-loading .ts-delta,
+.today-sales.is-loading .ts-sub,
+.today-sales.is-loading .ts-list { color: transparent; border-radius: 6px; background: linear-gradient(90deg, #EEF1F5 25%, #F7F8FA 50%, #EEF1F5 75%); background-size: 200% 100%; animation: ts-shimmer 1.2s infinite; }
+.today-sales.is-loading .ts-list { min-height: 80px; }
+@keyframes ts-shimmer { to { background-position: -200% 0; } }
+
+@media (max-width: 1100px) {
+    .ts-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+    .today-sales { padding: 14px; margin-left: -4px; margin-right: -4px; }
+    .ts-value { font-size: 22px; }
+    .ts-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+    .ts-row .ts-pill { display: none; }
+    .ts-row:not(:has(.ts-chevron)) { grid-template-columns: auto minmax(0, 1fr) auto; }
+    .ts-chevron { display: none; }
+}

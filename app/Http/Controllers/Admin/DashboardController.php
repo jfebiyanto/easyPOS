@@ -3,28 +3,28 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Brand;
-use App\Models\Product;
-use App\Models\ProductGroup;
-use App\Models\Promotion;
 use App\Models\Store;
-use App\Models\User;
+use App\Support\DashboardService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
     public function index(): View
     {
-        $store = Store::find(active_store_id());
-
         return view('admin.dashboard', [
-            'store' => $store,
-            'storeCount' => Store::count(),
-            'userCount' => User::when($store, fn ($q) => $q->where('store_id', $store->id))->count(),
-            'productCount' => Product::count(),
-            'groupCount' => ProductGroup::count(),
-            'brandCount' => Brand::count(),
-            'promoCount' => Promotion::where('is_active', true)->count(),
+            'store' => Store::find(active_store_id()),
         ]);
+    }
+
+    /**
+     * Data section "Penjualan Hari Ini" untuk store aktif (dipanggil ulang tiap 5 menit).
+     */
+    public function today(): JsonResponse
+    {
+        $storeId = active_store_id();
+        abort_unless($storeId, 422, 'Belum ada store aktif.');
+
+        return response()->json(['data' => DashboardService::today($storeId)]);
     }
 }

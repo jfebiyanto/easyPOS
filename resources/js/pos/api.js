@@ -28,12 +28,15 @@ async function req(method, url, body) {
 export const api = {
     bootstrap: () => req('GET', '/pos/bootstrap'),
     products: (q = '') => req('GET', '/pos/products' + (q ? `?q=${encodeURIComponent(q)}` : '')),
+    promotions: () => req('GET', '/pos/promotions'),
     createSale: (payload) => req('POST', '/pos/sales', payload),
     lookupSale: (number) => req('GET', '/pos/sales-lookup?number=' + encodeURIComponent(number)),
     createReturn: (payload) => req('POST', '/pos/returns', payload),
     holds: () => req('GET', '/pos/holds'),
     saveHold: (payload) => req('POST', '/pos/holds', payload),
     deleteHold: (id) => req('DELETE', `/pos/holds/${id}`),
+    consumeHold: (id) => req('POST', `/pos/holds/${id}/consume`),
+    releaseHold: (id) => req('POST', `/pos/holds/${id}/release`),
     customers: (q = '') => req('GET', '/pos/customers' + (q ? `?q=${encodeURIComponent(q)}` : '')),
     createCustomer: (payload) => req('POST', '/pos/customers', payload),
 };

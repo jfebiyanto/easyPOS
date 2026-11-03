@@ -27,8 +27,16 @@
     padding: 14px; background: var(--color-surface); border: 1px solid var(--color-outline);
     border-radius: var(--radius-md); cursor: pointer; text-align: left; min-height: 92px;
 }
-.pos-tile:hover { border-color: var(--color-primary); box-shadow: var(--shadow-2); }
+.pos-tile:hover:not(:disabled) { border-color: var(--color-primary); box-shadow: var(--shadow-2); }
+.pos-tile:disabled { cursor: not-allowed; opacity: .55; filter: grayscale(1); }
+.pos-tile:disabled .pos-tile-stock { color: var(--color-danger); font-weight: 600; }
 .pos-tile-name { font-weight: 600; font-size: 14px; }
+.pos-tile-img { width: 100%; height: 92px; object-fit: cover; border-radius: var(--radius-sm); margin-bottom: 6px; background: var(--color-surface-2); }
+.pos-tile-thumb {
+    width: 100%; height: 92px; display: grid; place-items: center; margin-bottom: 6px;
+    border-radius: var(--radius-sm); background: var(--color-primary-container);
+    color: var(--color-on-primary-container); font-size: 32px; font-weight: 700;
+}
 .pos-tile-sku { font-size: 11px; color: var(--color-text-muted); }
 .pos-tile-price { font-weight: 700; color: var(--color-primary); margin-top: auto; }
 .pos-tile-stock { font-size: 11px; color: var(--color-text-muted); }
@@ -47,6 +55,13 @@
 .pos-line-qty input { width: 44px; text-align: center; padding: 5px; border: 1px solid var(--color-outline); border-radius: var(--radius-sm); }
 .pos-line-total { font-weight: 600; min-width: 84px; text-align: right; }
 .pos-line-remove { border: none; background: none; color: var(--color-danger); cursor: pointer; }
+.pos-line-info .pos-line-promo { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; font-weight: 600; color: var(--color-success); }
+.pos-line-info .pos-line-promo span { color: inherit; }
+.pos-line-promo .material-symbols-rounded { font-size: 14px; }
+.pos-bonus-hint { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; padding: 8px 10px; border-radius: var(--radius-md); background: var(--color-accent-container); color: var(--color-on-accent-container); font-size: 12px; }
+.pos-bonus-hint > span { display: inline-flex; align-items: center; gap: 6px; }
+.pos-bonus-hint .material-symbols-rounded { font-size: 16px; }
+.pos-saving { color: var(--color-success); font-weight: 600; }
 
 .pos-totals { padding: 12px 16px; border-top: 1px solid var(--color-outline); }
 .pos-totals > div { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
@@ -72,9 +87,20 @@
 .pos-pending-note { background: var(--color-accent-container); color: var(--color-on-accent-container); padding: 8px 12px; border-radius: var(--radius-sm); font-size: 13px; margin: 8px 0; }
 .pos-receipt { font-family: var(--font-mono); font-size: 13px; }
 .pos-receipt > div { display: flex; justify-content: space-between; padding: 2px 0; }
+.pos-receipt > .pos-receipt-promo { padding-left: 16px; font-size: 12px; color: var(--color-success); }
 .pos-hold-row, .pos-return-line { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #EFEFEB; }
 .pos-return-line input { width: 80px; padding: 6px; border: 1px solid var(--color-outline); border-radius: var(--radius-sm); }
 
 @media (max-width: 1100px) {
     .pos-cart { width: 340px; }
 }
+
+.pos-statusbar {
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+    padding: 6px 20px; font-size: 12px; color: var(--color-text-muted);
+    background: var(--color-surface); border-top: 1px solid var(--color-outline);
+}
+.pos-statusbar-item { display: inline-flex; align-items: center; gap: 6px; }
+.pos-statusbar-item strong { color: var(--color-text); }
+.pos-statusbar-item .material-symbols-rounded { font-size: 16px; }
+.pos-statusbar-warning { margin-left: auto; font-weight: 600; color: var(--color-danger); }

@@ -30,8 +30,9 @@
                 </select>
             </div>
             <div class="field">
-                <label for="expiry_days">Masa berlaku poin (hari, kosong = tanpa kedaluwarsa)</label>
+                <label for="expiry_days">Masa berlaku poin (hari)</label>
                 <input type="number" min="1" max="3650" id="expiry_days" name="expiry_days" value="{{ old('expiry_days', $config->expiry_days) }}">
+                <div class="hint">Kosongkan jika poin tanpa kedaluwarsa.</div>
             </div>
             <div class="field">
                 <div class="checkbox-row">

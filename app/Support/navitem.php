@@ -1,6 +1,19 @@
 <?php
 
+use App\Models\CompanyDetail;
 use App\Models\Store;
+use App\Models\StoreClosure;
+use Illuminate\Support\Carbon;
+
+if (! function_exists('navitem_active')) {
+    /**
+     * Apakah route menu ini (atau halaman turunannya, mis. create/edit) sedang dibuka.
+     */
+    function navitem_active(string $routeName): bool
+    {
+        return request()->routeIs($routeName) || request()->routeIs(str_replace('.index', '.*', $routeName));
+    }
+}
 
 if (! function_exists('navitem')) {
     /**
@@ -9,7 +22,7 @@ if (! function_exists('navitem')) {
     function navitem(string $routeName, string $icon, string $label): string
     {
         $url = route($routeName);
-        $active = request()->routeIs($routeName) || request()->routeIs(str_replace('.index', '.*', $routeName));
+        $active = navitem_active($routeName);
 
         return '<a href="'.$url.'" class="'.($active ? 'active' : '').'">
             <span class="material-symbols-rounded">'.$icon.'</span>
@@ -24,14 +37,14 @@ if (! function_exists('current_company_id')) {
      */
     function current_company_id(): ?string
     {
-        return \App\Models\CompanyDetail::query()->orderBy('created_at')->value('id');
+        return CompanyDetail::query()->orderBy('created_at')->value('id');
     }
 }
 
 if (! function_exists('company_timezone')) {
     function company_timezone(): string
     {
-        return \App\Models\CompanyDetail::query()->value('timezone') ?: 'Asia/Jakarta';
+        return CompanyDetail::query()->value('timezone') ?: 'Asia/Jakarta';
     }
 }
 
@@ -45,9 +58,31 @@ if (! function_exists('company_today')) {
 if (! function_exists('company_business_date')) {
     function company_business_date($at = null): string
     {
-        $at = $at ? \Illuminate\Support\Carbon::parse($at) : now();
+        $at = $at ? Carbon::parse($at) : now();
 
         return $at->setTimezone(company_timezone())->toDateString();
+    }
+}
+
+if (! function_exists('store_business_status')) {
+    /**
+     * Status tanggal bisnis store untuk ditampilkan di POS & Management Console.
+     * `locked_date` = tanggal bisnis sebelumnya yang masih punya transaksi tetapi belum di-EOD.
+     * `closed` = EOD tanggal bisnis hari ini sudah ditutup sehingga transaksi terkunci sampai dibuka ulang.
+     *
+     * @return array{business_date: string, timezone: string, server_time: string, locked_date: ?string, closed: bool}
+     */
+    function store_business_status(?string $storeId): array
+    {
+        $businessDate = company_today();
+
+        return [
+            'business_date' => $businessDate,
+            'timezone' => company_timezone(),
+            'server_time' => now()->toIso8601String(),
+            'locked_date' => $storeId ? StoreClosure::unclosedPriorDate($storeId, $businessDate) : null,
+            'closed' => $storeId && StoreClosure::isClosed($storeId, $businessDate),
+        ];
     }
 }
 
@@ -62,7 +97,7 @@ if (! function_exists('active_store_id')) {
             return $id;
         }
 
-        $id = auth()->user()?->store_id ?? \App\Models\Store::query()->orderBy('code')->value('id');
+        $id = auth()->user()?->store_id ?? Store::query()->orderBy('code')->value('id');
 
         if ($id) {
             session()->put('active_store_id', $id);

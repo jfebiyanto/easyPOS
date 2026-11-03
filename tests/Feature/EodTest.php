@@ -16,6 +16,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Support\StockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class EodTest extends TestCase
@@ -62,7 +63,7 @@ class EodTest extends TestCase
     private function sell(float $qty = 1): Sale
     {
         $this->actingAs($this->cashier)->postJson('/pos/sales', [
-            'client_uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'client_uuid' => (string) Str::uuid(),
             'origin' => 'online',
             'lines' => [['product_id' => $this->product->id, 'qty' => $qty]],
             'payments' => [['payment_type_id' => $this->cash->id, 'amount' => 10000 * $qty, 'status' => 'confirmed']],
@@ -101,7 +102,7 @@ class EodTest extends TestCase
 
         // Transaksi hari ini diblokir karena EOD kemarin belum selesai.
         $this->actingAs($this->cashier)->postJson('/pos/sales', [
-            'client_uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'client_uuid' => (string) Str::uuid(),
             'origin' => 'online',
             'lines' => [['product_id' => $this->product->id, 'qty' => 1]],
             'payments' => [['payment_type_id' => $this->cash->id, 'amount' => 10000, 'status' => 'confirmed']],
@@ -115,18 +116,97 @@ class EodTest extends TestCase
         ])->assertRedirect();
 
         $this->actingAs($this->cashier)->postJson('/pos/sales', [
-            'client_uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'client_uuid' => (string) Str::uuid(),
             'origin' => 'online',
             'lines' => [['product_id' => $this->product->id, 'qty' => 1]],
             'payments' => [['payment_type_id' => $this->cash->id, 'amount' => 10000, 'status' => 'confirmed']],
         ])->assertStatus(201);
     }
 
+    private function close(string $date): void
+    {
+        $this->actingAs($this->owner)->post(route('admin.eod.store'), [
+            'store_id' => $this->store->id,
+            'business_date' => $date,
+            'denominations' => [10000 => 1],
+        ])->assertSessionHasNoErrors();
+    }
+
+    private function reopen(string $date, ?string $reason)
+    {
+        return $this->actingAs($this->owner)->post(route('admin.eod.reopen'), [
+            'store_id' => $this->store->id,
+            'business_date' => $date,
+            'reopen_reason' => $reason,
+        ]);
+    }
+
+    private function postOnlineSale()
+    {
+        return $this->actingAs($this->cashier)->postJson('/pos/sales', [
+            'client_uuid' => (string) Str::uuid(),
+            'origin' => 'online',
+            'lines' => [['product_id' => $this->product->id, 'qty' => 1]],
+            'payments' => [['payment_type_id' => $this->cash->id, 'amount' => 10000, 'status' => 'confirmed']],
+        ]);
+    }
+
+    public function test_transaksi_terkunci_setelah_eod_dan_terbuka_kembali_setelah_eod_dibuka_ulang(): void
+    {
+        $this->sell(1);
+        $this->close(company_today());
+
+        $this->postOnlineSale()->assertStatus(422);
+
+        $this->reopen(company_today(), 'Ada transaksi susulan')->assertSessionHas('success');
+
+        $closure = StoreClosure::first();
+        $this->assertNull($closure->closed_at);
+        $this->assertSame('Ada transaksi susulan', $closure->reopen_reason);
+        $this->assertSame($this->owner->id, $closure->reopened_by);
+        $this->postOnlineSale()->assertStatus(201);
+    }
+
+    public function test_buka_ulang_eod_wajib_alasan(): void
+    {
+        $this->sell(1);
+        $this->close(company_today());
+
+        $this->reopen(company_today(), '')->assertSessionHasErrors('reopen_reason');
+
+        $this->assertNotNull(StoreClosure::first()->closed_at);
+    }
+
+    public function test_eod_tanggal_lalu_tidak_dapat_dibuka_ulang(): void
+    {
+        $yesterday = now(company_timezone())->subDay()->toDateString();
+        $this->sell(1)->update(['business_date' => $yesterday]);
+        $this->close($yesterday);
+
+        $this->reopen($yesterday, 'Koreksi kas')->assertSessionHas('error');
+
+        $this->assertNotNull(StoreClosure::first()->closed_at);
+    }
+
+    public function test_eod_yang_sudah_ditutup_tidak_dapat_ditutup_ulang_tanpa_dibuka(): void
+    {
+        $this->sell(1);
+        $this->close(company_today());
+
+        $this->actingAs($this->owner)->post(route('admin.eod.store'), [
+            'store_id' => $this->store->id,
+            'business_date' => company_today(),
+            'denominations' => [10000 => 5],
+        ])->assertSessionHas('error');
+
+        $this->assertSame(10000.0, (float) StoreClosure::first()->cash_counted);
+    }
+
     public function test_review_stok_dapat_diselesaikan(): void
     {
         // Offline dengan stok kurang → flag review.
         $this->actingAs($this->cashier)->postJson('/pos/sales', [
-            'client_uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'client_uuid' => (string) Str::uuid(),
             'origin' => 'offline',
             'lines' => [['product_id' => $this->product->id, 'qty' => 500]],
             'payments' => [['payment_type_id' => $this->cash->id, 'amount' => 5000000, 'status' => 'confirmed']],

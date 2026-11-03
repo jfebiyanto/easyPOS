@@ -14,9 +14,22 @@ export function receiptHtml(sale, meta) {
             <td>${l.qty} x ${money(l.unit_price)}</td>
             <td style="text-align:right">${money(l.line_total)}</td>
             <td></td>
+        </tr>${
+            l.discount > 0
+                ? `
+        <tr>
+            <td>&nbsp;&nbsp;${l.promotion_name || 'Diskon'}</td>
+            <td style="text-align:right">-${money(l.discount)}</td>
+            <td></td>
         </tr>`
+                : ''
+        }`
         )
         .join('');
+
+    const saving = sale.discount_total > 0
+        ? `<tr><td>Hemat</td><td style="text-align:right">-${money(sale.discount_total, sale.currency)}</td></tr>`
+        : '';
 
     const delivery = sale.delivery
         ? `<div class="small">Kirim ke: ${sale.delivery.recipient_name}<br>${sale.delivery.address}</div>`
@@ -49,6 +62,7 @@ export function receiptHtml(sale, meta) {
         <table>${lines}</table>
         <hr>
         <table>
+            ${saving}
             <tr><td>Subtotal</td><td style="text-align:right">${money(sale.subtotal, sale.currency)}</td></tr>
             <tr><td>PPN</td><td style="text-align:right">${money(sale.tax_total, sale.currency)}</td></tr>
             ${sale.shipping_cost ? `<tr><td>Kirim</td><td style="text-align:right">${money(sale.shipping_cost, sale.currency)}</td></tr>` : ''}
@@ -103,6 +117,7 @@ async function usbPrint(sale, meta) {
         const text =
             `${meta.company || 'easyPOS'}\n` +
             `No: ${sale.number}\n` +
+            (sale.discount_total > 0 ? `Hemat: -${money(sale.discount_total, sale.currency)}\n` : '') +
             `TOTAL: ${money(sale.total, sale.currency)}\n` +
             `Bayar: ${money(sale.paid_total, sale.currency)}\n` +
             `Kembali: ${money(sale.change_total, sale.currency)}\n` +

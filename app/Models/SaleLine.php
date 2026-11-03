@@ -11,7 +11,8 @@ class SaleLine extends Model
 
     protected $fillable = [
         'sale_id', 'product_id', 'sku_snapshot', 'name_snapshot', 'unit_price', 'qty',
-        'discount', 'tax_amount', 'line_total',
+        'discount', 'promotion_id', 'promotion_name_snapshot', 'promotion_discount',
+        'tax_amount', 'line_total',
     ];
 
     protected function casts(): array
@@ -20,6 +21,7 @@ class SaleLine extends Model
             'unit_price' => 'decimal:2',
             'qty' => 'decimal:3',
             'discount' => 'decimal:2',
+            'promotion_discount' => 'decimal:2',
             'tax_amount' => 'decimal:2',
             'line_total' => 'decimal:2',
         ];
@@ -28,5 +30,10 @@ class SaleLine extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function promotion()
+    {
+        return $this->belongsTo(Promotion::class);
     }
 }

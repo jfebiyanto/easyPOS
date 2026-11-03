@@ -6,10 +6,12 @@ use App\Models\CompanyDetail;
 use App\Models\Delivery;
 use App\Models\NumberingConfig;
 use App\Models\Product;
+use App\Models\Promotion;
 use App\Models\Sale;
 use App\Models\StockLedger;
 use App\Models\Store;
 use App\Models\User;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -50,14 +52,26 @@ class SaleService
             $reviewReason = null;
             $prepared = [];
 
-            foreach ($data['lines'] as $line) {
+            foreach ($data['lines'] as $key => $line) {
                 $product = Product::where('company_id', $companyId)->findOrFail($line['product_id']);
                 $qty = (float) $line['qty'];
                 $unitPrice = isset($line['unit_price']) && $line['unit_price'] !== null
                     ? (float) $line['unit_price']
                     : PricingService::resolve($storeId, $product, $qty);
-                $discount = (float) ($line['discount'] ?? 0);
-                $base = max(0, round($unitPrice * $qty - $discount, 2));
+
+                $prepared[$key] = compact('product', 'qty', 'unitPrice');
+            }
+
+            $promotions = self::resolvePromotions($data['lines'], $prepared, $companyId, $soldAt, $origin);
+            if ($promotions['review_reason']) {
+                $reviewNeeded = true;
+                $reviewReason = $promotions['review_reason'];
+            }
+
+            foreach ($prepared as $key => $p) {
+                $promotion = $promotions['lines'][$key];
+                $discount = $promotion['promotion_discount'];
+                $base = max(0, round($p['unitPrice'] * $p['qty'] - $discount, 2));
 
                 if ($taxEnabled) {
                     if ($inclusive) {
@@ -76,7 +90,7 @@ class SaleService
                 $taxSum += $tax;
                 $discountTotal += $discount;
 
-                $prepared[] = compact('product', 'qty', 'unitPrice', 'discount', 'tax', 'lineTotal');
+                $prepared[$key] += compact('discount', 'promotion', 'tax', 'lineTotal');
             }
 
             $taxTotal = round($taxSum, 2);
@@ -117,6 +131,9 @@ class SaleService
                     'unit_price' => $p['unitPrice'],
                     'qty' => $p['qty'],
                     'discount' => $p['discount'],
+                    'promotion_id' => $p['promotion']['promotion_id'],
+                    'promotion_name_snapshot' => $p['promotion']['promotion_name'],
+                    'promotion_discount' => $p['promotion']['promotion_discount'],
                     'tax_amount' => round($p['tax'], 2),
                     'line_total' => round($p['lineTotal'], 2),
                 ]);
@@ -127,7 +144,7 @@ class SaleService
                     } elseif (! StockService::allowsNegative()
                         && (StockService::balance($storeId, $p['product']->id) - $p['qty']) < 0) {
                         $reviewNeeded = true;
-                        $reviewReason = "Stok tidak mencukupi saat sinkron untuk {$p['product']->sku}.";
+                        $reviewReason = trim(($reviewReason ?? '')." Stok tidak mencukupi saat sinkron untuk {$p['product']->sku}.");
                     }
 
                     StockService::record($storeId, $p['product']->id, StockLedger::TYPE_SALE, -$p['qty'], [
@@ -172,6 +189,67 @@ class SaleService
 
             return $sale->load('lines', 'payments', 'delivery', 'customer');
         });
+    }
+
+    /**
+     * Tentukan promosi tiap baris. Online: hasil server yang dipakai, dan bila kasir mengirim hasil
+     * promosinya sendiri yang berbeda, transaksi ditolak (409) beserta hasil server agar keranjang
+     * dihitung ulang. Offline: hasil kasir yang dipakai (itu yang dibayar pelanggan); bila berbeda
+     * dengan server, transaksi masuk antrean review.
+     *
+     * @param  array<int|string, array<string, mixed>>  $lines
+     * @param  array<int|string, array{product: Product, qty: float, unitPrice: float}>  $prepared
+     * @return array{
+     *     lines: array<int|string, array{promotion_id: ?string, promotion_name: ?string, promotion_discount: float}>,
+     *     review_reason: ?string
+     * }
+     */
+    private static function resolvePromotions(array $lines, array $prepared, string $companyId, Carbon $soldAt, string $origin): array
+    {
+        $calculated = PromotionService::apply(
+            array_map(fn (array $p) => ['product_id' => $p['product']->id, 'qty' => $p['qty'], 'unit_price' => $p['unitPrice']], $prepared),
+            PromotionService::activeFor($companyId, $soldAt),
+        );
+
+        $clientSentPromotions = collect($lines)->contains(fn (array $line) => array_key_exists('promotion_id', $line));
+
+        $claimedNames = Promotion::where('company_id', $companyId)
+            ->whereIn('id', collect($lines)->pluck('promotion_id')->filter()->unique())
+            ->pluck('name', 'id');
+
+        $claimed = [];
+        $mismatched = [];
+        foreach ($lines as $key => $line) {
+            $promotionId = $line['promotion_id'] ?? null;
+            $claimed[$key] = [
+                'promotion_id' => $promotionId,
+                'promotion_name' => $promotionId ? $claimedNames[$promotionId] ?? null : null,
+                'promotion_discount' => round((float) ($line['discount'] ?? 0), 2),
+            ];
+
+            $server = $calculated['lines'][$key];
+            if ($claimed[$key]['promotion_id'] !== $server['promotion_id']
+                || abs($claimed[$key]['promotion_discount'] - $server['promotion_discount']) > 0.009) {
+                $mismatched[] = $prepared[$key]['product']->sku;
+            }
+        }
+
+        if ($origin === 'offline') {
+            return [
+                'lines' => $claimed,
+                'review_reason' => $mismatched === [] ? null : 'Promosi berbeda dengan perhitungan server untuk '.implode(', ', $mismatched).'.',
+            ];
+        }
+
+        if ($clientSentPromotions && $mismatched !== []) {
+            throw new HttpResponseException(response()->json([
+                'message' => 'Promosi berubah. Keranjang dihitung ulang, periksa total sebelum membayar.',
+                'lines' => $calculated['lines'],
+                'bonus_hints' => $calculated['bonus_hints'],
+            ], 409));
+        }
+
+        return ['lines' => $calculated['lines'], 'review_reason' => null];
     }
 
     /**

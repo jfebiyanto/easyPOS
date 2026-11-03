@@ -6,18 +6,15 @@ use App\Models\Promotion;
 use App\Support\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class PromotionApiController extends ApiController
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Promotion::where('company_id', $this->companyId($request))->with('product');
+        $query = Promotion::where('company_id', $this->companyId($request))->with('product', 'bonusProduct');
 
         if ($request->boolean('only_active')) {
-            $query->where('is_active', true)
-                ->where(fn ($q) => $q->whereNull('starts_at')->orWhere('starts_at', '<=', now()))
-                ->where(fn ($q) => $q->whereNull('ends_at')->orWhere('ends_at', '>=', now()));
+            $query->activeAt(now());
         }
 
         return response()->json(['data' => $query->get()]);
@@ -27,7 +24,7 @@ class PromotionApiController extends ApiController
     {
         $this->authorizeCompany($request, $promotion->company_id);
 
-        return response()->json(['data' => $promotion->load('product')]);
+        return response()->json(['data' => $promotion->load('product', 'bonusProduct')]);
     }
 
     public function store(Request $request): JsonResponse
@@ -64,17 +61,8 @@ class PromotionApiController extends ApiController
 
     private function validated(Request $request, ?string $id = null): array
     {
-        return $request->validate([
-            'code' => ['required', 'string', 'max:30', Rule::unique('promotions', 'code')->where('company_id', $this->companyId($request))->ignore($id)],
-            'name' => ['required', 'string', 'max:150'],
-            'type' => ['required', Rule::in(array_keys(Promotion::TYPES))],
-            'value' => ['required', 'numeric', 'min:0'],
-            'product_id' => ['nullable', Rule::exists('products', 'id')->where('company_id', $this->companyId($request))],
-            'min_qty' => ['nullable', 'integer', 'min:1'],
-            'starts_at' => ['nullable', 'date'],
-            'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
-            'is_active' => ['sometimes', 'boolean'],
-            'description' => ['nullable', 'string', 'max:500'],
-        ]);
+        return Promotion::normalize($request->validate(
+            Promotion::rules($this->companyId($request), $id, $request->input('type'))
+        ));
     }
 }

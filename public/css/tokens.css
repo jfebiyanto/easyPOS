@@ -1,17 +1,17 @@
 /* ============================================================
    easyPOS — Design Tokens (Design Brief v1.0)
    Lapisan identitas di atas fondasi MD3. Dimuat setelah md3.css.
-   Palet: Ledger Teal + Signal Amber, netral hangat.
+   Palet: Elegant Blue + Signal Amber, netral hangat.
    Tipografi: Inter (UI) + IBM Plex Mono (angka/kode).
    ============================================================ */
 
 :root {
-    /* --- Brand / Primary: Ledger Teal --- */
-    --color-primary: #0F6E63;
-    --color-primary-hover: #0B5A51;
+    /* --- Brand / Primary: Elegant Blue --- */
+    --color-primary: #1E4E8C;
+    --color-primary-hover: #173E70;
     --color-on-primary: #FFFFFF;
-    --color-primary-container: #B8E3DA;
-    --color-on-primary-container: #04332D;
+    --color-primary-container: #D3E1F4;
+    --color-on-primary-container: #0B2547;
 
     /* --- Accent / Attention: Signal Amber --- */
     --color-accent: #B45309;
@@ -49,7 +49,7 @@
     --shadow-1: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.10);
     --shadow-2: 0 4px 8px -2px rgba(16,24,40,.10), 0 2px 4px -2px rgba(16,24,40,.06);
     --shadow-3: 0 12px 24px -6px rgba(16,24,40,.14), 0 4px 8px -4px rgba(16,24,40,.08);
-    --focus-ring: 0 0 0 3px rgba(15,110,99,.35);
+    --focus-ring: 0 0 0 3px rgba(30,78,140,.35);
 
     /* --- Spacing --- */
     --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
@@ -68,8 +68,8 @@
     --md-primary-container: var(--color-primary-container);
     --md-on-primary: var(--color-on-primary);
     --md-on-primary-container: var(--color-on-primary-container);
-    --md-secondary: #4A5A57;
-    --md-secondary-container: #E2E9E7;
+    --md-secondary: #4A5468;
+    --md-secondary-container: #E2E7EF;
     --md-surface: var(--color-bg);
     --md-surface-variant: #ECECE8;
     --md-surface-container: var(--color-surface-2);
@@ -116,15 +116,15 @@ html, body {
     border-radius: var(--radius-sm);
 }
 
-/* Navigasi: teal gelap, bukan navy */
+/* Navigasi: biru elegan */
 .nav-drawer {
-    background: linear-gradient(180deg, #0B4F47 0%, #0F6E63 100%);
+    background: linear-gradient(180deg, #132F57 0%, #1E4E8C 100%);
 }
-.nav-brand .material-symbols-rounded { color: #9FD8CD; }
+.nav-brand .material-symbols-rounded { color: #A9C6EC; }
 
-/* Login: teal gelap */
+/* Login: biru gelap */
 .login-page {
-    background: linear-gradient(135deg, #073B36 0%, #0F6E63 60%, #2E8E80 100%);
+    background: linear-gradient(135deg, #0A1F3D 0%, #1E4E8C 60%, #3D6FB0 100%);
 }
 
 /* Status chip dasar (dipakai lintas surface) */

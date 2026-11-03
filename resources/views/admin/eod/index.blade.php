@@ -41,11 +41,49 @@
     </div>
 </div>
 
-@if ($closure && $closure->closed_at)
+@php
+    $isClosed = $closure && $closure->closed_at;
+    $canReopen = $isClosed && $businessDate === company_today();
+@endphp
+
+@if ($isClosed)
     <div class="md-snackbar success">
         <span class="material-symbols-rounded">lock</span>
         Toko sudah ditutup untuk {{ $businessDate }}. Kas dihitung: Rp {{ number_format($closure->cash_counted, 0, ',', '.') }}
         · Selisih: Rp {{ number_format($closure->cash_variance, 0, ',', '.') }}
+    </div>
+@endif
+
+@if ($closure?->reopened_at)
+    <p class="card-subtitle">
+        Terakhir dibuka ulang {{ $closure->reopened_at->timezone(company_timezone())->format('d/m/Y H:i') }}
+        oleh {{ $closure->reopenedBy?->name ?? '-' }} · Alasan: {{ $closure->reopen_reason }}
+    </p>
+@endif
+
+@if ($isClosed)
+    <div class="card">
+        <h2 class="card-title">Buka Ulang EOD</h2>
+        @if ($canReopen)
+            <p class="card-subtitle">Transaksi POS tanggal ini terkunci. Buka ulang EOD untuk melanjutkan transaksi, lalu tutup kembali di akhir hari.</p>
+            <form method="POST" action="{{ route('admin.eod.reopen') }}">
+                @csrf
+                <input type="hidden" name="business_date" value="{{ $businessDate }}">
+                <input type="hidden" name="store_id" value="{{ $storeId }}">
+                <div class="field @error('reopen_reason') has-error @enderror">
+                    <label for="reopen_reason">Alasan buka ulang <span style="color: var(--md-error);">*</span></label>
+                    <input type="text" id="reopen_reason" name="reopen_reason" value="{{ old('reopen_reason') }}" maxlength="500" required>
+                    @error('reopen_reason') <div class="error">{{ $message }}</div> @enderror
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-tonal">
+                        <span class="material-symbols-rounded">lock_open</span> Buka Ulang EOD
+                    </button>
+                </div>
+            </form>
+        @else
+            <p class="card-subtitle">EOD hanya dapat dibuka ulang pada tanggal bisnis yang sama dengan tanggal sistem ({{ company_today() }}).</p>
+        @endif
     </div>
 @endif
 
@@ -105,7 +143,7 @@
         @endif
 
         <div class="form-actions">
-            <button type="submit" class="btn btn-filled" @disabled(! $storeId)>
+            <button type="submit" class="btn btn-filled" @disabled(! $storeId || $isClosed)>
                 <span class="material-symbols-rounded">lock</span> Tutup Toko
             </button>
         </div>

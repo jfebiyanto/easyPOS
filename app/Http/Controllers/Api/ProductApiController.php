@@ -19,9 +19,9 @@ class ProductApiController extends ApiController
         $query = Product::where('company_id', $companyId)->with(['group', 'brand', 'unit']);
 
         if ($search = $request->query('q')) {
-            $query->where(fn (Builder $q) => $q->where('name', 'like', "%{$search}%")
-                ->orWhere('sku', 'like', "%{$search}%")
-                ->orWhere('barcode', 'like', "%{$search}%"));
+            $query->where(fn (Builder $q) => $q->whereLike('name', "%{$search}%")
+                ->orWhereLike('sku', "%{$search}%")
+                ->orWhereLike('barcode', "%{$search}%"));
         }
         if ($groupId = $request->query('group_id')) {
             $query->where('product_group_id', $groupId);
@@ -30,7 +30,7 @@ class ProductApiController extends ApiController
             $query->where('is_active', true);
         }
 
-        return response()->json(['data' => $query->orderBy('name')->get()]);
+        return response()->json(['data' => $query->orderBy('sku')->get()]);
     }
 
     public function show(Request $request, Product $product): JsonResponse

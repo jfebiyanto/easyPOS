@@ -54,7 +54,7 @@ class ReportService
         $sales = Sale::whereIn('store_id', $storeIds)
             ->where('status', Sale::STATUS_COMPLETED)
             ->where('business_date', '>=', $from)->where('business_date', '<=', $to.' 23:59:59')
-            ->selectRaw('store_id, count(*) as txn, sum(subtotal) as subtotal, sum(tax_total) as tax, sum(total) as total')
+            ->selectRaw('store_id, count(*) as txn, sum(discount_total) as discount, sum(subtotal) as subtotal, sum(tax_total) as tax, sum(total) as total')
             ->groupBy('store_id')
             ->get()
             ->keyBy('store_id');
@@ -75,6 +75,7 @@ class ReportService
             return [
                 $store->code.' · '.$store->name,
                 (int) ($s->txn ?? 0),
+                (float) ($s->discount ?? 0),
                 (float) ($s->subtotal ?? 0),
                 (float) ($s->tax ?? 0),
                 $gross,
@@ -84,9 +85,9 @@ class ReportService
         })->all();
 
         return [
-            'columns' => ['Gerai', 'Transaksi', 'Subtotal', 'PPN', 'Omzet', 'Retur', 'Net'],
+            'columns' => ['Gerai', 'Transaksi', 'Diskon', 'Subtotal', 'PPN', 'Omzet', 'Retur', 'Net'],
             'rows' => $rows,
-            'numeric' => [1, 2, 3, 4, 5, 6],
+            'numeric' => [1, 2, 3, 4, 5, 6, 7],
         ];
     }
 
@@ -102,7 +103,7 @@ class ReportService
             $rows[] = [$item['sku'], $item['name'], $item['qty'], $item['omzet']];
         }
 
-        usort($rows, fn ($a, $b) => $b[2] <=> $a[2]);
+        usort($rows, fn ($a, $b) => strnatcmp((string) $a[0], (string) $b[0]));
 
         return ['columns' => ['SKU', 'Produk', 'Qty', 'Omzet'], 'rows' => $rows, 'numeric' => [2, 3]];
     }

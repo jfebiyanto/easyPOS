@@ -13,7 +13,7 @@ use Illuminate\View\View;
 
 class StockController extends Controller
 {
-    use ScopesToStore, AuthorizesCompany;
+    use AuthorizesCompany, ScopesToStore;
 
     public function index(Request $request): View
     {
@@ -22,7 +22,7 @@ class StockController extends Controller
         $products = Product::where('company_id', current_company_id())
             ->where('track_stock', true)
             ->with('unit')
-            ->orderBy('name')
+            ->orderBy('sku')
             ->get();
 
         return view('admin.stock.index', [

@@ -148,3 +148,48 @@ html, body {
     .user-chip-text { display: none; }
     .content { padding: 16px; }
 }
+/* Status bar bawah: tanggal bisnis & jam */
+.app-main > .content { flex: 1; }
+.status-bar {
+    position: sticky; bottom: 0; z-index: 5;
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+    padding: 6px 24px; font-size: 12px; color: var(--md-on-surface-variant);
+    background: var(--md-surface-container); border-top: 1px solid var(--md-outline-variant);
+}
+.status-bar-item { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; color: inherit; }
+.status-bar-item strong { color: var(--md-on-surface); font-variant-numeric: tabular-nums; }
+.status-bar-item .material-symbols-rounded { font-size: 16px; }
+.status-bar-warning { margin-left: auto; font-weight: 600; color: var(--md-error); }
+.status-bar-warning:hover { text-decoration: underline; }
+@media (max-width: 900px) {
+    .status-bar { padding: 6px 16px; gap: 10px; }
+    .status-bar-warning { margin-left: 0; }
+}
+
+/* Dropdown store aktif di top bar */
+.store-switcher { position: relative; }
+.store-switcher-toggle { border: none; font: inherit; color: inherit; cursor: pointer; }
+.store-switcher-toggle:hover { background: var(--md-surface-variant); }
+.store-switcher-chevron { font-size: 18px; color: var(--md-on-surface-variant); transition: transform .2s; }
+.store-switcher-toggle[aria-expanded="true"] .store-switcher-chevron { transform: rotate(180deg); }
+.store-switcher-panel {
+    position: absolute; top: calc(100% + 8px); left: 0; z-index: 30; width: 300px; max-width: calc(100vw - 32px);
+    background: var(--md-surface); border: 1px solid var(--md-outline-variant); border-radius: 14px;
+    box-shadow: 0 8px 28px rgba(16, 24, 40, .16); padding: 14px;
+}
+.store-switcher-panel[hidden] { display: none; }
+.store-switcher-info strong { font-size: 14px; }
+.store-switcher-info dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 10px 0 12px; font-size: 13px; }
+.store-switcher-info dt { color: var(--md-on-surface-variant); }
+.store-switcher-info dd { margin: 0; }
+.store-switcher-label { margin: 14px 0 6px; padding-top: 12px; border-top: 1px solid var(--md-outline-variant); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--md-on-surface-variant); }
+.store-switcher-list { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow-y: auto; }
+.store-switcher-list button {
+    display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: none; border-radius: 8px;
+    background: none; font: inherit; font-size: 13px; color: var(--md-on-surface); text-align: left; cursor: pointer;
+}
+.store-switcher-list button:hover { background: var(--md-surface-container); }
+.store-switcher-list .material-symbols-rounded { font-size: 18px; color: var(--md-primary); }
+@media (max-width: 900px) {
+    .store-switcher-chevron { display: none; }
+}

@@ -15,6 +15,7 @@ use Illuminate\View\View;
 class PriceListController extends Controller
 {
     use AuthorizesCompany;
+
     public function index(): View
     {
         return view('admin.products.price_lists.index', [
@@ -30,7 +31,7 @@ class PriceListController extends Controller
     public function create(): View
     {
         return view('admin.products.price_lists.form', [
-            'priceList' => new PriceList(),
+            'priceList' => new PriceList,
         ]);
     }
 
@@ -69,8 +70,10 @@ class PriceListController extends Controller
         $this->ensureCompany($priceList->company_id);
 
         return view('admin.products.price_lists.items', [
-            'priceList' => $priceList->load('items.product'),
-            'products' => Product::where('is_active', true)->where('company_id', $priceList->company_id)->orderBy('name')->get(),
+            'priceList' => $priceList->load(['items' => fn ($q) => $q->join('products', 'products.id', '=', 'price_list_items.product_id')
+                ->orderBy('products.sku')->orderBy('price_list_items.min_qty')
+                ->select('price_list_items.*'), 'items.product']),
+            'products' => Product::where('is_active', true)->where('company_id', $priceList->company_id)->orderBy('sku')->get(),
         ]);
     }
 

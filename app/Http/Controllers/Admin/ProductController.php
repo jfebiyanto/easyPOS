@@ -10,21 +10,26 @@ use App\Models\ProductGroup;
 use App\Models\Unit;
 use App\Support\ActivityLogger;
 use App\Support\PriceListSync;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Throwable;
 
 class ProductController extends Controller
 {
     use AuthorizesCompany;
+
     public function index(Request $request): View
     {
         $query = Product::with(['group', 'brand', 'unit']);
 
         if ($search = $request->string('q')->toString()) {
-            $query->where(fn ($q) => $q->where('name', 'like', "%{$search}%")
-                ->orWhere('sku', 'like', "%{$search}%")
-                ->orWhere('barcode', 'like', "%{$search}%"));
+            $query->where(fn ($q) => $q->whereLike('name', "%{$search}%")
+                ->orWhereLike('sku', "%{$search}%")
+                ->orWhereLike('barcode', "%{$search}%"));
         }
 
         if ($groupId = $request->query('group')) {
@@ -35,7 +40,8 @@ class ProductController extends Controller
             $query,
             $request->query('sort'), $request->query('dir'),
             ['sku', 'name', 'base_price', 'is_active', 'created_at'],
-            'created_at'
+            'sku',
+            'asc'
         );
 
         return view('admin.products.products.index', [
@@ -47,18 +53,34 @@ class ProductController extends Controller
     public function create(): View
     {
         return view('admin.products.products.form', [
-            'product' => new Product(),
+            'product' => new Product,
             'groups' => ProductGroup::orderBy('name')->get(),
             'brands' => Brand::orderBy('name')->get(),
             'units' => Unit::where('is_active', true)->orderBy('name')->get(),
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request): RedirectResponse
     {
-        $product = Product::create($this->validated($request) + ['company_id' => current_company_id()]);
+        $data = $this->validated($request);
+        $image = $data['image'] ?? null;
+        unset($data['image'], $data['remove_image']);
 
-        PriceListSync::syncBasePrice($product);
+        $newImagePath = $image?->store('products', 'public');
+
+        try {
+            $product = DB::transaction(function () use ($data, $newImagePath) {
+                $product = Product::create($data + ['company_id' => current_company_id(), 'image_path' => $newImagePath]);
+
+                PriceListSync::syncBasePrice($product);
+
+                return $product;
+            });
+        } catch (Throwable $e) {
+            $this->deleteImageFile($newImagePath);
+
+            throw $e;
+        }
 
         ActivityLogger::log('product.created', "Membuat produk: {$product->sku} · {$product->name} (harga Rp ".number_format($product->base_price, 0, ',', '.').')', $product);
 
@@ -77,16 +99,43 @@ class ProductController extends Controller
         ]);
     }
 
-    public function update(Request $request, Product $product)
+    public function update(Request $request, Product $product): RedirectResponse
     {
         $this->ensureCompany($product->company_id);
 
         $oldBasePrice = $product->base_price;
 
-        $product->update($this->validated($request, $product->id));
+        $oldImagePath = $product->image_path;
 
-        if ($oldBasePrice != $product->base_price) {
-            PriceListSync::syncBasePrice($product);
+        $data = $this->validated($request, $product->id);
+        $image = $data['image'] ?? null;
+        $removeImage = (bool) ($data['remove_image'] ?? false);
+        unset($data['image'], $data['remove_image']);
+
+        $newImagePath = $image?->store('products', 'public');
+
+        if ($newImagePath) {
+            $data['image_path'] = $newImagePath;
+        } elseif ($removeImage) {
+            $data['image_path'] = null;
+        }
+
+        try {
+            DB::transaction(function () use ($product, $data, $oldBasePrice) {
+                $product->update($data);
+
+                if ($oldBasePrice != $product->base_price) {
+                    PriceListSync::syncBasePrice($product);
+                }
+            });
+        } catch (Throwable $e) {
+            $this->deleteImageFile($newImagePath);
+
+            throw $e;
+        }
+
+        if ($oldImagePath !== $product->image_path) {
+            $this->deleteImageFile($oldImagePath);
         }
 
         ActivityLogger::log('product.updated', "Mengubah produk: {$product->sku} · {$product->name}", $product, [
@@ -98,16 +147,24 @@ class ProductController extends Controller
         return redirect()->route('admin.products.index')->with('success', 'Produk berhasil diperbarui.');
     }
 
-    public function destroy(Product $product)
+    public function destroy(Product $product): RedirectResponse
     {
         $this->ensureCompany($product->company_id);
 
         $label = $product->sku.' · '.$product->name;
         $product->delete();
+        $this->deleteImageFile($product->image_path);
 
         ActivityLogger::log('product.deleted', "Menghapus produk: {$label}", $product);
 
         return redirect()->route('admin.products.index')->with('success', 'Produk berhasil dihapus.');
+    }
+
+    private function deleteImageFile(?string $path): void
+    {
+        if ($path) {
+            Storage::disk('public')->delete($path);
+        }
     }
 
     private function validated(Request $request, ?string $id = null): array
@@ -119,6 +176,8 @@ class ProductController extends Controller
             'sku' => ['required', 'string', 'max:40', Rule::unique('products', 'sku')->where('company_id', current_company_id())->ignore($id)],
             'barcode' => ['nullable', 'string', 'max:60', Rule::unique('products', 'barcode')->where('company_id', current_company_id())->ignore($id)],
             'name' => ['required', 'string', 'max:150'],
+            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'remove_image' => ['sometimes', 'boolean'],
             'description' => ['nullable', 'string', 'max:500'],
             'base_price' => ['required', 'numeric', 'min:0'],
             'cost_price' => ['nullable', 'numeric', 'min:0'],

@@ -5,10 +5,10 @@ namespace App\Http\Controllers\Pos;
 use App\Http\Controllers\Controller;
 use App\Models\CompanyDetail;
 use App\Models\Customer;
-use App\Models\Delivery;
 use App\Models\NumberingConfig;
 use App\Models\PaymentType;
 use App\Models\Product;
+use App\Models\Promotion;
 use App\Models\Sale;
 use App\Models\SaleDraft;
 use App\Models\SalesReturn;
@@ -63,6 +63,7 @@ class PosController extends Controller
             'store' => ['id' => $store->id, 'code' => $store->code, 'name' => $store->name],
             'cashier' => $request->user()->only(['id', 'name', 'role']),
             'payment_types' => $paymentTypes,
+            'business' => store_business_status($store->id),
         ]);
     }
 
@@ -76,23 +77,71 @@ class PosController extends Controller
             ->with('unit');
 
         if ($search = $request->query('q')) {
-            $query->where(fn ($q) => $q->where('name', 'like', "%{$search}%")
-                ->orWhere('sku', 'like', "%{$search}%")
-                ->orWhere('barcode', 'like', "%{$search}%"));
+            $query->where(fn ($q) => $q->whereLike('name', "%{$search}%")
+                ->orWhereLike('sku', "%{$search}%")
+                ->orWhereLike('barcode', "%{$search}%"));
         }
 
-        $products = $query->orderBy('name')->limit(200)->get()->map(fn (Product $p) => [
+        $products = $query->orderBy('sku')->limit(200)->get()->map(fn (Product $p) => [
             'id' => $p->id,
             'sku' => $p->sku,
             'barcode' => $p->barcode,
             'name' => $p->name,
             'unit' => $p->unit?->code,
+            'image' => $p->image_url,
             'track_stock' => (bool) $p->track_stock,
             'price' => PricingService::resolve($store->id, $p, 1),
             'stock' => $p->track_stock ? StockService::balance($store->id, $p->id) : null,
         ]);
 
         return response()->json(['data' => $products]);
+    }
+
+    /**
+     * Promosi untuk mesin promosi di kasir: yang aktif sekarang maupun yang baru mulai nanti,
+     * agar tetap terhitung saat kasir offline. Disertai data produk bonus untuk tombol "Tambah bonus".
+     */
+    public function promotions(Request $request): JsonResponse
+    {
+        $store = $this->store($request);
+        abort_unless($store, 422, 'Kasir belum ditugaskan ke gerai.');
+
+        $promotions = Promotion::where('company_id', current_company_id())
+            ->where('is_active', true)
+            ->where(fn ($q) => $q->whereNull('ends_at')->orWhere('ends_at', '>=', now()))
+            ->with('product', 'bonusProduct')
+            ->get()
+            ->map(function (Promotion $promotion) use ($store) {
+                $bonusProduct = $promotion->type === 'buy_x_get_y'
+                    ? ($promotion->bonusProduct ?? $promotion->product)
+                    : null;
+
+                return [
+                    'id' => $promotion->id,
+                    'code' => $promotion->code,
+                    'name' => $promotion->name,
+                    'type' => $promotion->type,
+                    'value' => (float) $promotion->value,
+                    'product_id' => $promotion->product_id,
+                    'min_qty' => $promotion->min_qty,
+                    'buy_qty' => $promotion->buy_qty,
+                    'get_qty' => $promotion->get_qty,
+                    'get_product_id' => $promotion->get_product_id,
+                    'max_applications' => $promotion->max_applications,
+                    'starts_at' => $promotion->starts_at?->toIso8601String(),
+                    'ends_at' => $promotion->ends_at?->toIso8601String(),
+                    'bonus_product' => $bonusProduct ? [
+                        'id' => $bonusProduct->id,
+                        'sku' => $bonusProduct->sku,
+                        'name' => $bonusProduct->name,
+                        'price' => PricingService::resolve($store->id, $bonusProduct, 1),
+                        'track_stock' => (bool) $bonusProduct->track_stock,
+                        'stock' => $bonusProduct->track_stock ? StockService::balance($store->id, $bonusProduct->id) : null,
+                    ] : null,
+                ];
+            });
+
+        return response()->json(['data' => $promotions]);
     }
 
     public function storeSale(Request $request): JsonResponse
@@ -111,6 +160,7 @@ class PosController extends Controller
             'lines.*.qty' => ['required', 'numeric', 'min:0.001'],
             'lines.*.unit_price' => ['nullable', 'numeric', 'min:0'],
             'lines.*.discount' => ['nullable', 'numeric', 'min:0'],
+            'lines.*.promotion_id' => ['nullable', Rule::exists('promotions', 'id')->where('company_id', current_company_id())],
             'payments' => ['required', 'array', 'min:1'],
             'payments.*.payment_type_id' => ['nullable', Rule::exists('payment_types', 'id')->where('company_id', current_company_id())],
             'payments.*.amount' => ['required', 'numeric', 'min:0'],
@@ -120,7 +170,11 @@ class PosController extends Controller
             'delivery.address' => ['required_with:delivery', 'string', 'max:500'],
             'delivery.phone' => ['nullable', 'string', 'max:30'],
             'delivery.note' => ['nullable', 'string', 'max:500'],
+            'hold_client_uuid' => ['nullable', 'uuid'],
         ]);
+
+        $holdClientUuid = $data['hold_client_uuid'] ?? null;
+        unset($data['hold_client_uuid']);
 
         $data['store_id'] = $store->id;
 
@@ -129,9 +183,22 @@ class PosController extends Controller
             $businessDate = company_business_date($data['sold_at'] ?? null);
             $locked = StoreClosure::unclosedPriorDate($store->id, $businessDate);
             abort_if($locked, 422, "Tutup toko tanggal {$locked} belum diselesaikan. Selesaikan EOD dulu.");
+            abort_if(
+                StoreClosure::isClosed($store->id, $businessDate),
+                422,
+                "EOD tanggal {$businessDate} sudah ditutup. Buka ulang EOD di Management Console untuk melanjutkan transaksi."
+            );
         }
 
         $sale = SaleService::create($data, $request->user());
+
+        if ($holdClientUuid) {
+            SaleDraft::where('client_uuid', $holdClientUuid)
+                ->where('company_id', current_company_id())
+                ->where('cashier_id', $request->user()->id)
+                ->whereIn('status', ['held', 'resumed'])
+                ->update(['status' => 'finalized']);
+        }
 
         ActivityLogger::log('pos.sale_created', "Transaksi POS {$sale->number} sebesar {$sale->total}", $sale);
 
@@ -243,22 +310,29 @@ class PosController extends Controller
                 $line = $sale->lines()->whereKey($row['sale_line_id'])->firstOrFail();
                 $qty = (float) $row['qty'];
 
-                $already = (float) DB::table('sales_return_lines')
+                $already = DB::table('sales_return_lines')
                     ->join('sales_returns', 'sales_returns.id', '=', 'sales_return_lines.sales_return_id')
                     ->where('sales_returns.original_sale_id', $sale->id)
                     ->where('sales_return_lines.sale_line_id', $line->id)
-                    ->sum('sales_return_lines.qty');
+                    ->selectRaw('coalesce(sum(sales_return_lines.qty), 0) as qty, coalesce(sum(sales_return_lines.line_total), 0) as amount')
+                    ->first();
 
-                abort_if($qty > ((float) $line->qty - $already), 422, "Qty retur melebihi sisa untuk {$line->sku_snapshot}.");
+                $remainingQty = (float) $line->qty - (float) $already->qty;
+                abort_if($qty > $remainingQty, 422, "Qty retur melebihi sisa untuk {$line->sku_snapshot}.");
 
-                $lineTotal = round($qty * (float) $line->unit_price, 2);
+                // Refund memakai harga bersih yang benar-benar dibayar (setelah promosi, termasuk PPN)
+                // per unit. Sisa terakhir mengambil selisihnya agar total refund tidak melebihi baris.
+                $netUnitPrice = (float) $line->line_total / (float) $line->qty;
+                $lineTotal = abs($qty - $remainingQty) < 0.0005
+                    ? round((float) $line->line_total - (float) $already->amount, 2)
+                    : round($qty * $netUnitPrice, 2);
                 $total += $lineTotal;
 
                 $return->lines()->create([
                     'sale_line_id' => $line->id,
                     'product_id' => $line->product_id,
                     'qty' => $qty,
-                    'unit_price' => $line->unit_price,
+                    'unit_price' => round($netUnitPrice, 2),
                     'line_total' => $lineTotal,
                 ]);
 
@@ -310,6 +384,15 @@ class PosController extends Controller
             'payload' => ['required', 'array'],
         ]);
 
+        $existing = SaleDraft::where('client_uuid', $data['client_uuid'])->first();
+
+        abort_if(
+            $existing && ($existing->company_id !== current_company_id() || $existing->cashier_id !== $request->user()->id),
+            409,
+            'ID transaksi ditahan sudah dipakai.'
+        );
+        abort_if($existing?->status === 'finalized', 409, 'Transaksi ditahan sudah menjadi penjualan.');
+
         $draft = SaleDraft::updateOrCreate(
             ['client_uuid' => $data['client_uuid']],
             [
@@ -329,9 +412,58 @@ class PosController extends Controller
     {
         abort_unless($draft->company_id === current_company_id(), 404);
 
+        $user = $request->user();
+        abort_unless($draft->cashier_id === $user->id || $user->canAccessBackoffice(), 403);
+
         $draft->update(['status' => 'cancelled']);
 
         return response()->json(['message' => 'Transaksi ditahan dibatalkan.']);
+    }
+
+    public function consumeHold(Request $request, SaleDraft $draft): JsonResponse
+    {
+        abort_unless($draft->company_id === current_company_id(), 404);
+        abort_unless($draft->cashier_id === $request->user()->id, 403);
+
+        $consumed = SaleDraft::whereKey($draft->id)->where('status', 'held')->update(['status' => 'resumed']);
+        abort_if($consumed === 0, 409, 'Transaksi ditahan sudah dilanjutkan atau dibatalkan.');
+
+        return response()->json(['message' => 'Tahan diambil untuk dilanjutkan.', 'data' => [
+            'id' => $draft->id,
+            'client_uuid' => $draft->client_uuid,
+            'stock' => $this->holdStock($draft),
+        ]]);
+    }
+
+    /**
+     * Stok terkini produk di keranjang hold (null = stok tidak dilacak), agar kasir
+     * dapat menyesuaikan qty saat hold dilanjutkan. Menahan transaksi tidak memotong stok.
+     *
+     * @return array<string, float|null>
+     */
+    private function holdStock(SaleDraft $draft): array
+    {
+        $productIds = collect($draft->payload['cart'] ?? [])->pluck('id')->filter()->unique()->values()->all();
+        $products = Product::where('company_id', current_company_id())->whereIn('id', $productIds)->get(['id', 'track_stock']);
+        $balances = StockService::balances($draft->store_id, $products->where('track_stock', true)->pluck('id')->all());
+
+        return $products->mapWithKeys(fn (Product $p) => [
+            $p->id => $p->track_stock ? ($balances[$p->id] ?? 0.0) : null,
+        ])->all();
+    }
+
+    /**
+     * Mengembalikan hold yang sedang dilanjutkan ke daftar tahan bila keranjangnya
+     * dikosongkan atau halaman dimuat ulang sebelum menjadi penjualan.
+     */
+    public function releaseHold(Request $request, SaleDraft $draft): JsonResponse
+    {
+        abort_unless($draft->company_id === current_company_id(), 404);
+        abort_unless($draft->cashier_id === $request->user()->id, 403);
+
+        SaleDraft::whereKey($draft->id)->where('status', 'resumed')->update(['status' => 'held']);
+
+        return response()->json(['message' => 'Transaksi dikembalikan ke daftar tahan.']);
     }
 
     public function customers(Request $request): JsonResponse
@@ -341,9 +473,9 @@ class PosController extends Controller
         $query = Customer::where('company_id', current_company_id())->with('memberLevel');
 
         if ($q !== '') {
-            $query->where(fn ($x) => $x->where('phone', 'like', "%{$q}%")
-                ->orWhere('code', 'like', "%{$q}%")
-                ->orWhere('name', 'like', "%{$q}%"));
+            $query->where(fn ($x) => $x->whereLike('phone', "%{$q}%")
+                ->orWhereLike('code', "%{$q}%")
+                ->orWhereLike('name', "%{$q}%"));
         }
 
         $data = $query->orderBy('name')->limit(20)->get()->map(fn (Customer $c) => $this->customerPayload($c));
@@ -417,6 +549,7 @@ class PosController extends Controller
             'origin' => $sale->origin,
             'stock_review_status' => $sale->stock_review_status,
             'subtotal' => (float) $sale->subtotal,
+            'discount_total' => (float) $sale->discount_total,
             'tax_total' => (float) $sale->tax_total,
             'shipping_cost' => (float) $sale->shipping_cost,
             'total' => (float) $sale->total,
@@ -431,6 +564,8 @@ class PosController extends Controller
                 'name' => $l->name_snapshot,
                 'qty' => (float) $l->qty,
                 'unit_price' => (float) $l->unit_price,
+                'discount' => (float) $l->discount,
+                'promotion_name' => $l->promotion_name_snapshot,
                 'tax_amount' => (float) $l->tax_amount,
                 'line_total' => (float) $l->line_total,
             ]),

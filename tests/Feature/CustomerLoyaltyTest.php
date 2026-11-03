@@ -16,6 +16,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Support\StockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class CustomerLoyaltyTest extends TestCase
@@ -135,7 +136,7 @@ class CustomerLoyaltyTest extends TestCase
 
         $this->actingAs($this->cashier)
             ->postJson('/pos/sales', [
-                'client_uuid' => (string) \Illuminate\Support\Str::uuid(),
+                'client_uuid' => (string) Str::uuid(),
                 'origin' => 'online',
                 'customer_id' => $customerId,
                 'lines' => [['product_id' => $this->product->id, 'qty' => $qty]],
@@ -197,7 +198,6 @@ class CustomerLoyaltyTest extends TestCase
         $this->assertSame(0.0, (float) $sale->points_earned);
     }
 
-    public function test_level_naik_otomatis_saat_ambang_terlewati(): void
     public function test_walk_in_non_member_dicatat_atas_pelanggan_retail_default_tanpa_poin(): void
     {
         $retail = Customer::create([
@@ -246,6 +246,7 @@ class CustomerLoyaltyTest extends TestCase
         $this->assertFalse($retail->refresh()->is_member);
     }
 
+    public function test_level_naik_otomatis_saat_ambang_terlewati(): void
     {
         $this->member->update(['points_balance' => 99, 'member_level_id' => $this->silver->id]);
 
@@ -297,5 +298,17 @@ class CustomerLoyaltyTest extends TestCase
 
         $this->actingAs($manager)->get(route('admin.member-levels.index'))->assertForbidden();
         $this->actingAs($this->owner)->get(route('admin.member-levels.index'))->assertOk();
+    }
+
+    public function test_keterangan_masa_berlaku_poin_tampil_di_bawah_input(): void
+    {
+        $this->actingAs($this->owner)
+            ->get(route('admin.member-levels.index'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                '<label for="expiry_days">Masa berlaku poin (hari)</label>',
+                'id="expiry_days"',
+                '<div class="hint">Kosongkan jika poin tanpa kedaluwarsa.</div>',
+            ], false);
     }
 }

@@ -22,7 +22,7 @@
 <div class="table-wrap">
     <table class="md-table">
         <thead>
-            <tr><th>{!! sort_link('Kode', 'code') !!}</th><th>{!! sort_link('Nama', 'name') !!}</th><th>{!! sort_link('Tipe', 'type') !!}</th><th>{!! sort_link('Nilai', 'value') !!}</th><th>Periode</th><th>{!! sort_link('Status', 'is_active') !!}</th><th style="text-align:right;">Aksi</th></tr>
+            <tr><th>{!! sort_link('Kode', 'code') !!}</th><th>{!! sort_link('Nama', 'name') !!}</th><th>{!! sort_link('Tipe', 'type') !!}</th><th>Produk</th><th>Aturan</th><th>Periode</th><th>{!! sort_link('Status', 'is_active') !!}</th><th style="text-align:right;">Aksi</th></tr>
         </thead>
         <tbody>
             @forelse ($promotions as $promotion)
@@ -30,13 +30,8 @@
                     <td><strong>{{ $promotion->code }}</strong></td>
                     <td>{{ $promotion->name }}</td>
                     <td><span class="badge info">{{ \App\Models\Promotion::TYPES[$promotion->type] ?? $promotion->type }}</span></td>
-                    <td>
-                        @if (in_array($promotion->type, ['discount_percent']))
-                            {{ rtrim(rtrim($promotion->value, '0'), '.') }}%
-                        @else
-                            Rp {{ number_format($promotion->value, 0, ',', '.') }}
-                        @endif
-                    </td>
+                    <td>{{ $promotion->product?->name ?? 'Semua produk' }}</td>
+                    <td>{{ $promotion->ruleSummary() }}</td>
                     <td>{{ $promotion->starts_at?->format('d/m/Y') ?? '-' }} ~ {{ $promotion->ends_at?->format('d/m/Y') ?? '∞' }}</td>
                     <td><span class="badge {{ $promotion->is_active ? 'active' : 'inactive' }}">{{ $promotion->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
                     <td>
@@ -50,7 +45,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="7"><div class="empty-state"><span class="material-symbols-rounded">percent</span><p>Belum ada promosi.</p></div></td></tr>
+                <tr><td colspan="8"><div class="empty-state"><span class="material-symbols-rounded">percent</span><p>Belum ada promosi.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>

@@ -21,6 +21,7 @@ Route::middleware('auth')->prefix('pos')->name('pos.')->group(function () {
     Route::get('/', [PosController::class, 'shell'])->name('index');
     Route::get('/bootstrap', [PosController::class, 'bootstrap'])->name('bootstrap');
     Route::get('/products', [PosController::class, 'products'])->name('products');
+    Route::get('/promotions', [PosController::class, 'promotions'])->name('promotions');
     Route::get('/sales-lookup', [PosController::class, 'lookupSale'])->name('sales.lookup');
     Route::post('/sales', [PosController::class, 'storeSale'])->name('sales.store');
     Route::get('/sales/{sale}', [PosController::class, 'showSale'])->name('sales.show');
@@ -31,6 +32,8 @@ Route::middleware('auth')->prefix('pos')->name('pos.')->group(function () {
     Route::get('/holds', [PosController::class, 'holds'])->name('holds.index');
     Route::post('/holds', [PosController::class, 'storeHold'])->name('holds.store');
     Route::delete('/holds/{draft}', [PosController::class, 'destroyHold'])->name('holds.destroy');
+    Route::post('/holds/{draft}/consume', [PosController::class, 'consumeHold'])->name('holds.consume');
+    Route::post('/holds/{draft}/release', [PosController::class, 'releaseHold'])->name('holds.release');
 });
 
 Route::prefix('admin')
@@ -38,6 +41,7 @@ Route::prefix('admin')
     ->middleware(['auth', 'admin'])
     ->group(function () {
         Route::get('/', [Admin\DashboardController::class, 'index'])->name('dashboard');
+        Route::get('/dashboard/today', [Admin\DashboardController::class, 'today'])->name('dashboard.today');
 
         // Store management (HO can manage multiple stores)
         Route::post('/stores/switch/{store}', [Admin\StoreController::class, 'switch'])->name('stores.switch');
@@ -54,10 +58,6 @@ Route::prefix('admin')
         // SAP B1 connection test
         Route::post('/company/test-sap', [Admin\CompanyController::class, 'testSap'])->name('company.test-sap');
 
-        // Activity log
-        Route::get('/activity-logs', [Admin\ActivityLogController::class, 'index'])->name('logs.index');
-
-        // Tipe pembayaran — global, bisa dipakai di beberapa gerai
         // Impor data SAP B1 + interval sinkronisasi (muncul bila integrasi SAP aktif)
         Route::get('/sap-import', [Admin\SapImportController::class, 'index'])->name('sap-import.index');
         Route::post('/sap-import/run', [Admin\SapImportController::class, 'run'])->name('sap-import.run');
@@ -65,6 +65,10 @@ Route::prefix('admin')
         Route::put('/sap-import/settings', [Admin\SapImportController::class, 'updateSettings'])->name('sap-import.settings');
         Route::get('/sap-import/status', [Admin\SapImportController::class, 'status'])->name('sap-import.status');
 
+        // Activity log
+        Route::get('/activity-logs', [Admin\ActivityLogController::class, 'index'])->name('logs.index');
+
+        // Tipe pembayaran — global, bisa dipakai di beberapa gerai
         Route::resource('payment-types', Admin\PaymentTypeController::class)->except('show');
 
         // Mata uang — global; nominal pecahan dikelola per mata uang (show = halaman pecahan)
@@ -96,7 +100,8 @@ Route::prefix('admin')
 
         // Customer & loyalty
         Route::resource('customers', Admin\CustomerController::class);
-        Route::post('customers/{customer}/adjust-points', [Admin\CustomerController::class, 'adjustPoints'])->name('customers.adjust-points');        Route::get('member-levels', [Admin\MemberLevelController::class, 'index'])->name('member-levels.index');
+        Route::post('customers/{customer}/adjust-points', [Admin\CustomerController::class, 'adjustPoints'])->name('customers.adjust-points');
+        Route::get('member-levels', [Admin\MemberLevelController::class, 'index'])->name('member-levels.index');
         Route::get('member-levels/create', [Admin\MemberLevelController::class, 'create'])->name('member-levels.create');
         Route::post('member-levels', [Admin\MemberLevelController::class, 'store'])->name('member-levels.store');
         Route::put('member-levels/config', [Admin\MemberLevelController::class, 'updateConfig'])->name('member-levels.config');
@@ -107,6 +112,7 @@ Route::prefix('admin')
         // Tutup toko (EOD) + review stok
         Route::get('/eod', [Admin\StoreClosureController::class, 'index'])->name('eod.index');
         Route::post('/eod', [Admin\StoreClosureController::class, 'store'])->name('eod.store');
+        Route::post('/eod/reopen', [Admin\StoreClosureController::class, 'reopen'])->name('eod.reopen');
         Route::get('/stock-review', [Admin\StockReviewController::class, 'index'])->name('stock-review.index');
         Route::post('/stock-review/{sale}/resolve', [Admin\StockReviewController::class, 'resolve'])->name('stock-review.resolve');
 

@@ -8,11 +8,25 @@
     <h2 class="card-title">{{ $product->exists ? 'Ubah Produk' : 'Produk Baru' }}</h2>
     <p class="card-subtitle">Data master produk. Harga per price list dikelola di menu Daftar Harga.</p>
 
-    <form method="POST" action="{{ $product->exists ? route('admin.products.update', $product) : route('admin.products.store') }}">
+    <form method="POST" action="{{ $product->exists ? route('admin.products.update', $product) : route('admin.products.store') }}" enctype="multipart/form-data">
         @csrf
         @if ($product->exists) @method('PUT') @endif
 
         <div class="form-grid">
+            <div class="field @error('image') has-error @enderror" style="grid-column: 1 / -1;">
+                <label for="image">Gambar Produk</label>
+                @if ($product->exists && $product->image_url)
+                    <div style="display:flex; align-items:center; gap:14px; margin-bottom:8px;">
+                        <img src="{{ $product->image_url }}" alt="{{ $product->name }}" style="width:84px; height:84px; object-fit:cover; border-radius:10px; border:1px solid var(--color-outline);">
+                        <label style="font-size:13px; display:flex; align-items:center; gap:6px;">
+                            <input type="checkbox" name="remove_image" value="1"> Hapus gambar ini
+                        </label>
+                    </div>
+                @endif
+                <input type="file" id="image" name="image" accept="image/png,image/jpeg,image/webp">
+                <div class="hint">Format JPG/PNG/WebP, maks 2MB. Gambar ini tampil di halaman kasir.</div>
+                @error('image') <div class="error">{{ $message }}</div> @enderror
+            </div>
             <div class="field @error('sku') has-error @enderror">
                 <label for="sku">SKU *</label>
                 <input type="text" id="sku" name="sku" value="{{ old('sku', $product->sku) }}" required maxlength="40" @readonly($product->exists)>

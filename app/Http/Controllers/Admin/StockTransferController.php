@@ -9,7 +9,6 @@ use App\Models\NumberingConfig;
 use App\Models\Product;
 use App\Models\StockLedger;
 use App\Models\StockTransfer;
-use App\Models\StockTransferLine;
 use App\Models\Store;
 use App\Support\ActivityLogger;
 use App\Support\StockService;
@@ -19,7 +18,7 @@ use Illuminate\View\View;
 
 class StockTransferController extends Controller
 {
-    use ScopesToStore, AuthorizesCompany;
+    use AuthorizesCompany, ScopesToStore;
 
     public function index(Request $request): View
     {
@@ -40,7 +39,7 @@ class StockTransferController extends Controller
         return view('admin.stock.transfers.form', [
             'products' => Product::where('company_id', current_company_id())
                 ->where('track_stock', true)
-                ->orderBy('name')
+                ->orderBy('sku')
                 ->get(),
             'stores' => Store::where('company_id', current_company_id())->orderBy('code')->get(),
             'defaultFromStoreId' => $this->resolveStoreId($request),

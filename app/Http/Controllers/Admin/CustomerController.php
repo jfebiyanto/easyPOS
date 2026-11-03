@@ -17,9 +17,9 @@ class CustomerController extends Controller
         $query = Customer::with('memberLevel')->withCount('sales');
 
         if ($q = $request->query('q')) {
-            $query->where(fn ($x) => $x->where('name', 'like', "%{$q}%")
-                ->orWhere('phone', 'like', "%{$q}%")
-                ->orWhere('code', 'like', "%{$q}%"));
+            $query->where(fn ($x) => $x->whereLike('name', "%{$q}%")
+                ->orWhereLike('phone', "%{$q}%")
+                ->orWhereLike('code', "%{$q}%"));
         }
         if ($level = $request->query('level')) {
             $query->where('member_level_id', $level);
@@ -40,7 +40,7 @@ class CustomerController extends Controller
 
     public function create(): View
     {
-        return view('admin.customers.form', ['customer' => new Customer()]);
+        return view('admin.customers.form', ['customer' => new Customer]);
     }
 
     public function store(Request $request)

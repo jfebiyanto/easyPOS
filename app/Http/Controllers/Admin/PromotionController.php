@@ -8,17 +8,17 @@ use App\Models\Product;
 use App\Models\Promotion;
 use App\Support\ActivityLogger;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class PromotionController extends Controller
 {
     use AuthorizesCompany;
+
     public function index(): View
     {
         return view('admin.products.promotions.index', [
             'promotions' => apply_sort(
-                Promotion::with('product'),
+                Promotion::with('product', 'bonusProduct'),
                 request('sort'), request('dir'),
                 ['code', 'name', 'type', 'value', 'is_active', 'starts_at', 'ends_at', 'created_at'],
                 'created_at'
@@ -29,8 +29,8 @@ class PromotionController extends Controller
     public function create(): View
     {
         return view('admin.products.promotions.form', [
-            'promotion' => new Promotion(),
-            'products' => Product::orderBy('name')->get(),
+            'promotion' => new Promotion,
+            'products' => Product::orderBy('sku')->get(),
         ]);
     }
 
@@ -49,7 +49,7 @@ class PromotionController extends Controller
 
         return view('admin.products.promotions.form', [
             'promotion' => $promotion,
-            'products' => Product::orderBy('name')->get(),
+            'products' => Product::orderBy('sku')->get(),
         ]);
     }
 
@@ -78,17 +78,8 @@ class PromotionController extends Controller
 
     private function validated(Request $request, ?string $id = null): array
     {
-        return $request->validate([
-            'code' => ['required', 'string', 'max:30', Rule::unique('promotions', 'code')->ignore($id)],
-            'name' => ['required', 'string', 'max:150'],
-            'type' => ['required', Rule::in(array_keys(Promotion::TYPES))],
-            'value' => ['required', 'numeric', 'min:0'],
-            'product_id' => ['nullable', Rule::exists('products', 'id')->where('company_id', current_company_id())],
-            'min_qty' => ['nullable', 'integer', 'min:1'],
-            'starts_at' => ['nullable', 'date'],
-            'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
-            'is_active' => ['sometimes', 'boolean'],
-            'description' => ['nullable', 'string', 'max:500'],
-        ]);
+        $data = $request->validate(Promotion::rules(current_company_id(), $id, $request->input('type')));
+
+        return Promotion::normalize($data + ['is_active' => $request->boolean('is_active')]);
     }
 }

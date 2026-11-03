@@ -13,6 +13,7 @@ class StoreClosure extends Model
     protected $fillable = [
         'company_id', 'store_id', 'business_date', 'opened_at', 'closed_at',
         'sales_total', 'cash_expected', 'cash_counted', 'cash_variance', 'closed_by', 'note',
+        'reopened_at', 'reopened_by', 'reopen_reason',
     ];
 
     protected function casts(): array
@@ -21,6 +22,7 @@ class StoreClosure extends Model
             'business_date' => 'date',
             'opened_at' => 'datetime',
             'closed_at' => 'datetime',
+            'reopened_at' => 'datetime',
             'sales_total' => 'decimal:2',
             'cash_expected' => 'decimal:2',
             'cash_counted' => 'decimal:2',
@@ -33,9 +35,26 @@ class StoreClosure extends Model
         return $this->belongsTo(Store::class);
     }
 
+    public function reopenedBy()
+    {
+        return $this->belongsTo(User::class, 'reopened_by');
+    }
+
     public function denominations()
     {
         return $this->hasMany(StoreClosureDenomination::class);
+    }
+
+    /**
+     * Apakah EOD store untuk tanggal bisnis ini sudah ditutup (dan belum dibuka ulang).
+     */
+    public static function isClosed(string $storeId, string $date): bool
+    {
+        return static::query()
+            ->where('store_id', $storeId)
+            ->whereDate('business_date', $date)
+            ->whereNotNull('closed_at')
+            ->exists();
     }
 
     /**

@@ -2,31 +2,78 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, uuid } from './api.js';
 import { printReceipt, connectUsbPrinter, hasUsbPrinter } from './printer.js';
 import { enqueue, readQueue, removeFromQueue, writeQueue } from './offline.js';
+import { activePromotions, applyPromotions, readCachedPromotions, writeCachedPromotions } from './promotions.js';
+import { formatBusinessClock, formatIsoDate, serverOffset } from './businessClock.js';
+import { fitCartToStock, isOutOfStock, maxQty } from './stock.js';
 
 const fmt = (n, currency = 'IDR') =>
     (currency === 'IDR' ? 'Rp ' : currency + ' ') +
     Number(n || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 });
 
-function computeTotals(cart, company, shipping) {
+// Baris keranjang + hasil promosi (discount, promotion_id, promotion_name). Keranjang di state tetap
+// mentah agar promosi dihitung ulang setiap kali keranjang/promosi berubah, termasuk saat hold dilanjutkan.
+function priceCart(cart, promotions, at = new Date()) {
+    const result = applyPromotions(
+        cart.map((l) => ({ product_id: l.id, qty: l.qty, unit_price: l.unit_price })),
+        activePromotions(promotions, at),
+    );
+
+    return {
+        lines: cart.map((l, i) => ({
+            ...l,
+            discount: result.lines[i].promotion_discount,
+            promotion_id: result.lines[i].promotion_id,
+            promotion_name: result.lines[i].promotion_name,
+        })),
+        bonusHints: result.bonus_hints,
+    };
+}
+
+function computeTotals(lines, company, shipping) {
     const rate = Number(company?.ppn_rate || 0);
     const inclusive = !!company?.ppn_inclusive;
     const enabled = !!company?.ppn_enabled && rate > 0;
 
     let subtotal = 0;
     let taxSum = 0;
+    let discountTotal = 0;
+    const lineTotals = [];
 
-    cart.forEach((l) => {
+    lines.forEach((l) => {
         const base = Math.max(0, l.unit_price * l.qty - (l.discount || 0));
+        const tax = enabled ? (inclusive ? base - base / (1 + rate / 100) : (base * rate) / 100) : 0;
         subtotal += base;
-        if (enabled) {
-            taxSum += inclusive ? base - base / (1 + rate / 100) : (base * rate) / 100;
-        }
+        taxSum += tax;
+        discountTotal += l.discount || 0;
+        lineTotals.push(Math.round((inclusive ? base : base + tax) * 100) / 100);
     });
 
     const taxTotal = Math.round(taxSum * 100) / 100;
     const total = Math.round((subtotal + (inclusive ? 0 : taxTotal) + (shipping || 0)) * 100) / 100;
 
-    return { subtotal: Math.round(subtotal * 100) / 100, taxTotal, total };
+    return { subtotal: Math.round(subtotal * 100) / 100, taxTotal, total, discountTotal: Math.round(discountTotal * 100) / 100, lineTotals };
+}
+
+const HOLDS_KEY = 'easypos.pos.holds';
+const ACTIVE_HOLD_KEY = 'easypos.pos.activeHold';
+
+const readLocalHolds = () => JSON.parse(localStorage.getItem(HOLDS_KEY) || '[]');
+const writeLocalHolds = (holds) => localStorage.setItem(HOLDS_KEY, JSON.stringify(holds));
+const withoutHold = (holds, clientUuid) => holds.filter((h) => h.client_uuid !== clientUuid);
+
+const readActiveHold = () => JSON.parse(localStorage.getItem(ACTIVE_HOLD_KEY) || 'null');
+const writeActiveHold = (hold) => (hold ? localStorage.setItem(ACTIVE_HOLD_KEY, JSON.stringify(hold)) : localStorage.removeItem(ACTIVE_HOLD_KEY));
+
+// Kirim hold yang dibuat saat offline ke server. 409 berarti hold sudah final/bukan milik kasir ini, jadi dibuang.
+async function syncLocalHolds() {
+    for (const h of readLocalHolds()) {
+        try {
+            await api.saveHold({ client_uuid: h.client_uuid, device_label: navigator.platform, payload: h.payload });
+        } catch (e) {
+            if (e.status !== 409) return;
+        }
+        writeLocalHolds(withoutHold(readLocalHolds(), h.client_uuid));
+    }
 }
 
 export default function App() {
@@ -36,6 +83,7 @@ export default function App() {
     const [cart, setCart] = useState([]);
     const [online, setOnline] = useState(navigator.onLine);
     const [queue, setQueue] = useState(readQueue());
+    const [heldCount, setHeldCount] = useState(0);
     const [notice, setNotice] = useState(null);
     const [showPayment, setShowPayment] = useState(false);
     const [showHolds, setShowHolds] = useState(false);
@@ -44,9 +92,11 @@ export default function App() {
     const [showCustomer, setShowCustomer] = useState(false);
     const [customer, setCustomer] = useState(null);
     const [receipt, setReceipt] = useState(null);
+    const [promotions, setPromotions] = useState(readCachedPromotions);
     const scanRef = useRef(null);
 
     const currency = boot?.company?.currency || 'IDR';
+    const allowNegativeStock = Boolean(boot?.company?.allow_negative_stock);
 
     const loadProducts = useCallback(async (q = '') => {
         try {
@@ -57,20 +107,89 @@ export default function App() {
         }
     }, []);
 
+    // Gagal memuat (offline) berarti tetap memakai salinan terakhir di localStorage.
+    const loadPromotions = useCallback(async () => {
+        try {
+            const res = await api.promotions();
+            setPromotions(res.data);
+            writeCachedPromotions(res.data);
+        } catch {
+            /* pakai cache */
+        }
+    }, []);
+
+    const refreshHeldCount = useCallback(async () => {
+        const local = readLocalHolds();
+        if (navigator.onLine) {
+            try {
+                const res = await api.holds();
+                const serverUuids = new Set(res.data.map((d) => d.client_uuid));
+                setHeldCount(res.data.length + local.filter((h) => !serverUuids.has(h.client_uuid)).length);
+                return;
+            } catch {
+                /* fall through ke hitungan lokal */
+            }
+        }
+        setHeldCount(local.length);
+    }, []);
+
+    // Hold yang sedang dilanjutkan di keranjang. Disimpan di localStorage agar bisa
+    // dikembalikan ke daftar tahan bila halaman dimuat ulang sebelum jadi penjualan.
+    const [activeHold, setActiveHoldState] = useState(readActiveHold);
+    const setActiveHold = useCallback((hold) => {
+        writeActiveHold(hold);
+        setActiveHoldState(hold);
+    }, []);
+
+    const releaseActiveHold = useCallback(async (hold) => {
+        if (hold.local) {
+            writeLocalHolds([...withoutHold(readLocalHolds(), hold.client_uuid), { id: hold.client_uuid, client_uuid: hold.client_uuid, payload: hold.payload, updated_at: new Date().toISOString() }]);
+        } else {
+            if (!navigator.onLine) return;
+            try {
+                await api.releaseHold(hold.id);
+            } catch {
+                return;
+            }
+        }
+        setActiveHold(null);
+        refreshHeldCount();
+    }, [setActiveHold, refreshHeldCount]);
+
+    useEffect(() => {
+        if (activeHold && cart.length === 0) {
+            releaseActiveHold(activeHold);
+        }
+    }, [activeHold, cart.length, online, releaseActiveHold]);
+
     useEffect(() => {
         (async () => {
             try {
                 const res = await api.bootstrap();
                 setBoot(res);
-                await loadProducts('');
+                await Promise.all([loadProducts(''), loadPromotions()]);
+                await syncLocalHolds();
+                refreshHeldCount();
             } catch (e) {
                 setNotice({ type: 'error', text: e.message });
             }
         })();
-    }, [loadProducts]);
+    }, [loadProducts, loadPromotions, refreshHeldCount]);
+
+    // Status kunci EOD bisa berubah dari Management Console; segarkan berkala selama online.
+    useEffect(() => {
+        if (!boot || !online) return undefined;
+        const timer = setInterval(async () => {
+            try {
+                const res = await api.bootstrap();
+                setBoot((prev) => ({ ...prev, business: res.business }));
+            } catch { /* tetap pakai status terakhir */ }
+        }, 60000);
+        return () => clearInterval(timer);
+    }, [boot !== null, online]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
-        const on = () => { setOnline(true); flushQueue(); };
+        const on = () => { setOnline(true); flushQueue(); loadPromotions(); syncLocalHolds().then(refreshHeldCount); };
         const off = () => setOnline(false);
         window.addEventListener('online', on);
         window.addEventListener('offline', off);
@@ -95,14 +214,26 @@ export default function App() {
         setQueue(readQueue());
     }, []);
 
-    const addProduct = (product) => {
-        setCart((prev) => {
-            const found = prev.find((l) => l.id === product.id);
-            if (found) {
-                return prev.map((l) => (l.id === product.id ? { ...l, qty: l.qty + 1 } : l));
-            }
-            return [...prev, { id: product.id, sku: product.sku, name: product.name, unit_price: product.price, qty: 1, discount: 0, track_stock: product.track_stock, stock: product.stock }];
-        });
+    const addProduct = (product, qty = 1) => {
+        if (isOutOfStock(product, allowNegativeStock)) {
+            setNotice({ type: 'error', text: `Stok "${product.name}" habis.` });
+            return;
+        }
+        const limit = maxQty(product, allowNegativeStock);
+        const current = cart.find((l) => l.id === product.id)?.qty || 0;
+        const nextQty = Math.min(current + qty, limit);
+        if (current + qty > limit) {
+            setNotice({ type: 'warning', text: `Stok "${product.name}" tersisa ${limit}.` });
+        }
+        if (nextQty > current) {
+            setCart((prev) => {
+                const found = prev.find((l) => l.id === product.id);
+                if (found) {
+                    return prev.map((l) => (l.id === product.id ? { ...l, qty: nextQty, stock: product.stock } : l));
+                }
+                return [...prev, { id: product.id, sku: product.sku, name: product.name, unit_price: product.price, qty: nextQty, track_stock: product.track_stock, stock: product.stock }];
+            });
+        }
         setQuery('');
         scanRef.current?.focus();
     };
@@ -119,28 +250,56 @@ export default function App() {
         }
     };
 
-    const setQty = (id, qty) => setCart((prev) => prev.map((l) => (l.id === id ? { ...l, qty: Math.max(1, qty) } : l)));
+    const setQty = (id, qty) => {
+        const line = cart.find((l) => l.id === id);
+        if (!line) return;
+        const limit = maxQty(line, allowNegativeStock);
+        if (qty > limit) {
+            setNotice({ type: 'warning', text: `Stok "${line.name}" tersisa ${limit}.` });
+        }
+        const nextQty = Math.max(1, Math.min(qty, limit));
+        setCart((prev) => prev.map((l) => (l.id === id ? { ...l, qty: nextQty } : l)));
+    };
     const removeLine = (id) => setCart((prev) => prev.filter((l) => l.id !== id));
 
     const [delivery, setDelivery] = useState({ enabled: false, recipient_name: '', phone: '', address: '', note: '', cost: 0 });
 
+    const priced = useMemo(() => priceCart(cart, promotions), [cart, promotions]);
+
     const totals = useMemo(
-        () => computeTotals(cart, boot?.company, delivery.enabled ? Number(delivery.cost || 0) : 0),
-        [cart, boot, delivery],
+        () => computeTotals(priced.lines, boot?.company, delivery.enabled ? Number(delivery.cost || 0) : 0),
+        [priced, boot, delivery],
     );
 
-    const buildPayload = (origin, payments) => ({
-        client_uuid: uuid(),
-        origin,
-        sold_at: new Date().toISOString(),
-        customer_id: customer?.id || null,
-        shipping_cost: delivery.enabled ? Number(delivery.cost || 0) : 0,
-        lines: cart.map((l) => ({ product_id: l.id, qty: l.qty, unit_price: l.unit_price, discount: l.discount || 0 })),
-        payments,
-        delivery: delivery.enabled
-            ? { recipient_name: delivery.recipient_name, phone: delivery.phone, address: delivery.address, note: delivery.note }
-            : null,
+    const bonusHints = priced.bonusHints.map((hint) => {
+        const promotion = promotions.find((p) => p.id === hint.promotion_id);
+        const product = promotion?.bonus_product || products.find((p) => p.id === hint.product_id);
+        return { ...hint, product };
     });
+
+    // Promosi dihitung ulang tepat pada waktu transaksi agar sama dengan perhitungan server.
+    const buildPayload = (origin, payments) => {
+        const soldAt = new Date();
+        return {
+            client_uuid: uuid(),
+            origin,
+            sold_at: soldAt.toISOString(),
+            customer_id: customer?.id || null,
+            shipping_cost: delivery.enabled ? Number(delivery.cost || 0) : 0,
+            lines: priceCart(cart, promotions, soldAt).lines.map((l) => ({
+                product_id: l.id,
+                qty: l.qty,
+                unit_price: l.unit_price,
+                discount: l.discount,
+                promotion_id: l.promotion_id,
+            })),
+            payments,
+            delivery: delivery.enabled
+                ? { recipient_name: delivery.recipient_name, phone: delivery.phone, address: delivery.address, note: delivery.note }
+                : null,
+            hold_client_uuid: activeHold?.client_uuid || null,
+        };
+    };
 
     const finalizeSale = async (payments) => {
         const payload = buildPayload(online ? 'online' : 'offline', payments);
@@ -148,7 +307,9 @@ export default function App() {
         if (!online) {
             enqueue(payload);
             setQueue(readQueue());
-            setReceipt({ number: 'OFFLINE', total: totals.total, paid_total: payments.reduce((s, p) => s + Number(p.amount || 0), 0), change_total: 0, lines: cart, subtotal: totals.subtotal, tax_total: totals.taxTotal, shipping_cost: payload.shipping_cost, currency, origin: 'offline' });
+            const receiptLines = priced.lines.map((l, i) => ({ ...l, line_total: totals.lineTotals[i] }));
+            setReceipt({ number: 'OFFLINE', total: totals.total, paid_total: payments.reduce((s, p) => s + Number(p.amount || 0), 0), change_total: 0, lines: receiptLines, subtotal: totals.subtotal, discount_total: totals.discountTotal, tax_total: totals.taxTotal, shipping_cost: payload.shipping_cost, currency, origin: 'offline' });
+            setActiveHold(null);
             setCart([]);
             setCustomer(null);
             setShowPayment(false);
@@ -160,13 +321,23 @@ export default function App() {
         try {
             const res = await api.createSale(payload);
             setReceipt(res.data);
+            setActiveHold(null);
             setCart([]);
             setCustomer(null);
             setShowPayment(false);
             setDelivery({ enabled: false, recipient_name: '', phone: '', address: '', note: '', cost: 0 });
             setNotice({ type: 'success', text: `Transaksi ${res.data.number} tersimpan.` });
+            loadProducts(query); // segarkan stok agar produk yang baru habis langsung nonaktif
             printReceipt(res.data, meta());
         } catch (e) {
+            // 409: promosi di server berbeda (mis. baru diubah admin). Muat ulang promosi agar
+            // keranjang dihitung ulang, lalu kasir memeriksa total baru sebelum membayar lagi.
+            if (e.status === 409) {
+                await loadPromotions();
+                setShowPayment(false);
+                setNotice({ type: 'warning', text: e.message });
+                return;
+            }
             setNotice({ type: 'error', text: e.message });
         }
     };
@@ -179,17 +350,18 @@ export default function App() {
 
     const hold = async () => {
         if (cart.length === 0) return;
-        const clientUuid = uuid();
+        // Menahan ulang hold yang sedang dilanjutkan memakai client_uuid yang sama agar tidak terduplikasi.
+        const clientUuid = activeHold?.client_uuid || uuid();
         try {
             if (online) {
                 await api.saveHold({ client_uuid: clientUuid, device_label: navigator.platform, payload: { cart, delivery } });
             } else {
-                const drafts = JSON.parse(localStorage.getItem('easypos.pos.holds') || '[]');
-                drafts.push({ id: clientUuid, client_uuid: clientUuid, payload: { cart, delivery }, updated_at: new Date().toISOString() });
-                localStorage.setItem('easypos.pos.holds', JSON.stringify(drafts));
+                writeLocalHolds([...withoutHold(readLocalHolds(), clientUuid), { id: clientUuid, client_uuid: clientUuid, payload: { cart, delivery }, updated_at: new Date().toISOString() }]);
             }
+            setActiveHold(null);
             setCart([]);
-            setNotice({ type: 'success', text: 'Transaksi ditahan.' });
+            refreshHeldCount();
+            setNotice({ type: 'success', text: 'Transaksi ditahan. Buka "Daftar Tahan" untuk melanjutkan.' });
         } catch (e) {
             setNotice({ type: 'error', text: e.message });
         }
@@ -217,7 +389,9 @@ export default function App() {
                     <button className="btn btn-tonal btn-sm" onClick={() => setShowCustomer(true)}>
                         {customer ? customer.name : 'Pelanggan'}
                     </button>
-                    <button className="btn btn-tonal btn-sm" onClick={() => setShowHolds(true)}>Tahan</button>
+                    <button className="btn btn-tonal btn-sm" onClick={() => setShowHolds(true)}>
+                        Daftar Tahan{heldCount > 0 ? ` (${heldCount})` : ''}
+                    </button>
                     <button className="btn btn-tonal btn-sm" onClick={() => setShowReturn(true)}>Retur</button>
                     <button className="btn btn-outline btn-sm" onClick={() => setShowDevice(true)}>Perangkat</button>
                     <span className="pos-cashier">{boot.cashier?.name}</span>
@@ -246,14 +420,18 @@ export default function App() {
                         onKeyDown={onScan}
                     />
                     <div className="pos-grid">
-                        {products.map((p) => (
-                            <button key={p.id} className="pos-tile" onClick={() => addProduct(p)}>
-                                <span className="pos-tile-name">{p.name}</span>
-                                <span className="pos-tile-sku sku">{p.sku}</span>
-                                <span className="pos-tile-price money">{fmt(p.price, currency)}</span>
-                                {p.track_stock && <span className="pos-tile-stock">stok {p.stock}</span>}
-                            </button>
-                        ))}
+                        {products.map((p) => {
+                            const outOfStock = isOutOfStock(p, allowNegativeStock);
+                            return (
+                                <button key={p.id} className="pos-tile" onClick={() => addProduct(p)} disabled={outOfStock} title={outOfStock ? 'Stok habis' : undefined}>
+                                    <ProductThumb product={p} />
+                                    <span className="pos-tile-name">{p.name}</span>
+                                    <span className="pos-tile-sku sku">{p.sku}</span>
+                                    <span className="pos-tile-price money">{fmt(p.price, currency)}</span>
+                                    {p.track_stock && <span className="pos-tile-stock">{outOfStock ? 'Stok habis' : `stok ${p.stock}`}</span>}
+                                </button>
+                            );
+                        })}
                         {products.length === 0 && <div className="empty-state">Tidak ada produk.</div>}
                     </div>
                 </section>
@@ -261,26 +439,44 @@ export default function App() {
                 <aside className="pos-cart">
                     <div className="pos-cart-lines">
                         {cart.length === 0 && <div className="empty-state">Keranjang kosong. Scan atau pilih produk.</div>}
-                        {cart.map((l) => (
+                        {priced.lines.map((l) => (
                             <div key={l.id} className="pos-line">
                                 <div className="pos-line-info">
                                     <strong>{l.name}</strong>
                                     <span className="money">{fmt(l.unit_price, currency)}</span>
+                                    {l.promotion_id && (
+                                        <span className="pos-line-promo">
+                                            <span className="material-symbols-rounded">sell</span>
+                                            {l.promotion_name} <span className="money">−{fmt(l.discount, currency)}</span>
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="pos-line-qty">
                                     <button onClick={() => setQty(l.id, l.qty - 1)}>−</button>
                                     <input value={l.qty} onChange={(e) => setQty(l.id, Number(e.target.value) || 1)} />
                                     <button onClick={() => setQty(l.id, l.qty + 1)}>+</button>
                                 </div>
-                                <div className="pos-line-total money">{fmt(l.unit_price * l.qty, currency)}</div>
+                                <div className="pos-line-total money">{fmt(l.unit_price * l.qty - l.discount, currency)}</div>
                                 <button className="pos-line-remove" onClick={() => removeLine(l.id)} title="Hapus">
                                     <span className="material-symbols-rounded">close</span>
                                 </button>
                             </div>
                         ))}
+                        {bonusHints.map((hint) => (
+                            <div key={hint.promotion_id} className="pos-bonus-hint">
+                                <span>
+                                    <span className="material-symbols-rounded">redeem</span>
+                                    Bonus tersedia: {hint.qty} × {hint.product?.name || 'produk bonus'} <small>({hint.promotion_name})</small>
+                                </span>
+                                {hint.product && (
+                                    <button className="btn btn-tonal btn-sm" onClick={() => addProduct(hint.product, hint.qty)}>Tambah</button>
+                                )}
+                            </div>
+                        ))}
                     </div>
 
                     <div className="pos-totals">
+                        {totals.discountTotal > 0 && <div className="pos-saving"><span>Hemat</span><span className="money">−{fmt(totals.discountTotal, currency)}</span></div>}
                         <div><span>Subtotal</span><span className="money">{fmt(totals.subtotal, currency)}</span></div>
                         <div><span>PPN</span><span className="money">{fmt(totals.taxTotal, currency)}</span></div>
                         {delivery.enabled && <div><span>Kirim</span><span className="money">{fmt(delivery.cost, currency)}</span></div>}
@@ -296,6 +492,8 @@ export default function App() {
                 </aside>
             </div>
 
+            <BusinessBar business={boot.business} />
+
             {showPayment && (
                 <PaymentModal
                     boot={boot}
@@ -310,7 +508,35 @@ export default function App() {
 
             {receipt && <ReceiptModal sale={receipt} currency={currency} meta={meta()} onClose={() => setReceipt(null)} />}
 
-            {showHolds && <HoldsModal online={online} onClose={() => setShowHolds(false)} onResume={(payload) => { setCart(payload.cart || []); setDelivery(payload.delivery || delivery); setShowHolds(false); }} />}
+            {showHolds && (
+                <HoldsModal
+                    online={online}
+                    cartEmpty={cart.length === 0}
+                    onClose={() => { setShowHolds(false); refreshHeldCount(); }}
+                    onResume={(item, stock) => {
+                        // Stok tidak dipotong saat ditahan, jadi cocokkan ulang dengan stok terkini agar tidak minus.
+                        // Hold lokal (offline) memakai stok dari daftar produk terakhir yang dimuat.
+                        const heldCart = item.payload.cart || [];
+                        const knownStock = stock || Object.fromEntries(
+                            products.filter((p) => heldCart.some((l) => l.id === p.id)).map((p) => [p.id, p.track_stock ? p.stock : null]),
+                        );
+                        const { lines, adjustments } = fitCartToStock(heldCart, knownStock, allowNegativeStock);
+                        setActiveHold(item.local ? { local: true, client_uuid: item.client_uuid, payload: item.payload } : { id: item.id, client_uuid: item.client_uuid });
+                        setCart(lines);
+                        if (adjustments.length > 0) {
+                            setNotice({
+                                type: 'warning',
+                                text: 'Stok berubah sejak ditahan: ' + adjustments
+                                    .map((a) => (a.to > 0 ? `${a.name} ${a.from} → ${a.to}` : `${a.name} dihapus (stok habis)`))
+                                    .join(', '),
+                            });
+                        }
+                        setDelivery(item.payload.delivery || delivery);
+                        setShowHolds(false);
+                        refreshHeldCount();
+                    }}
+                />
+            )}
 
             {showReturn && <ReturnModal onClose={() => setShowReturn(false)} onDone={(msg) => { setNotice({ type: 'success', text: msg }); setShowReturn(false); }} onError={(msg) => setNotice({ type: 'error', text: msg })} />}
 
@@ -324,6 +550,66 @@ export default function App() {
             )}
         </div>
     );
+}
+
+// Status bar bawah: tanggal bisnis + jam (zona waktu perusahaan) dan peringatan bila EOD tertunda.
+function BusinessBar({ business }) {
+    const offset = useMemo(() => serverOffset(business?.server_time), [business?.server_time]);
+    const [now, setNow] = useState(() => new Date(Date.now() + offset));
+
+    useEffect(() => {
+        const tick = () => setNow(new Date(Date.now() + offset));
+        tick();
+        const timer = setInterval(tick, 1000);
+        return () => clearInterval(timer);
+    }, [offset]);
+
+    if (!business) return null;
+
+    const clock = formatBusinessClock(now, business.timezone);
+
+    return (
+        <footer className="pos-statusbar">
+            <span className="pos-statusbar-item">
+                <span className="material-symbols-rounded">event</span>
+                Business Date: <strong>{clock.date}</strong>
+            </span>
+            <span className="pos-statusbar-item">
+                <span className="material-symbols-rounded">schedule</span>
+                <strong className="money">{clock.time}</strong>
+            </span>
+            {business.closed && (
+                <span className="pos-statusbar-item pos-statusbar-warning">
+                    <span className="material-symbols-rounded">lock</span>
+                    EOD hari ini sudah ditutup — transaksi online terkunci
+                </span>
+            )}
+            {business.locked_date && (
+                <span className="pos-statusbar-item pos-statusbar-warning">
+                    <span className="material-symbols-rounded">lock</span>
+                    EOD {formatIsoDate(business.locked_date)} belum diselesaikan — transaksi online terkunci
+                </span>
+            )}
+        </footer>
+    );
+}
+
+function ProductThumb({ product }) {
+    const [failed, setFailed] = useState(false);
+
+    if (product.image && !failed) {
+        return (
+            <img
+                src={product.image}
+                alt={product.name}
+                className="pos-tile-img"
+                loading="lazy"
+                onError={() => setFailed(true)}
+            />
+        );
+    }
+
+    return <span className="pos-tile-thumb">{(product.name || '?').charAt(0).toUpperCase()}</span>;
 }
 
 function PaymentModal({ boot, currency, totals, delivery, setDelivery, onClose, onConfirm }) {
@@ -399,11 +685,20 @@ function ReceiptModal({ sale, currency, meta, onClose }) {
                 <h2>Struk {sale.number}</h2>
                 <div className="pos-receipt">
                     {sale.lines?.map((l, i) => (
-                        <div key={i} className="pos-receipt-line">
-                            <span>{l.qty}× {l.name}</span>
-                            <span className="money">{fmt(l.line_total, currency)}</span>
-                        </div>
+                        <React.Fragment key={i}>
+                            <div className="pos-receipt-line">
+                                <span>{l.qty}× {l.name}</span>
+                                <span className="money">{fmt(l.line_total, currency)}</span>
+                            </div>
+                            {l.discount > 0 && (
+                                <div className="pos-receipt-line pos-receipt-promo">
+                                    <span>{l.promotion_name || 'Diskon'}</span>
+                                    <span className="money">−{fmt(l.discount, currency)}</span>
+                                </div>
+                            )}
+                        </React.Fragment>
                     ))}
+                    {sale.discount_total > 0 && <div className="pos-saving"><span>Hemat</span><span className="money">−{fmt(sale.discount_total, currency)}</span></div>}
                     <div className="pos-grand"><span>TOTAL</span><span className="money">{fmt(sale.total, currency)}</span></div>
                     <div><span>Bayar</span><span className="money">{fmt(sale.paid_total, currency)}</span></div>
                     <div><span>Kembali</span><span className="money">{fmt(sale.change_total, currency)}</span></div>
@@ -420,41 +715,75 @@ function ReceiptModal({ sale, currency, meta, onClose }) {
     );
 }
 
-function HoldsModal({ online, onClose, onResume }) {
+function HoldsModal({ online, cartEmpty, onClose, onResume }) {
     const [items, setItems] = useState([]);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
         (async () => {
+            // Hold lokal (dibuat offline, belum tersinkron) selalu ikut ditampilkan.
+            const local = readLocalHolds().map((h) => ({ ...h, local: true }));
             if (online) {
                 try {
                     const res = await api.holds();
-                    setItems(res.data.map((d) => ({ id: d.id, client_uuid: d.client_uuid, payload: d.payload, updated_at: d.updated_at })));
+                    const server = res.data.map((d) => ({ id: d.id, client_uuid: d.client_uuid, payload: d.payload, updated_at: d.updated_at, local: false }));
+                    const serverUuids = new Set(server.map((h) => h.client_uuid));
+                    setItems([...server, ...local.filter((h) => !serverUuids.has(h.client_uuid))]);
                     return;
                 } catch { /* fall through */ }
             }
-            setItems(JSON.parse(localStorage.getItem('easypos.pos.holds') || '[]'));
+            setItems(local);
         })();
     }, [online]);
 
     const cancel = async (item) => {
-        try {
-            if (online && item.id) await api.deleteHold(item.id);
-        } catch { /* ignore */ }
-        const rest = items.filter((i) => i.client_uuid !== item.client_uuid);
-        setItems(rest);
-        localStorage.setItem('easypos.pos.holds', JSON.stringify(rest));
+        setError(null);
+        if (!item.local) {
+            try {
+                await api.deleteHold(item.id);
+            } catch (e) {
+                setError(e.message);
+                return;
+            }
+        }
+        setItems((prev) => withoutHold(prev, item.client_uuid));
+        writeLocalHolds(withoutHold(readLocalHolds(), item.client_uuid));
+    };
+
+    const resume = async (item) => {
+        setError(null);
+        if (!cartEmpty) {
+            setError('Keranjang masih berisi. Selesaikan atau tahan transaksi saat ini dulu.');
+            return;
+        }
+        let stock = null;
+        if (!item.local) {
+            try {
+                const res = await api.consumeHold(item.id);
+                stock = res.data?.stock || null;
+            } catch (e) {
+                setError(e.message);
+                return;
+            }
+        }
+        onResume(item, stock);
+        writeLocalHolds(withoutHold(readLocalHolds(), item.client_uuid));
     };
 
     return (
         <div className="pos-modal">
             <div className="pos-modal-card">
                 <h2>Transaksi Ditahan</h2>
+                <p className="card-subtitle" style={{ marginTop: 0 }}>
+                    Hanya menampilkan tahan milik akun kasir yang sedang login.
+                </p>
+                {error && <div className="md-snackbar error">{error}</div>}
                 {items.length === 0 && <div className="empty-state">Tidak ada transaksi ditahan.</div>}
                 {items.map((it) => (
                     <div key={it.client_uuid} className="pos-hold-row">
                         <span>{(it.payload?.cart || []).length} item · {new Date(it.updated_at || Date.now()).toLocaleTimeString('id-ID')}</span>
                         <div>
-                            <button className="btn btn-filled btn-sm" onClick={() => onResume(it.payload)}>Lanjutkan</button>
+                            <button className="btn btn-filled btn-sm" onClick={() => resume(it)}>Lanjutkan</button>
                             <button className="btn btn-outline btn-sm" onClick={() => cancel(it)}>Hapus</button>
                         </div>
                     </div>

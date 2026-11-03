@@ -34,11 +34,18 @@
 <div class="table-wrap">
     <table class="md-table">
         <thead>
-            <tr><th>{!! sort_link('SKU', 'sku') !!}</th><th>{!! sort_link('Nama', 'name') !!}</th><th>Group</th><th>Brand</th><th>Unit</th><th>{!! sort_link('Harga Dasar', 'base_price') !!}</th><th>{!! sort_link('Status', 'is_active') !!}</th><th style="text-align:right;">Aksi</th></tr>
+            <tr><th>Gambar</th><th>{!! sort_link('SKU', 'sku') !!}</th><th>{!! sort_link('Nama', 'name') !!}</th><th>Group</th><th>Brand</th><th>Unit</th><th>{!! sort_link('Harga Dasar', 'base_price') !!}</th><th>{!! sort_link('Status', 'is_active') !!}</th><th style="text-align:right;">Aksi</th></tr>
         </thead>
         <tbody>
             @forelse ($products as $product)
                 <tr>
+                    <td>
+                        @if ($product->image_url)
+                            <img src="{{ $product->image_url }}" alt="{{ $product->name }}" style="width:44px; height:44px; object-fit:cover; border-radius:8px; border:1px solid var(--color-outline);">
+                        @else
+                            <span class="chip chip-neutral">-</span>
+                        @endif
+                    </td>
                     <td><strong>{{ $product->sku }}</strong></td>
                     <td>{{ $product->name }}</td>
                     <td>{{ $product->group->name ?? '-' }}</td>
@@ -57,7 +64,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="8"><div class="empty-state"><span class="material-symbols-rounded">inventory_2</span><p>Belum ada produk.</p></div></td></tr>
+                <tr><td colspan="9"><div class="empty-state"><span class="material-symbols-rounded">inventory_2</span><p>Belum ada produk.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>

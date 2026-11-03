@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <style>
         body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color: #1B1F23; }
-        .header { border-bottom: 2px solid #0F6E63; padding-bottom: 8px; margin-bottom: 12px; }
-        .header h1 { margin: 0; font-size: 16px; color: #0F6E63; }
+        .header { border-bottom: 2px solid #1E4E8C; padding-bottom: 8px; margin-bottom: 12px; }
+        .header h1 { margin: 0; font-size: 16px; color: #1E4E8C; }
         .header .muted { color: #5A6472; font-size: 10px; }
         .meta { margin: 8px 0 12px; font-size: 11px; }
         table { width: 100%; border-collapse: collapse; }
@@ -28,7 +28,7 @@
 
     @php
         $isMoney = function (string $col): bool {
-            foreach (['Total', 'Omzet', 'Subtotal', 'PPN', 'Retur', 'Net', 'Rata-rata', 'Belanja'] as $needle) {
+            foreach (['Total', 'Omzet', 'Subtotal', 'Diskon', 'PPN', 'Retur', 'Net', 'Rata-rata', 'Belanja'] as $needle) {
                 if (str_contains($col, $needle)) return true;
             }
             return false;

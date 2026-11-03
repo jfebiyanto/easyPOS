@@ -18,7 +18,7 @@ use Illuminate\View\View;
 
 class StockAdjustmentController extends Controller
 {
-    use ScopesToStore, AuthorizesCompany;
+    use AuthorizesCompany, ScopesToStore;
 
     public function index(Request $request): View
     {
@@ -37,7 +37,7 @@ class StockAdjustmentController extends Controller
         return view('admin.stock.adjustments.form', [
             'products' => Product::where('company_id', current_company_id())
                 ->where('track_stock', true)
-                ->orderBy('name')
+                ->orderBy('sku')
                 ->get(),
             'stores' => $request->user()->isOwner()
                 ? Store::where('company_id', current_company_id())->orderBy('code')->get()
