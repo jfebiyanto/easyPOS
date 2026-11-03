@@ -32,7 +32,7 @@ class SapImportController extends Controller
 
         return view('admin.sap-import.index', [
             'company' => $company,
-            'runs' => SapSyncRun::where('company_id', $company->id)->latest()->limit(10)->get(),
+            'runs' => SapSyncRun::where('company_id', $company->id)->latest()->limit(5)->get(),
             'activeRun' => SapSyncDispatcher::activeRun($company),
         ]);
     }

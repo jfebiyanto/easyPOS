@@ -8,6 +8,7 @@ use App\Models\NumberingConfig;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\StockLedger;
+use App\Models\Store;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -94,7 +95,7 @@ class SaleService
                 'sync_status' => 'synced',
                 'business_date' => $businessDate,
                 'type' => 'sale',
-                'customer_id' => $data['customer_id'] ?? null,
+                'customer_id' => $data['customer_id'] ?? Store::whereKey($storeId)->value('default_customer_id'),
                 'cashier_id' => $cashier->id,
                 'status' => Sale::STATUS_COMPLETED,
                 'subtotal' => $subtotal,

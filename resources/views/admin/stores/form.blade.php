@@ -72,6 +72,27 @@
                     <label for="is_active">Store aktif</label>
                 </div>
             </div>
+            <div class="field @error('warehouse_id') has-error @enderror">
+                <label for="warehouse_id">Warehouse (pencatatan stok)</label>
+                <select id="warehouse_id" name="warehouse_id">
+                    <option value="">- Belum dihubungkan -</option>
+                    @foreach ($warehouses as $wh)
+                        <option value="{{ $wh->id }}" @selected(old('warehouse_id', $store->warehouse_id) == $wh->id)>{{ $wh->code }} · {{ $wh->name }}</option>
+                    @endforeach
+                </select>
+                @error('warehouse_id') <div class="error">{{ $message }}</div> @enderror
+            </div>
+            <div class="field @error('default_customer_id') has-error @enderror">
+                <label for="default_customer_id">Default Pelanggan Retail</label>
+                <select id="default_customer_id" name="default_customer_id">
+                    <option value="">- Tidak ada -</option>
+                    @foreach ($customers as $cust)
+                        <option value="{{ $cust->id }}" @selected(old('default_customer_id', $store->default_customer_id) == $cust->id)>{{ $cust->code }} · {{ $cust->name }}</option>
+                    @endforeach
+                </select>
+                <div class="hint">Untuk transaksi walk-in non member. Tidak dicatat sebagai member dan tidak mendapat poin.</div>
+                @error('default_customer_id') <div class="error">{{ $message }}</div> @enderror
+            </div>
             <div class="field" style="grid-column: 1 / -1;">
                 @if ($priceLists->isEmpty())
                     <div class="hint">Belum ada pricelist. Buat di <a href="{{ route('admin.price-lists.index') }}">Daftar Harga</a>.</div>

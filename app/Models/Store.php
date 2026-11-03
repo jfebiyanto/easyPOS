@@ -11,8 +11,18 @@ class Store extends Model
 
     protected $fillable = [
         'company_id', 'code', 'name', 'address', 'pic_name', 'pic_phone',
-        'ppn_enabled', 'ppn_rate', 'currency', 'is_active', 'purchase_price_list_id',
+        'ppn_enabled', 'ppn_rate', 'currency', 'is_active', 'purchase_price_list_id', 'warehouse_id', 'default_customer_id',
     ];
+
+    public function defaultCustomer()
+    {
+        return $this->belongsTo(Customer::class, 'default_customer_id');
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
 
     protected function casts(): array
     {

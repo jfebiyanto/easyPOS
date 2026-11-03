@@ -8,6 +8,7 @@ use App\Models\LoyaltyLedger;
 use App\Models\MemberLevel;
 use App\Models\Sale;
 use App\Models\SalesReturn;
+use App\Models\Store;
 
 /**
  * Program loyalitas: perolehan poin per transaksi, kenaikan level otomatis,
@@ -47,6 +48,14 @@ class LoyaltyService
         };
     }
 
+    /**
+     * Pelanggan retail default gerai bukan member dan tidak pernah memperoleh poin.
+     */
+    public static function isRetailDefault(string $customerId): bool
+    {
+        return Store::where('default_customer_id', $customerId)->exists();
+    }
+
     public static function earnForSale(Sale $sale): void
     {
         if (! $sale->customer_id || $sale->isVoid()) {
@@ -54,7 +63,7 @@ class LoyaltyService
         }
 
         $customer = Customer::find($sale->customer_id);
-        if (! $customer || ! $customer->is_member) {
+        if (! $customer || ! $customer->is_member || self::isRetailDefault($customer->id)) {
             return;
         }
 
@@ -83,7 +92,7 @@ class LoyaltyService
         }
 
         $customer = Customer::find($sale->customer_id);
-        if (! $customer) {
+        if (! $customer || self::isRetailDefault($customer->id)) {
             return;
         }
 

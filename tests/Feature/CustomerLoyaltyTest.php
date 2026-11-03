@@ -198,6 +198,54 @@ class CustomerLoyaltyTest extends TestCase
     }
 
     public function test_level_naik_otomatis_saat_ambang_terlewati(): void
+    public function test_walk_in_non_member_dicatat_atas_pelanggan_retail_default_tanpa_poin(): void
+    {
+        $retail = Customer::create([
+            'company_id' => $this->company->id,
+            'code' => 'RETAIL',
+            'name' => 'Pelanggan Retail',
+            'is_member' => false,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($this->owner)
+            ->put(route('admin.stores.update', $this->store), [
+                'code' => $this->store->code,
+                'name' => $this->store->name,
+                'pic_name' => 'PIC',
+                'currency' => 'IDR',
+                'default_customer_id' => $this->member->id,
+            ])
+            ->assertSessionHasErrors('default_customer_id');
+
+        $this->put(route('admin.stores.update', $this->store), [
+            'code' => $this->store->code,
+            'name' => $this->store->name,
+            'pic_name' => 'PIC',
+            'currency' => 'IDR',
+            'default_customer_id' => $retail->id,
+        ])->assertRedirect(route('admin.stores.index'));
+
+        $walkIn = $this->sell(1, null);
+        $this->assertSame($retail->id, $walkIn->customer_id);
+        $this->assertSame(0.0, (float) $walkIn->points_earned);
+        $this->assertSame(0.0, (float) $retail->refresh()->points_balance);
+
+        // Bila dipilih member, tetap atas nama member tersebut.
+        $this->sell(1, $this->member->id);
+        $this->assertSame(1, Sale::where('customer_id', $this->member->id)->count());
+        $this->assertSame(1, Sale::where('customer_id', $retail->id)->count());
+
+        // Pelanggan retail default tidak bisa dijadikan member.
+        $this->put(route('admin.customers.update', $retail), [
+            'name' => 'Pelanggan Retail',
+            'code' => 'RETAIL',
+            'is_member' => '1',
+            'is_active' => '1',
+        ]);
+        $this->assertFalse($retail->refresh()->is_member);
+    }
+
     {
         $this->member->update(['points_balance' => 99, 'member_level_id' => $this->silver->id]);
 

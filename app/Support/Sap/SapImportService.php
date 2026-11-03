@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\ProductGroup;
 use App\Models\SapSyncRun;
 use App\Models\Unit;
+use App\Models\Warehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
@@ -41,6 +42,7 @@ class SapImportService
      * Objek yang diimpor, berurutan: kunci ringkasan => [label, tabel SAP].
      */
     public const ENTITIES = [
+        'warehouse' => ['Warehouse', 'OWHS'],
         'item_category' => ['Item Category', 'OITB'],
         'manufacturer' => ['Manufacturer', 'OMRC'],
         'unit' => ['Satuan (Unit of Measurement)', 'OUOM'],
@@ -114,6 +116,7 @@ class SapImportService
                 : null;
 
             // Urutan mengikuti ketergantungan data.
+            $this->importWarehouses($client);       // OWHS (U_SOL_RETAIL = Y)
             $this->importItemGroups($client);       // OITB
             $this->importManufacturers($client);    // OMRC
             $this->importUnits($client);            // OUOM
@@ -165,6 +168,34 @@ class SapImportService
     private function isInitial(): bool
     {
         return $this->run->mode === SapSyncRun::MODE_INITIAL;
+    }
+
+    /**
+     * Hanya warehouse retail: UDF U_SOL_RETAIL = 'Y'. Profit center dari UDF U_SOL_PRFC (boleh kosong).
+     */
+    private function importWarehouses(SapServiceLayer $client): void
+    {
+        $query = [
+            '$select' => 'WarehouseCode,WarehouseName,Inactive,U_SOL_PRFC',
+            '$filter' => "U_SOL_RETAIL eq 'Y'",
+        ];
+
+        $this->each('warehouse', $client, 'Warehouses', $query, function (array $row) {
+            $code = $this->cut($row['WarehouseCode'] ?? '', 30);
+            if ($code === '') {
+                return null;
+            }
+
+            $profitCenter = $this->cut($row['U_SOL_PRFC'] ?? '', 50);
+
+            [, $outcome] = $this->store(Warehouse::class, ['code' => $code], [
+                'name' => $this->cut($row['WarehouseName'] ?? '', 255) ?: $code,
+                'profit_center' => $profitCenter !== '' ? $profitCenter : null,
+                'is_active' => ($row['Inactive'] ?? 'tNO') !== 'tYES',
+            ]);
+
+            return $outcome;
+        });
     }
 
     private function importItemGroups(SapServiceLayer $client): void

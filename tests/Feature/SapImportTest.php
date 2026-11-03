@@ -15,6 +15,7 @@ use App\Models\SapSyncRun;
 use App\Models\Store;
 use App\Models\Unit;
 use App\Models\User;
+use App\Models\Warehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\Http;
@@ -70,6 +71,10 @@ class SapImportTest extends TestCase
         Http::fake([
             '*/Login' => Http::response(['SessionId' => 'abc'], 200),
             '*/Logout' => Http::response('', 204),
+            '*/Warehouses*' => Http::response(['value' => [
+                ['WarehouseCode' => 'WH-01', 'WarehouseName' => 'Gudang Retail 1', 'Inactive' => 'tNO', 'U_SOL_PRFC' => 'PC-JKT'],
+                ['WarehouseCode' => 'WH-02', 'WarehouseName' => 'Gudang Retail 2', 'Inactive' => 'tYES', 'U_SOL_PRFC' => ''],
+            ]]),
             '*/UnitOfMeasurements*' => Http::response(['value' => [['Code' => 'PCS', 'Name' => 'Pieces']]]),
             '*/ItemGroups*' => Http::response(['value' => [['Number' => 100, 'GroupName' => 'Minuman']]]),
             '*/Manufacturers*' => Http::response(['value' => [['Code' => 5, 'ManufacturerName' => 'Indo Coffee']]]),
@@ -120,6 +125,15 @@ class SapImportTest extends TestCase
         $run = SapSyncRun::first();
         $this->assertSame(SapSyncRun::STATUS_SUCCESS, $run->status);
 
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/Warehouses')
+            && str_contains(urldecode($request->url()), "U_SOL_RETAIL eq 'Y'"));
+        $this->assertSame(2, Warehouse::count());
+        $this->assertSame('PC-JKT', Warehouse::where('code', 'WH-01')->value('profit_center'));
+        $this->assertTrue(Warehouse::where('code', 'WH-01')->value('is_active'));
+        $inactive = Warehouse::where('code', 'WH-02')->firstOrFail();
+        $this->assertNull($inactive->profit_center);
+        $this->assertFalse($inactive->is_active);
+
         $this->assertSame('Pieces', Unit::where('code', 'PCS')->value('name'));
         $this->assertSame('Minuman', ProductGroup::where('code', '100')->value('name'));
         $this->assertSame('Indo Coffee', Brand::where('code', '5')->value('name'));
@@ -140,7 +154,7 @@ class SapImportTest extends TestCase
         $this->assertSame(1, $run->summary['item_master']['created']);
 
         $this->assertSame(
-            ['item_category', 'manufacturer', 'unit', 'customer_group', 'customer', 'item_master', 'price_list', 'price_list_detail'],
+            ['warehouse', 'item_category', 'manufacturer', 'unit', 'customer_group', 'customer', 'item_master', 'price_list', 'price_list_detail'],
             array_keys($run->summary)
         );
         foreach ($run->summary as $progress) {
@@ -220,6 +234,7 @@ class SapImportTest extends TestCase
         Http::fake([
             '*/Login' => Http::response([], 200),
             '*/Logout' => Http::response('', 204),
+            '*/Warehouses*' => Http::response(['value' => []]),
             '*/ItemGroups*' => Http::response(['value' => [['Number' => 100, 'GroupName' => 'Minuman']]]),
             '*/Manufacturers*' => Http::response(['error' => ['message' => 'boom']], 500),
         ]);

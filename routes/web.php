@@ -137,6 +137,7 @@ Route::prefix('admin')
         Route::post('/stock-transfers/{stockTransfer}/cancel', [Admin\StockTransferController::class, 'cancel'])->name('stock-transfers.cancel');
 
         // Product catalog
+        Route::resource('warehouses', Admin\WarehouseController::class)->except('show');
         Route::resource('units', Admin\UnitController::class)->except('show');
         Route::resource('groups', Admin\ProductGroupController::class)->except('show')->names('groups');
         Route::resource('brands', Admin\BrandController::class)->except('show')->names('brands');

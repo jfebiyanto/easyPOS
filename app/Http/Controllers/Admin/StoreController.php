@@ -7,9 +7,11 @@ use App\Http\Controllers\Concerns\AuthorizesCompany;
 use App\Http\Controllers\Controller;
 use App\Models\CompanyDetail;
 use App\Models\Currency;
+use App\Models\Customer;
 use App\Models\PriceList;
 use App\Models\Store;
 use App\Models\User;
+use App\Models\Warehouse;
 use App\Rules\ValidStoreCurrency;
 use App\Support\ActivityLogger;
 use Illuminate\Http\Request;
@@ -46,6 +48,8 @@ class StoreController extends Controller
             'currencies' => $this->currencyOptions(),
             'priceLists' => $this->priceListOptions(),
             'salesPriceListId' => null,
+            'warehouses' => $this->warehouseOptions(),
+            'customers' => $this->customerOptions(),
         ]);
     }
 
@@ -85,6 +89,8 @@ class StoreController extends Controller
             'company' => CompanyDetail::current(),
             'currencies' => $this->currencyOptions($store->currency),
             'priceLists' => $this->priceListOptions(),
+            'warehouses' => $this->warehouseOptions($store),
+            'customers' => $this->customerOptions($store),
             'salesPriceListId' => $store->priceLists()->orderByDesc('store_price_lists.is_default')->value('price_lists.id'),
         ]);
     }
@@ -164,12 +170,47 @@ class StoreController extends Controller
             'is_active' => ['sometimes', 'boolean'],
             'sales_price_list_id' => ['nullable', 'string', Rule::exists('price_lists', 'id')->where('company_id', current_company_id())],
             'purchase_price_list_id' => ['nullable', 'string', Rule::exists('price_lists', 'id')->where('company_id', current_company_id())],
+            'default_customer_id' => [
+                'nullable', 'string',
+                Rule::exists('customers', 'id')
+                    ->where('company_id', current_company_id())
+                    ->where('is_member', 0)
+                    ->where('is_active', 1),
+            ],
+            'warehouse_id' => [
+                'nullable', 'string',
+                Rule::exists('warehouses', 'id')->where('company_id', current_company_id()),
+                Rule::unique('stores', 'warehouse_id')->ignore($id),
+            ],
         ]);
 
         $data['currency'] = strtoupper(trim($data['currency']));
         unset($data['sales_price_list_id']);
 
         return $data;
+    }
+
+    /**
+     * Warehouse aktif yang belum dipakai gerai lain (plus milik gerai ini).
+     */
+    private function warehouseOptions(?Store $store = null): Collection
+    {
+        return Warehouse::where('company_id', current_company_id())
+            ->where(fn ($q) => $q->where('is_active', true)->orWhere('id', $store?->warehouse_id))
+            ->where(fn ($q) => $q->whereDoesntHave('store')->orWhere('id', $store?->warehouse_id))
+            ->orderBy('code')
+            ->get(['id', 'code', 'name']);
+    }
+
+    /**
+     * Calon pelanggan retail default: non member dan aktif (plus pilihan yang sedang tersimpan).
+     */
+    private function customerOptions(?Store $store = null): Collection
+    {
+        return Customer::where('company_id', current_company_id())
+            ->where(fn ($q) => $q->where('is_member', false)->where('is_active', true)->orWhere('id', $store?->default_customer_id))
+            ->orderBy('name')
+            ->get(['id', 'code', 'name']);
     }
 
     private function priceListOptions(): Collection

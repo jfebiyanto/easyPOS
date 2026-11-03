@@ -31,6 +31,7 @@
                         ['admin.company.edit', 'apartment', 'Identitas Perusahaan', true],
                         ['admin.sap-import.index', 'cloud_download', 'Impor Data SAP B1', $isSuperuser && \App\Models\CompanyDetail::current()->sapIntegrationActive()],
                         ['admin.stores.index', 'store', 'Daftar Gerai', $isSuperuser],
+                        ['admin.warehouses.index', 'warehouse', 'Warehouse', $isSuperuser],
                         ['admin.users.index', 'group', 'Daftar User', $isSuperuser],
                         ['admin.member-levels.index', 'workspace_premium', 'Level Member', $isSuperuser],
                         ['admin.numberings.index', 'pin', 'Penomoran', $isSuperuser],

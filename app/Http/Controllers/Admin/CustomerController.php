@@ -82,6 +82,11 @@ class CustomerController extends Controller
         $data['is_member'] = $request->boolean('is_member');
         $data['is_active'] = $request->boolean('is_active');
 
+        // Pelanggan retail default gerai tidak boleh menjadi member.
+        if (LoyaltyService::isRetailDefault($customer->id)) {
+            $data['is_member'] = false;
+        }
+
         $customer->update($data);
 
         ActivityLogger::log('customer.updated', "Mengubah customer: {$customer->name}", $customer);
