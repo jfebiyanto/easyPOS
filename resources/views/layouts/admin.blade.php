@@ -24,69 +24,48 @@
                     {!! navitem('admin.dashboard', 'dashboard', 'Dashboard') !!}
                 </div>
 
-            <div class="nav-group" data-section="konfigurasi">
-                <button type="button" class="nav-group-header" aria-expanded="true">
-                    <span class="nav-section-label">Konfigurasi</span>
-                    <span class="material-symbols-rounded nav-chevron">expand_more</span>
-                </button>
-                <div class="nav-group-body">
-                    {!! navitem('admin.company.edit', 'apartment', 'Identitas Perusahaan') !!}
-                    @if (auth()->user()->isSuperuser())
-                        {!! navitem('admin.stores.index', 'store', 'Daftar Gerai') !!}
-                        {!! navitem('admin.users.index', 'group', 'Daftar User') !!}
-                        {!! navitem('admin.member-levels.index', 'workspace_premium', 'Level Member') !!}
-                        {!! navitem('admin.numberings.index', 'pin', 'Penomoran') !!}
-                    @endif
-                    @if (auth()->user()->isSuperuser())
-                        {!! navitem('admin.currencies.index', 'payments', 'Mata Uang') !!}
-                        {!! navitem('admin.payment-types.index', 'credit_card', 'Tipe Pembayaran') !!}
-                    @endif
-                </div>
-            </div>
-
-            <div class="nav-group" data-section="produk">
-                <button type="button" class="nav-group-header" aria-expanded="true">
-                    <span class="nav-section-label">Produk</span>
-                    <span class="material-symbols-rounded nav-chevron">expand_more</span>
-                </button>
-                <div class="nav-group-body">
-                    {!! navitem('admin.groups.index', 'category', 'Kategori Produk') !!}
-                    {!! navitem('admin.units.index', 'straighten', 'Satuan') !!}
-                    {!! navitem('admin.brands.index', 'verified', 'Daftar Merk') !!}
-                    {!! navitem('admin.products.index', 'inventory_2', 'Daftar Produk') !!}
-                    {!! navitem('admin.bundles.index', 'workspaces', 'Produk Paket') !!}
-                    {!! navitem('admin.price-lists.index', 'sell', 'Daftar Harga') !!}
-                    {!! navitem('admin.promotions.index', 'percent', 'Promosi') !!}
-                </div>
-            </div>
-
-            <div class="nav-group" data-section="stok">
-                <button type="button" class="nav-group-header" aria-expanded="true">
-                    <span class="nav-section-label">Stok</span>
-                    <span class="material-symbols-rounded nav-chevron">expand_more</span>
-                </button>
-                <div class="nav-group-body">
-                    {!! navitem('admin.stock.index', 'warehouse', 'Saldo Stok') !!}
-                    {!! navitem('admin.stock-adjustments.index', 'tune', 'Penyesuaian Stok') !!}
-                    {!! navitem('admin.stock-transfers.index', 'swap_horiz', 'Transfer Stok') !!}
-                </div>
-            </div>
-
-            <div class="nav-group" data-section="operasional">
-                <button type="button" class="nav-group-header" aria-expanded="true">
-                    <span class="nav-section-label">Operasional</span>
-                    <span class="material-symbols-rounded nav-chevron">expand_more</span>
-                </button>
-                <div class="nav-group-body">
-                    {!! navitem('admin.customer-groups.index', 'diversity_3', 'Grup Pelanggan') !!}
-                    {!! navitem('admin.supplier-groups.index', 'groups_3', 'Grup Pemasok') !!}
-                    {!! navitem('admin.customers.index', 'person', 'Daftar Pelanggan') !!}
-                    {!! navitem('admin.suppliers.index', 'local_shipping', 'Daftar Pemasok') !!}
-                    {!! navitem('admin.deliveries.index', 'local_shipping', 'Pengiriman') !!}
-                    {!! navitem('admin.stock-review.index', 'rule', 'Review Stok') !!}
-                    {!! navitem('admin.eod.index', 'lock', 'Tutup Toko') !!}
-                </div>
-            </div>
+            @php
+                $isSuperuser = auth()->user()->isSuperuser();
+                $navGroups = [
+                    'konfigurasi' => ['Konfigurasi', [
+                        ['admin.company.edit', 'apartment', 'Identitas Perusahaan', true],
+                        ['admin.sap-import.index', 'cloud_download', 'Impor Data SAP B1', $isSuperuser && \App\Models\CompanyDetail::current()->sapIntegrationActive()],
+                        ['admin.stores.index', 'store', 'Daftar Gerai', $isSuperuser],
+                        ['admin.users.index', 'group', 'Daftar User', $isSuperuser],
+                        ['admin.member-levels.index', 'workspace_premium', 'Level Member', $isSuperuser],
+                        ['admin.numberings.index', 'pin', 'Penomoran', $isSuperuser],
+                        ['admin.currencies.index', 'payments', 'Mata Uang', $isSuperuser],
+                        ['admin.payment-types.index', 'credit_card', 'Tipe Pembayaran', $isSuperuser],
+                    ]],
+                    'produk' => ['Produk', [
+                        ['admin.groups.index', 'category', 'Kategori Produk', true],
+                        ['admin.units.index', 'straighten', 'Satuan', true],
+                        ['admin.brands.index', 'verified', 'Daftar Merk', true],
+                        ['admin.products.index', 'inventory_2', 'Daftar Produk', true],
+                        ['admin.bundles.index', 'workspaces', 'Produk Paket', true],
+                        ['admin.price-lists.index', 'sell', 'Daftar Harga', true],
+                        ['admin.promotions.index', 'percent', 'Promosi', true],
+                    ]],
+                    'stok' => ['Stok', [
+                        ['admin.stock.index', 'warehouse', 'Saldo Stok', true],
+                        ['admin.stock-adjustments.index', 'tune', 'Penyesuaian Stok', true],
+                        ['admin.stock-transfers.index', 'swap_horiz', 'Transfer Stok', true],
+                    ]],
+                    'operasional' => ['Operasional', [
+                        ['admin.customer-groups.index', 'diversity_3', 'Grup Pelanggan', true],
+                        ['admin.supplier-groups.index', 'groups_3', 'Grup Pemasok', true],
+                        ['admin.customers.index', 'person', 'Daftar Pelanggan', true],
+                        ['admin.suppliers.index', 'local_shipping', 'Daftar Pemasok', true],
+                        ['admin.deliveries.index', 'local_shipping', 'Pengiriman', true],
+                        ['admin.stock-review.index', 'rule', 'Review Stok', true],
+                        ['admin.eod.index', 'lock', 'Tutup Toko', true],
+                    ]],
+                    'laporan' => ['Laporan', [
+                        ['admin.reports.index', 'bar_chart', 'Laporan Penjualan', true],
+                        ['admin.logs.index', 'history', 'Log Aktivitas', $isSuperuser],
+                    ]],
+                ];
+            @endphp
 
             <div class="nav-group" data-section="laporan">
                 <button type="button" class="nav-group-header" aria-expanded="true">

@@ -13,12 +13,13 @@ use App\Models\User;
 use App\Rules\ValidStoreCurrency;
 use App\Support\ActivityLogger;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class StoreController extends Controller
 {
-    use AuthorizesSuperuser, AuthorizesCompany;
+    use AuthorizesCompany, AuthorizesSuperuser;
 
     public function index(): View
     {
@@ -44,8 +45,7 @@ class StoreController extends Controller
             'company' => CompanyDetail::current(),
             'currencies' => $this->currencyOptions(),
             'priceLists' => $this->priceListOptions(),
-            'assigned' => [],
-            'defaultPriceListId' => null,
+            'salesPriceListId' => null,
         ]);
     }
 
@@ -85,8 +85,7 @@ class StoreController extends Controller
             'company' => CompanyDetail::current(),
             'currencies' => $this->currencyOptions($store->currency),
             'priceLists' => $this->priceListOptions(),
-            'assigned' => $store->priceLists()->pluck('price_lists.id')->all(),
-            'defaultPriceListId' => $store->priceLists()->wherePivot('is_default', true)->value('price_lists.id'),
+            'salesPriceListId' => $store->priceLists()->orderByDesc('store_price_lists.is_default')->value('price_lists.id'),
         ]);
     }
 
@@ -136,20 +135,16 @@ class StoreController extends Controller
 
         ActivityLogger::log('store.switched', "Mengganti store aktif menjadi: {$store->code} · {$store->name}", $store);
 
-        return redirect()->intended(route('admin.stores.index'))
+        // Kembali ke halaman asal (bisa dari Daftar Gerai atau dropdown store aktif di top bar).
+        return redirect()->back(fallback: route('admin.stores.index'))
             ->with('success', 'Store aktif: '.$store->code.' · '.$store->name);
     }
 
     private function syncPriceLists(Store $store, Request $request): void
     {
-        $ids = collect($request->input('price_list_ids', []))->filter()->all();
-        $defaultId = $request->input('default_price_list_id');
+        $salesId = $request->input('sales_price_list_id');
 
-        $sync = collect($ids)->mapWithKeys(fn ($id) => [
-            $id => ['is_default' => (string) $id === (string) $defaultId],
-        ])->all();
-
-        $store->priceLists()->sync($sync);
+        $store->priceLists()->sync($salesId ? [$salesId => ['is_default' => true]] : []);
     }
 
     private function validated(Request $request, ?string $id = null): array
@@ -167,17 +162,17 @@ class StoreController extends Controller
                 new ValidStoreCurrency($id ? Store::whereKey($id)->value('currency') : null),
             ],
             'is_active' => ['sometimes', 'boolean'],
-            'price_list_ids' => ['nullable', 'array'],
-            'price_list_ids.*' => ['string', Rule::exists('price_lists', 'id')->where('company_id', current_company_id())],
-            'default_price_list_id' => ['nullable', 'string', Rule::exists('price_lists', 'id')->where('company_id', current_company_id())],
+            'sales_price_list_id' => ['nullable', 'string', Rule::exists('price_lists', 'id')->where('company_id', current_company_id())],
+            'purchase_price_list_id' => ['nullable', 'string', Rule::exists('price_lists', 'id')->where('company_id', current_company_id())],
         ]);
 
         $data['currency'] = strtoupper(trim($data['currency']));
+        unset($data['sales_price_list_id']);
 
         return $data;
     }
 
-    private function priceListOptions(): \Illuminate\Support\Collection
+    private function priceListOptions(): Collection
     {
         return PriceList::where('company_id', current_company_id())
             ->where('is_active', true)

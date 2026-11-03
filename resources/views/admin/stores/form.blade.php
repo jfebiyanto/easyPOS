@@ -73,26 +73,21 @@
                 </div>
             </div>
             <div class="field" style="grid-column: 1 / -1;">
-                <label>Pricelist yang dipakai gerai ini</label>
-                <div class="checkbox-grid">
-                    @forelse ($priceLists as $pl)
-                        <div class="checkbox-row">
-                            <input type="checkbox" id="pl_{{ $pl->id }}" name="price_list_ids[]" value="{{ $pl->id }}" @checked(in_array($pl->id, old('price_list_ids', $assigned)))>
-                            <label for="pl_{{ $pl->id }}">{{ $pl->code }} · {{ $pl->name }} <span class="hint">{{ $pl->store_id ? '(store)' : '(company)' }}</span></label>
+                @if ($priceLists->isEmpty())
+                    <div class="hint">Belum ada pricelist. Buat di <a href="{{ route('admin.price-lists.index') }}">Daftar Harga</a>.</div>
+                @else
+                    <div style="display:flex; flex-wrap:wrap; gap:16px;">
+                    @foreach (['sales_price_list_id' => ['Pricelist Jual', $salesPriceListId], 'purchase_price_list_id' => ['Pricelist Beli', $store->purchase_price_list_id]] as $field => [$label, $current])
+                        <div style="flex:1 1 260px; max-width:360px;">
+                            <label for="{{ $field }}" style="display:block; font-size:13px; font-weight:500; color:var(--md-on-surface-variant); margin-bottom:6px;">{{ $label }}</label>
+                            <select id="{{ $field }}" name="{{ $field }}" style="width:100%; padding:12px 14px; border:1px solid var(--md-outline); border-radius:var(--md-radius-sm); background:var(--md-surface-container-high);">
+                                <option value="">- Tidak ada -</option>
+                                @foreach ($priceLists as $pl)
+                                    <option value="{{ $pl->id }}" @selected(old($field, $current) == $pl->id)>{{ $pl->code }} · {{ $pl->name }}</option>
+                                @endforeach
+                            </select>
                         </div>
-                    @empty
-                        <div class="hint">Belum ada pricelist. Buat di <a href="{{ route('admin.price-lists.index') }}">Daftar Harga</a>.</div>
-                    @endforelse
-                </div>
-                @if ($priceLists->isNotEmpty())
-                    <div style="margin-top:10px; max-width:360px;">
-                        <label for="default_price_list_id" style="display:block; font-size:13px; font-weight:500; color:var(--md-on-surface-variant); margin-bottom:6px;">Pricelist default</label>
-                        <select id="default_price_list_id" name="default_price_list_id" style="width:100%; padding:12px 14px; border:1px solid var(--md-outline); border-radius:var(--md-radius-sm); background:var(--md-surface-container-high);">
-                            <option value="">- Tidak ada -</option>
-                            @foreach ($priceLists as $pl)
-                                <option value="{{ $pl->id }}" @selected(old('default_price_list_id', $defaultPriceListId) == $pl->id)>{{ $pl->code }} · {{ $pl->name }}</option>
-                            @endforeach
-                        </select>
+                    @endforeach
                     </div>
                 @endif
             </div>

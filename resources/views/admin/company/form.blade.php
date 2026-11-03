@@ -129,6 +129,9 @@
                 <label for="sap_enabled"><strong>Aktifkan Integrasi SAP Business One via Service Layer</strong></label>
                 @if ($company->sapIntegrationActive())
                     <span class="badge active">Aktif</span>
+                    <a href="{{ route('admin.sap-import.index') }}" class="btn btn-text">
+                        <span class="material-symbols-rounded">cloud_download</span> Impor Data SAP B1
+                    </a>
                 @elseif ($company->sap_enabled && ! $company->hasSapConfig())
                     <span class="badge inactive">ON — kredensial belum lengkap</span>
                 @else

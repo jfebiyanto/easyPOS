@@ -58,6 +58,13 @@ Route::prefix('admin')
         Route::get('/activity-logs', [Admin\ActivityLogController::class, 'index'])->name('logs.index');
 
         // Tipe pembayaran — global, bisa dipakai di beberapa gerai
+        // Impor data SAP B1 + interval sinkronisasi (muncul bila integrasi SAP aktif)
+        Route::get('/sap-import', [Admin\SapImportController::class, 'index'])->name('sap-import.index');
+        Route::post('/sap-import/run', [Admin\SapImportController::class, 'run'])->name('sap-import.run');
+        Route::post('/sap-import/cancel', [Admin\SapImportController::class, 'cancel'])->name('sap-import.cancel');
+        Route::put('/sap-import/settings', [Admin\SapImportController::class, 'updateSettings'])->name('sap-import.settings');
+        Route::get('/sap-import/status', [Admin\SapImportController::class, 'status'])->name('sap-import.status');
+
         Route::resource('payment-types', Admin\PaymentTypeController::class)->except('show');
 
         // Mata uang — global; nominal pecahan dikelola per mata uang (show = halaman pecahan)

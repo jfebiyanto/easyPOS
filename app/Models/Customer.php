@@ -11,7 +11,7 @@ class Customer extends Model
 
     protected $fillable = [
         'company_id', 'code', 'name', 'phone', 'email', 'address', 'is_member',
-        'member_level_id', 'points_balance', 'joined_at', 'is_active',
+        'member_level_id', 'customer_group_id', 'points_balance', 'joined_at', 'is_active',
     ];
 
     protected function casts(): array

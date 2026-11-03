@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\Concerns\AuthorizesSuperuser;
 use App\Http\Controllers\Controller;
 use App\Models\CompanyDetail;
 use App\Support\ActivityLogger;
+use App\Support\Sap\SapServiceLayer;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -119,7 +120,7 @@ class CompanyController extends Controller
             $url .= '/Login';
         }
 
-        $this->assertSafeSapUrl($url);
+        SapServiceLayer::assertSafeUrl($url);
 
         try {
             $response = Http::timeout(15)
@@ -147,30 +148,6 @@ class CompanyController extends Controller
                 'success' => false,
                 'message' => 'Gagal menguji koneksi: '.Str::limit($e->getMessage(), 180),
             ]);
-        }
-    }
-
-    /**
-     * Cegah SSRF: endpoint SAP tidak boleh menunjuk ke alamat internal/privat
-     * (loopback, RFC1918, link-local/metadata, dst).
-     */
-    private function assertSafeSapUrl(string $url): void
-    {
-        $parts = parse_url($url);
-        $scheme = strtolower($parts['scheme'] ?? '');
-        $host = $parts['host'] ?? '';
-
-        abort_if(! in_array($scheme, ['http', 'https'], true) || $host === '', 422, 'URL endpoint SAP tidak valid.');
-
-        $ips = filter_var($host, FILTER_VALIDATE_IP)
-            ? [$host]
-            : (gethostbynamel($host) ?: []);
-
-        abort_if($ips === [], 422, 'Host endpoint SAP tidak dapat di-resolve.');
-
-        foreach ($ips as $ip) {
-            $public = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
-            abort_if($public === false, 422, 'Endpoint SAP tidak boleh mengarah ke alamat internal/privat.');
         }
     }
 }
