@@ -6,13 +6,16 @@ use App\Http\Controllers\Admin\Concerns\AuthorizesSuperuser;
 use App\Http\Controllers\Controller;
 use App\Models\CompanyDetail;
 use App\Support\ActivityLogger;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class CompanyController extends Controller
 {
-    use \App\Http\Controllers\Admin\Concerns\AuthorizesSuperuser;
+    use AuthorizesSuperuser;
 
     public function edit(): View
     {
@@ -86,7 +89,17 @@ class CompanyController extends Controller
 
         $company = CompanyDetail::current();
 
-        if (! $company->hasSapConfig()) {
+        // Pakai nilai dari form (belum perlu disimpan); fallback ke data tersimpan.
+        // Password kosong = pakai password tersimpan.
+        $endpoint = trim((string) $request->input('sap_endpoint_url', $company->sap_endpoint_url));
+        $dbName = trim((string) $request->input('sap_db_name', $company->sap_db_name));
+        $username = trim((string) $request->input('sap_username', $company->sap_username));
+        $password = filled($request->input('sap_password')) ? (string) $request->input('sap_password') : (string) $company->sap_password;
+        $verifySsl = $request->has('sap_allow_self_signed')
+            ? ! $request->boolean('sap_allow_self_signed')
+            : (bool) $company->sap_verify_ssl;
+
+        if ($endpoint === '' || $dbName === '' || $username === '' || $password === '') {
             return response()->json([
                 'success' => false,
                 'message' => 'Konfigurasi SAP B1 belum lengkap. Lengkapi Endpoint URL, Database, Username, dan Password.',
@@ -94,24 +107,24 @@ class CompanyController extends Controller
         }
 
         $payload = [
-            'CompanyDB' => $company->sap_db_name,
-            'UserName' => $company->sap_username,
-            'Password' => $company->sap_password,
+            'CompanyDB' => $dbName,
+            'UserName' => $username,
+            'Password' => $password,
         ];
 
         // SAP B1 Service Layer: URL tersimpan adalah base (mis. .../b1s/v1).
         // Resource login ada di .../b1s/v1/Login — tambahkan bila belum ada.
-        $url = rtrim($company->sap_endpoint_url, '/');
-        if (! \Illuminate\Support\Str::endsWith(strtolower($url), '/login')) {
+        $url = rtrim($endpoint, '/');
+        if (! Str::endsWith(strtolower($url), '/login')) {
             $url .= '/Login';
         }
 
         $this->assertSafeSapUrl($url);
 
         try {
-            $response = \Illuminate\Support\Facades\Http::timeout(15)
+            $response = Http::timeout(15)
                 ->acceptJson()
-                ->withOptions(['verify' => (bool) $company->sap_verify_ssl])
+                ->withOptions(['verify' => $verifySsl])
                 ->post($url, $payload);
 
             $status = $response->status();
@@ -124,15 +137,15 @@ class CompanyController extends Controller
                     ? "Koneksi ke SAP B1 berhasil (HTTP {$status})."
                     : "SAP B1 merespons, tetapi login gagal (HTTP {$status}). Periksa kredensial atau URL.",
             ]);
-        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+        } catch (ConnectionException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Tidak dapat terhubung ke SAP B1: '.\Illuminate\Support\Str::limit($e->getMessage(), 180),
+                'message' => 'Tidak dapat terhubung ke SAP B1: '.Str::limit($e->getMessage(), 180),
             ]);
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal menguji koneksi: '.\Illuminate\Support\Str::limit($e->getMessage(), 180),
+                'message' => 'Gagal menguji koneksi: '.Str::limit($e->getMessage(), 180),
             ]);
         }
     }

@@ -72,7 +72,7 @@
     </div>
 
     <div class="card">
-        <h2 class="card-title">Kebijakan Global</h2>
+        <h2 class="card-title">Konfigurasi Global</h2>
         <p class="card-subtitle">Mata uang dasar, timezone, kebijakan stok, dan retur berlaku untuk seluruh gerai.</p>
 
         <div class="form-grid">
@@ -126,7 +126,7 @@
                 <input type="checkbox" id="sap_enabled" name="sap_enabled" value="1"
                        @checked(old('sap_enabled', $company->sap_enabled))
                        @disabled(! $canManage)>
-                <label for="sap_enabled"><strong>Aktifkan Integrasi SAP Business One</strong></label>
+                <label for="sap_enabled"><strong>Aktifkan Integrasi SAP Business One via Service Layer</strong></label>
                 @if ($company->sapIntegrationActive())
                     <span class="badge active">Aktif</span>
                 @elseif ($company->sap_enabled && ! $company->hasSapConfig())
@@ -167,9 +167,9 @@
                     <input type="checkbox" id="sap_allow_self_signed" name="sap_allow_self_signed" value="1"
                            @checked(old('sap_allow_self_signed', ! $company->sap_verify_ssl))
                            @disabled(! $canManage)>
-                    <label for="sap_allow_self_signed">Izinkan sertifikat self-signed (klik untuk mematikan verifikasi SSL, sama seperti default Postman)</label>
+                    <label for="sap_allow_self_signed">Allow Self-Signed Certificate</label>
                 </div>
-                <div class="hint">
+                <div class="hint" style="display: none">
                     Server SAP B1 internal biasanya memakai self-signed certificate — centang ini agar tes koneksi tidak
                     gagal dengan error SSL. <strong>Nonaktifkan hanya untuk jaringan internal yang tepercaya.</strong>
                 </div>
@@ -222,7 +222,20 @@
                     result.textContent = text;
                 }
 
+                function val(id) {
+                    var el = document.getElementById(id);
+                    return el ? el.value.trim() : '';
+                }
+
                 btn.addEventListener('click', function () {
+                    var body = {
+                        sap_endpoint_url: val('sap_endpoint_url'),
+                        sap_db_name: val('sap_db_name'),
+                        sap_username: val('sap_username'),
+                        sap_password: document.getElementById('sap_password').value,
+                        sap_allow_self_signed: document.getElementById('sap_allow_self_signed').checked ? 1 : 0
+                    };
+
                     btn.disabled = true;
                     show('Menguji koneksi ke SAP B1...', 'md-snackbar info');
 
@@ -234,9 +247,9 @@
                             'X-CSRF-TOKEN': btn.dataset.csrf,
                             'X-Requested-With': 'XMLHttpRequest'
                         },
-                        body: JSON.stringify({})
+                        body: JSON.stringify(body)
                     }).then(function (r) { return r.json(); }).then(function (data) {
-                        show(data.message, data.success ? 'md-snackbar success' : 'md-snackbar error');
+                        show(data.message || 'Tes koneksi gagal.', data.success ? 'md-snackbar success' : 'md-snackbar error');
                     }).catch(function (e) {
                         show('Gagal memproses tes koneksi: ' + e, 'md-snackbar error');
                     }).finally(function () {
