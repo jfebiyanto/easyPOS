@@ -24,12 +24,6 @@
 
 <div class="card">
     <h2 class="card-title">Impor Data Awal</h2>
-    <p class="card-subtitle">
-        Menarik master data dari SAP Business One via Service Layer, hanya field yang dibutuhkan easyPOS.
-        Urutan: Item Category, Manufacturer, Satuan, Customer Group, Customer, Produk, Price List, dan Price List Details.
-        Impor awal mengisi easyPOS yang masih kosong tanpa pencocokan data. Sinkronisasi berikutnya mencocokkan data
-        berdasarkan kode SAP lalu menambah yang baru dan memperbarui yang berubah.
-    </p>
 
     <p>
         Impor awal terakhir:

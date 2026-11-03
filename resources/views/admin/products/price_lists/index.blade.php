@@ -13,7 +13,7 @@
 </div>
 
 <div class="table-toolbar">
-    <h2 style="margin:0; font-size:16px;">Daftar Daftar Harga</h2>
+    <h2 style="margin:0; font-size:16px;">Daftar Harga</h2>
     @if (auth()->user()->isSuperuser())
         <a href="{{ route('admin.price-lists.create') }}" class="btn btn-filled">
             <span class="material-symbols-rounded">add</span> Tambah Daftar Harga
