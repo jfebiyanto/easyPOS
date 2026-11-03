@@ -34,17 +34,19 @@ class SaleService
             }
         }
 
-        $company = CompanyDetail::findOrFail($companyId);
-        $rate = (float) ($company->ppn_rate ?? 0);
+        $company = CompanyDetail::with('taxGroup')->findOrFail($companyId);
+        // PPN 0% tetap PPN (tercatat dengan kode Tax Group-nya), bukan PPN nonaktif.
+        $taxEnabled = (bool) ($company->ppn_enabled ?? false);
+        $rate = $taxEnabled ? (float) ($company->taxGroup?->rate ?? $company->ppn_rate ?? 0) : 0.0;
+        $taxCode = $taxEnabled ? $company->taxGroup?->code : null;
         $inclusive = (bool) ($company->ppn_inclusive ?? false);
-        $taxEnabled = (bool) ($company->ppn_enabled ?? false) && $rate > 0;
 
         $origin = $data['origin'] ?? 'online';
         $enforceStock = $origin !== 'offline';
         $soldAt = isset($data['sold_at']) ? Carbon::parse($data['sold_at']) : now();
         $businessDate = $soldAt->copy()->setTimezone($company->timezone ?: 'Asia/Jakarta')->toDateString();
 
-        return DB::transaction(function () use ($data, $cashier, $company, $companyId, $storeId, $clientUuid, $rate, $inclusive, $taxEnabled, $origin, $enforceStock, $soldAt, $businessDate) {
+        return DB::transaction(function () use ($data, $cashier, $company, $companyId, $storeId, $clientUuid, $rate, $taxCode, $inclusive, $taxEnabled, $origin, $enforceStock, $soldAt, $businessDate) {
             $subtotal = 0.0;
             $taxSum = 0.0;
             $discountTotal = 0.0;
@@ -135,6 +137,8 @@ class SaleService
                     'promotion_name_snapshot' => $p['promotion']['promotion_name'],
                     'promotion_discount' => $p['promotion']['promotion_discount'],
                     'tax_amount' => round($p['tax'], 2),
+                    'tax_group_code' => $taxCode,
+                    'tax_rate' => $taxEnabled ? $rate : null,
                     'line_total' => round($p['lineTotal'], 2),
                 ]);
 

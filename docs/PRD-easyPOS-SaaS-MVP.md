@@ -10,7 +10,7 @@
 | Terakhir diperbarui | 2026-11-03 |
 | Stack | Backend Laravel, Frontend React JS |
 
-**Perubahan v1.6 (2026-11-03):** integrasi SAP B1 (impor master data & saldo stok, sinkronisasi berkala), modul Warehouse, pricelist jual/beli per gerai, default pelanggan retail per gerai, saldo stok per warehouse. Lihat Bagian 6b (C1–C5), model data (Bagian 7), serta penyesuaian FR-A7-04 dan FR-A9-02.
+**Perubahan v1.6 (2026-11-03):** integrasi SAP B1 (impor master data & saldo stok, sinkronisasi berkala), modul Warehouse, pricelist jual/beli per gerai, default pelanggan retail per gerai, saldo stok per warehouse, Tax Group (Output Tax) untuk Setting Pajak. Lihat Bagian 6b (C1–C6), model data (Bagian 7), serta penyesuaian FR-A2-02, FR-A7-04, dan FR-A9-02.
 
 Dokumen ini adalah baseline yang disetujui. Semua keputusan klarifikasi sudah di-fold-in. Satu constraint teknis dikunci pada Bagian 3 dan 8.
 
@@ -225,7 +225,7 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 
 ### A2 — Setting perusahaan
 - FR-A2-01: Nama badan usaha, alamat, logo, NPWP, telepon, email.
-- FR-A2-02: Pajak: `ppn_enabled`, `ppn_rate`, `ppn_inclusive`.
+- FR-A2-02: Pajak: `ppn_enabled`, Tax Group (Output Tax) terpilih (`tax_group_id`), `ppn_inclusive`. `ppn_rate` tidak lagi diisi manual; nilainya mengikuti tarif Tax Group terpilih (lihat C6). *(Diubah di v1.6.)*
 - FR-A2-03: PPN dihitung per baris, dijumlahkan tanpa pembulatan, lalu dibulatkan 2 desimal di level dokumen.
 - FR-A2-04: Timezone `Asia/Jakarta` (GMT+7); simpan UTC, tampilkan/report Jakarta.
 - FR-A2-05: `allow_negative_stock` (level company).
@@ -432,13 +432,25 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - FR-C5-03: Halaman Saldo Stok menampilkan saldo, komitmen, dan dipesan dari warehouse milik gerai terpilih; gerai tanpa warehouse menampilkan peringatan.
 - FR-C5-04 (kerangka, belum dipakai): `warehouse_stock_ledgers` (append-only, qty bertanda, `balance_after`, tipe seperti A9) dan `WarehouseStockService::record()` untuk pergerakan stok per warehouse. Penjualan, retur, transfer, dan penyesuaian belum dipindahkan ke ledger ini; sinkronisasi SAP menimpa `on_hand` dan perlu disesuaikan saat pergerakan diaktifkan.
 
+### C6 — Tax Group (Output Tax)
+- FR-C6-01: Master Tax Group (menu Konfigurasi, khusus superuser): `code` (unik per company), `name`, `rate`, `effective_from`, `source` (`sap`/`manual`), `is_active`. Satu interface yang sama baik terintegrasi SAP maupun tidak.
+- FR-C6-02: Tanpa integrasi SAP, user membuat dan mengubah Tax Group sendiri. Tax Group dari SAP (`source = sap`) hanya-baca: tidak dapat diubah atau dihapus (ditegakkan di server).
+- FR-C6-03: Impor dari SAP (`VatGroups`, OVTG) sebagai objek pertama: hanya `Category = bovcOutputTax` dan `Inactive = tNO`, disaring di sisi easyPOS. Tarif = baris `VatGroups_Lines` dengan `Effectivefrom` terbaru yang sudah berlaku (tarif masa depan diabaikan). Diambil penuh setiap sinkronisasi.
+- FR-C6-04: Tax Group selalu dicocokkan berdasarkan kode, juga saat impor awal; Tax Group manual berkode sama diambil alih SAP dan menjadi hanya-baca. Tax Group manual lain tetap aktif setelah integrasi diaktifkan.
+- FR-C6-05: Setting Pajak memilih satu Tax Group untuk perusahaan (wajib bila PPN aktif). `ppn_rate` perusahaan disamakan dengan tarif Tax Group terpilih, termasuk saat tarifnya diubah manual atau disinkronkan dari SAP.
+- FR-C6-06: Setiap baris penjualan menyimpan snapshot `tax_group_code` dan `tax_rate`, mengikuti perilaku SAP. Retur mengikuti baris penjualan asal lewat `sale_line_id`. Transaksi offline memakai Tax Group aktif saat transaksi disinkronkan ke server.
+- FR-C6-07: PPN 0% (mis. PPNK-0) tetap tercatat sebagai PPN dengan tarif 0, bukan PPN nonaktif. PPN dianggap aktif semata-mata dari `ppn_enabled`.
+- FR-C6-08: Tax Group yang dipakai perusahaan atau sudah tercatat di transaksi tidak dapat dihapus, hanya dinonaktifkan.
+- FR-C6-09: Migrasi: perusahaan yang sudah memakai PPN dibuatkan satu Tax Group manual dari tarif lamanya (mis. `PPN-11`) dan dipilih otomatis.
+
 ---
 
 ## 7. Sketsa data model (entitas + field kunci)
 
-- **company**: `id`, `name`, `address`, `logo_path`, `npwp`, `phone`, `email`, `ppn_enabled`, `ppn_rate`, `ppn_inclusive`, `base_currency_code`, `timezone`, `allow_negative_stock`, `return_window_days`, `return_require_receipt`, `sku_config` (JSON), `payment_providers` (terenkripsi), `sap_enabled`, `sap_endpoint_url`, `sap_db_name`, `sap_username`, `sap_password` (terenkripsi), `sap_verify_ssl`, `sap_auto_sync`, `sap_sync_interval_minutes`, `sap_last_synced_at`, `sap_initial_imported_at`.
+- **company**: `id`, `name`, `address`, `logo_path`, `npwp`, `phone`, `email`, `ppn_enabled`, `ppn_rate`, `ppn_inclusive`, `base_currency_code`, `timezone`, `allow_negative_stock`, `return_window_days`, `return_require_receipt`, `sku_config` (JSON), `payment_providers` (terenkripsi), `sap_enabled`, `sap_endpoint_url`, `sap_db_name`, `sap_username`, `sap_password` (terenkripsi), `sap_verify_ssl`, `sap_auto_sync`, `sap_sync_interval_minutes`, `sap_last_synced_at`, `sap_initial_imported_at`, `tax_group_id` (nullable).
 - **stores**: `id`, `company_id`, `code`, `name`, `address`, `pic_name`, `pic_phone`, `ppn_enabled`, `ppn_rate`, `currency_code`, `is_active`, `warehouse_id` (nullable, unik), `purchase_price_list_id` (nullable), `default_customer_id` (nullable).
 - **users**: `id`, `company_id`, `store_id` (null untuk Owner), `name`, `username`, `email`, `phone`, `role`, `is_active`, `password`.
+- **tax_groups**: `id`, `company_id`, `code` (unik per company), `name`, `rate`, `effective_from`, `source` (sap/manual), `is_active`.
 - **warehouses**: `id`, `company_id`, `code` (unik per company), `name`, `profit_center`, `is_active`.
 - **warehouse_stocks**: `id`, `company_id`, `warehouse_id`, `product_id`, `on_hand`, `committed`, `on_order`, `avg_price` (unik warehouse+produk).
 - **warehouse_stock_ledgers**: `id`, `company_id`, `warehouse_id`, `product_id`, `type`, `qty` (signed), `balance_after`, `unit_cost`, `ref_type`, `ref_id`, `note`, `created_by`, `created_at` (kerangka, belum dipakai).
@@ -462,7 +474,7 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - **loyalty_ledger**: `id`, `customer_id`, `type` (earn/adjust/expire), `points`, `balance_after`, `ref_type`, `ref_id`, `note`, `created_by`, `created_at`.
 - **sale_drafts**: `id`, `company_id`, `store_id`, `client_uuid` (unique), `cashier_id`, `device_label`, `payload` (JSON keranjang), `status` (held/finalized/cancelled), `updated_at`, `synced_at`.
 - **sales**: `id`, `company_id`, `store_id`, `number`, `client_uuid` (unique), `origin` (online/offline), `sync_status` (pending/synced), `business_date`, `type`, `customer_id` (nullable), `cashier_id`, `status` (completed/void), `stock_review_status` (none/pending/resolved), `review_reason`, `resolved_by`, `resolved_at`, `subtotal`, `discount_total`, `tax_total`, `shipping_cost`, `total`, `paid_total`, `change_total`, `currency_code`, `sold_at`, `voided_at`, `void_reason`.
-- **sale_lines**: `id`, `sale_id`, `product_id`, `sku_snapshot`, `name_snapshot`, `qty`, `unit_price`, `discount`, `tax_amount`, `line_total`.
+- **sale_lines**: `id`, `sale_id`, `product_id`, `sku_snapshot`, `name_snapshot`, `qty`, `unit_price`, `discount`, `tax_amount`, `tax_group_code`, `tax_rate`, `line_total`.
 - **sale_payments**: `id`, `sale_id`, `payment_type_id`, `amount`, `status` (pending/confirmed/void), `provider`, `provider_ref`, `confirmed_at`.
 - **sales_returns**: `id`, `number`, `original_sale_id`, `store_id`, `customer_id`, `reason`, `total`, `refund_method`, `receipt_verified`, `created_by`, `created_at`.
 - **sales_return_lines**: `id`, `sales_return_id`, `sale_line_id`, `product_id`, `qty`, `unit_price`, `line_total`.

@@ -13,6 +13,7 @@ use App\Models\Product;
 use App\Models\ProductGroup;
 use App\Models\SapSyncRun;
 use App\Models\Store;
+use App\Models\TaxGroup;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -72,6 +73,16 @@ class SapImportTest extends TestCase
         Http::fake([
             '*/Login' => Http::response(['SessionId' => 'abc'], 200),
             '*/Logout' => Http::response('', 204),
+            '*/VatGroups*' => Http::response(['value' => [
+                ['Code' => 'PPNK-11', 'Name' => 'PPN Keluaran 11%', 'Category' => 'bovcOutputTax', 'Inactive' => 'tNO', 'VatGroups_Lines' => [
+                    ['Effectivefrom' => '2020-01-01T00:00:00Z', 'Rate' => 10],
+                    ['Effectivefrom' => '2025-01-01T00:00:00Z', 'Rate' => 11],
+                    ['Effectivefrom' => '2099-01-01T00:00:00Z', 'Rate' => 15],
+                ]],
+                ['Code' => 'PPNK-0', 'Name' => 'PPN Keluaran 0%', 'Category' => 'bovcOutputTax', 'Inactive' => 'tNO', 'VatGroups_Lines' => [['Effectivefrom' => '2025-01-01T00:00:00Z', 'Rate' => 0]]],
+                ['Code' => 'PPNM-11', 'Name' => 'PPN Masukan 11%', 'Category' => 'bovcInputTax', 'Inactive' => 'tNO', 'VatGroups_Lines' => [['Effectivefrom' => '2025-01-01T00:00:00Z', 'Rate' => 11]]],
+                ['Code' => 'S1', 'Name' => 'AU Sales', 'Category' => 'bovcOutputTax', 'Inactive' => 'tYES', 'VatGroups_Lines' => [['Effectivefrom' => '2000-01-01T00:00:00Z', 'Rate' => 10]]],
+            ]]),
             '*/Warehouses*' => Http::response(['value' => [
                 ['WarehouseCode' => 'WH-01', 'WarehouseName' => 'Gudang Retail 1', 'Inactive' => 'tNO', 'U_SOL_RETAIL' => 'Y', 'U_SOL_PRFC' => 'PC-JKT'],
                 ['WarehouseCode' => 'WH-02', 'WarehouseName' => 'Gudang Retail 2', 'Inactive' => 'tYES', 'U_SOL_RETAIL' => 'Y', 'U_SOL_PRFC' => ''],
@@ -124,6 +135,9 @@ class SapImportTest extends TestCase
     public function test_impor_awal_membawa_semua_jenis_data_dari_sap(): void
     {
         $this->fakeSap();
+        // Tax Group manual berkode sama diambil alih SAP dan tarif PPN perusahaan ikut diperbarui.
+        $manual = TaxGroup::factory()->create(['company_id' => $this->company->id, 'code' => 'PPNK-11', 'rate' => 9]);
+        $this->company->update(['tax_group_id' => $manual->id, 'ppn_rate' => 9]);
 
         $this->actingAs($this->owner)
             ->post(route('admin.sap-import.run'), ['mode' => 'initial'])
@@ -132,6 +146,12 @@ class SapImportTest extends TestCase
         $run = SapSyncRun::first();
         $this->assertSame(SapSyncRun::STATUS_SUCCESS, $run->status);
 
+        $this->assertEqualsCanonicalizing(['PPNK-11', 'PPNK-0'], TaxGroup::pluck('code')->all());
+        $ppn11 = TaxGroup::where('code', 'PPNK-11')->firstOrFail();
+        $this->assertSame('11.0000', $ppn11->rate);
+        $this->assertSame('2025-01-01', $ppn11->effective_from->toDateString());
+        $this->assertSame(TaxGroup::SOURCE_SAP, $ppn11->source);
+        $this->assertSame('11.00', $this->company->fresh()->ppn_rate);
         $this->assertSame(0, Warehouse::where('code', 'GL99')->count());
         $this->assertSame(1, $run->summary['warehouse']['skipped']);
         $this->assertSame(2, Warehouse::count());
@@ -171,7 +191,7 @@ class SapImportTest extends TestCase
         $this->assertSame(1, $run->summary['item_master']['created']);
 
         $this->assertSame(
-            ['warehouse', 'item_category', 'manufacturer', 'unit', 'customer_group', 'customer', 'item_master', 'price_list', 'price_list_detail', 'warehouse_stock'],
+            ['tax_group', 'warehouse', 'item_category', 'manufacturer', 'unit', 'customer_group', 'customer', 'item_master', 'price_list', 'price_list_detail', 'warehouse_stock'],
             array_keys($run->summary)
         );
         foreach ($run->summary as $progress) {
@@ -251,6 +271,7 @@ class SapImportTest extends TestCase
         Http::fake([
             '*/Login' => Http::response([], 200),
             '*/Logout' => Http::response('', 204),
+            '*/VatGroups*' => Http::response(['value' => []]),
             '*/Warehouses*' => Http::response(['value' => []]),
             '*/ItemGroups*' => Http::response(['value' => [['Number' => 100, 'GroupName' => 'Minuman']]]),
             '*/Manufacturers*' => Http::response(['error' => ['message' => 'boom']], 500),

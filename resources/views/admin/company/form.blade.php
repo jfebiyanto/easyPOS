@@ -61,12 +61,21 @@
                     <input type="checkbox" id="ppn_enabled" name="ppn_enabled" value="1" @checked(old('ppn_enabled', $company->ppn_enabled)) @disabled(! $canManage)>
                     <label for="ppn_enabled">Aktifkan PPN</label>
                 </div>
-                <div class="hint">Jika aktif, transaksi penjualan dikenakan PPN sesuai tarif di bawah.</div>
+                <div class="hint">Jika aktif, transaksi penjualan dikenakan PPN sesuai Tax Group di samping (termasuk 0%).</div>
             </div>
-            <div class="field @error('ppn_rate') has-error @enderror">
-                <label for="ppn_rate">Tarif PPN (%)</label>
-                <input type="number" id="ppn_rate" name="ppn_rate" step="0.01" min="0" max="100" value="{{ old('ppn_rate', $company->ppn_rate ?? 11) }}" @disabled(! $canManage)>
-                @error('ppn_rate') <div class="error">{{ $message }}</div> @enderror
+            <div class="field @error('tax_group_id') has-error @enderror">
+                <label for="tax_group_id">Tax Group (Output Tax)</label>
+                <select id="tax_group_id" name="tax_group_id" @disabled(! $canManage)>
+                    <option value="">- Pilih Tax Group -</option>
+                    @foreach ($taxGroups as $tg)
+                        <option value="{{ $tg->id }}" @selected(old('tax_group_id', $company->tax_group_id) == $tg->id)>{{ $tg->label() }}</option>
+                    @endforeach
+                </select>
+                <div class="hint">
+                    {{ $company->sapIntegrationActive() ? 'Diambil dari SAP B1 lewat Impor Data SAP B1.' : 'Kelola di menu' }}
+                    <a href="{{ route('admin.tax-groups.index') }}">Tax Group</a>.
+                </div>
+                @error('tax_group_id') <div class="error">{{ $message }}</div> @enderror
             </div>
         </div>
     </div>

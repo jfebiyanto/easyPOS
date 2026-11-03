@@ -12,7 +12,7 @@ class SaleLine extends Model
     protected $fillable = [
         'sale_id', 'product_id', 'sku_snapshot', 'name_snapshot', 'unit_price', 'qty',
         'discount', 'promotion_id', 'promotion_name_snapshot', 'promotion_discount',
-        'tax_amount', 'line_total',
+        'tax_amount', 'tax_group_code', 'tax_rate', 'line_total',
     ];
 
     protected function casts(): array

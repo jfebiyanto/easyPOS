@@ -14,7 +14,7 @@ class CompanyDetail extends Model
 
     protected $fillable = [
         'name', 'address', 'logo_path', 'npwp_number', 'phone', 'email',
-        'ppn_enabled', 'ppn_rate', 'ppn_inclusive',
+        'ppn_enabled', 'ppn_rate', 'ppn_inclusive', 'tax_group_id',
         'base_currency_code', 'timezone', 'allow_negative_stock',
         'return_window_days', 'return_require_receipt', 'sku_config', 'payment_providers',
         'sap_enabled', 'sap_verify_ssl', 'sap_endpoint_url', 'sap_db_name', 'sap_username', 'sap_password',
@@ -40,6 +40,11 @@ class CompanyDetail extends Model
             'sap_last_synced_at' => 'datetime',
             'sap_initial_imported_at' => 'datetime',
         ];
+    }
+
+    public function taxGroup()
+    {
+        return $this->belongsTo(TaxGroup::class);
     }
 
     public function hasSapConfig(): bool

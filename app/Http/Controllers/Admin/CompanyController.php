@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Admin\Concerns\AuthorizesSuperuser;
 use App\Http\Controllers\Controller;
 use App\Models\CompanyDetail;
+use App\Models\TaxGroup;
 use App\Support\ActivityLogger;
 use App\Support\Sap\SapServiceLayer;
 use Illuminate\Http\Client\ConnectionException;
@@ -12,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class CompanyController extends Controller
@@ -22,6 +24,10 @@ class CompanyController extends Controller
     {
         return view('admin.company.form', [
             'company' => CompanyDetail::current(),
+            'taxGroups' => TaxGroup::where('company_id', current_company_id())
+                ->where(fn ($q) => $q->where('is_active', true)->orWhere('id', CompanyDetail::current()->tax_group_id))
+                ->orderBy('code')
+                ->get(),
         ]);
     }
 
@@ -38,7 +44,10 @@ class CompanyController extends Controller
             'phone' => ['nullable', 'string', 'max:30'],
             'email' => ['nullable', 'email', 'max:150'],
             'ppn_enabled' => ['sometimes', 'boolean'],
-            'ppn_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'tax_group_id' => [
+                'nullable', 'required_if_accepted:ppn_enabled', 'string',
+                Rule::exists('tax_groups', 'id')->where('company_id', current_company_id())->where('is_active', 1),
+            ],
             'ppn_inclusive' => ['sometimes', 'boolean'],
             'base_currency_code' => ['required', 'string', 'max:10'],
             'timezone' => ['required', 'string', 'max:40'],
@@ -55,7 +64,8 @@ class CompanyController extends Controller
 
         $data['ppn_enabled'] = $request->boolean('ppn_enabled');
         $data['ppn_inclusive'] = $request->boolean('ppn_inclusive');
-        $data['ppn_rate'] = $data['ppn_enabled'] ? ($data['ppn_rate'] ?? 11) : 0;
+        // Tarif PPN selalu mengikuti Tax Group terpilih (0% tetap PPN 0%, bukan PPN nonaktif).
+        $data['ppn_rate'] = $data['tax_group_id'] ? (float) TaxGroup::whereKey($data['tax_group_id'])->value('rate') : 0;
 
         $data['allow_negative_stock'] = $request->boolean('allow_negative_stock');
         $data['return_require_receipt'] = $request->boolean('return_require_receipt');

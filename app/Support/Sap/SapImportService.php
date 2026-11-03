@@ -11,6 +11,7 @@ use App\Models\PriceListItem;
 use App\Models\Product;
 use App\Models\ProductGroup;
 use App\Models\SapSyncRun;
+use App\Models\TaxGroup;
 use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
@@ -43,6 +44,7 @@ class SapImportService
      * Objek yang diimpor, berurutan: kunci ringkasan => [label, tabel SAP].
      */
     public const ENTITIES = [
+        'tax_group' => ['Tax Group (Output Tax)', 'OVTG'],
         'warehouse' => ['Warehouse', 'OWHS'],
         'item_category' => ['Item Category', 'OITB'],
         'manufacturer' => ['Manufacturer', 'OMRC'],
@@ -118,6 +120,7 @@ class SapImportService
                 : null;
 
             // Urutan mengikuti ketergantungan data.
+            $this->importTaxGroups($client);       // OVTG (Output Tax, aktif)
             $this->importWarehouses($client);       // OWHS (U_SOL_RETAIL = Y)
             $this->importItemGroups($client);       // OITB
             $this->importManufacturers($client);    // OMRC
@@ -171,6 +174,43 @@ class SapImportService
     private function isInitial(): bool
     {
         return $this->run->mode === SapSyncRun::MODE_INITIAL;
+    }
+
+    /**
+     * Tax Group bertipe Output Tax yang aktif. Tarif = baris VatGroups_Lines terbaru yang sudah
+     * berlaku. Selalu dicocokkan berdasarkan kode (juga saat impor awal) agar Tax Group manual
+     * berkode sama diambil alih SAP dan menjadi hanya-baca.
+     */
+    private function importTaxGroups(SapServiceLayer $client): void
+    {
+        $today = now()->toDateString();
+
+        $this->each('tax_group', $client, 'VatGroups', [], function (array $row) use ($today) {
+            $code = $this->cut($row['Code'] ?? '', 30);
+            if ($code === '' || ($row['Category'] ?? null) !== 'bovcOutputTax' || ($row['Inactive'] ?? 'tNO') === 'tYES') {
+                return null;
+            }
+
+            $current = collect($row['VatGroups_Lines'] ?? [])
+                ->map(fn (array $line) => ['from' => substr((string) ($line['Effectivefrom'] ?? ''), 0, 10), 'rate' => (float) ($line['Rate'] ?? 0)])
+                ->filter(fn (array $line) => $line['from'] === '' || $line['from'] <= $today)
+                ->sortBy('from')
+                ->last();
+
+            $taxGroup = TaxGroup::firstOrNew(['company_id' => $this->companyId, 'code' => $code]);
+            $taxGroup->forceFill([
+                'name' => $this->cut($row['Name'] ?? '', 255) ?: $code,
+                'rate' => $current['rate'] ?? 0,
+                'effective_from' => ($current['from'] ?? '') ?: null,
+                'source' => TaxGroup::SOURCE_SAP,
+                'is_active' => true,
+            ]);
+
+            $outcome = $this->persist($taxGroup);
+            CompanyDetail::where('tax_group_id', $taxGroup->id)->update(['ppn_rate' => $taxGroup->rate]);
+
+            return $outcome;
+        });
     }
 
     /**

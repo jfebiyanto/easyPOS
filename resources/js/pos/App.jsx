@@ -32,7 +32,7 @@ function priceCart(cart, promotions, at = new Date()) {
 function computeTotals(lines, company, shipping) {
     const rate = Number(company?.ppn_rate || 0);
     const inclusive = !!company?.ppn_inclusive;
-    const enabled = !!company?.ppn_enabled && rate > 0;
+    const enabled = !!company?.ppn_enabled; // PPN 0% tetap PPN
 
     let subtotal = 0;
     let taxSum = 0;
@@ -478,7 +478,7 @@ export default function App() {
                     <div className="pos-totals">
                         {totals.discountTotal > 0 && <div className="pos-saving"><span>Hemat</span><span className="money">−{fmt(totals.discountTotal, currency)}</span></div>}
                         <div><span>Subtotal</span><span className="money">{fmt(totals.subtotal, currency)}</span></div>
-                        <div><span>PPN</span><span className="money">{fmt(totals.taxTotal, currency)}</span></div>
+                        <div><span>PPN{boot?.company?.tax_group_code ? ` (${boot.company.tax_group_code})` : ''}</span><span className="money">{fmt(totals.taxTotal, currency)}</span></div>
                         {delivery.enabled && <div><span>Kirim</span><span className="money">{fmt(delivery.cost, currency)}</span></div>}
                         <div className="pos-grand"><span>TOTAL</span><span className="money">{fmt(totals.total, currency)}</span></div>
                     </div>

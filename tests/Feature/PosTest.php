@@ -12,6 +12,7 @@ use App\Models\Sale;
 use App\Models\SaleDraft;
 use App\Models\StockLedger;
 use App\Models\Store;
+use App\Models\TaxGroup;
 use App\Models\Unit;
 use App\Models\User;
 use App\Support\StockService;
@@ -173,6 +174,26 @@ class PosTest extends TestCase
         $this->assertNotNull($sale->number);
         $this->assertSame(8.0, StockService::balance($this->store->id, $this->product->id));
         $this->assertDatabaseHas('stock_ledger', ['ref_id' => $sale->id, 'type' => 'sale', 'qty' => -2]);
+    }
+
+    public function test_kode_tax_group_dicatat_per_baris_dan_ppn_nol_persen_tetap_ppn(): void
+    {
+        $ppn11 = TaxGroup::factory()->create(['company_id' => $this->company->id, 'code' => 'PPNK-11', 'rate' => 11]);
+        $this->company->update(['tax_group_id' => $ppn11->id, 'ppn_rate' => 11]);
+
+        $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload())->assertCreated();
+        $this->assertDatabaseHas('sale_lines', ['tax_group_code' => 'PPNK-11', 'tax_rate' => 11, 'tax_amount' => 880]);
+
+        $ppn0 = TaxGroup::factory()->create(['company_id' => $this->company->id, 'code' => 'PPNK-0', 'rate' => 0]);
+        $this->company->update(['tax_group_id' => $ppn0->id, 'ppn_rate' => 0]);
+
+        $this->postJson('/pos/sales', $this->salePayload(['payments' => [['payment_type_id' => $this->cash->id, 'amount' => 8000, 'status' => 'confirmed']]]))
+            ->assertCreated()
+            ->assertJsonPath('data.tax_total', 0)
+            ->assertJsonPath('data.total', 8000);
+        $this->assertDatabaseHas('sale_lines', ['tax_group_code' => 'PPNK-0', 'tax_rate' => 0, 'tax_amount' => 0]);
+
+        $this->getJson('/pos/bootstrap')->assertJsonPath('company.tax_group_code', 'PPNK-0');
     }
 
     public function test_idempotensi_client_uuid_mencegah_transaksi_ganda(): void

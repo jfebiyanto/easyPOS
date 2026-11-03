@@ -54,6 +54,7 @@ class PosController extends Controller
                 'name' => $company->name,
                 'ppn_enabled' => (bool) $company->ppn_enabled,
                 'ppn_rate' => (float) $company->ppn_rate,
+                'tax_group_code' => $company->taxGroup?->code,
                 'ppn_inclusive' => (bool) $company->ppn_inclusive,
                 'currency' => $company->base_currency_code,
                 'allow_negative_stock' => (bool) $company->allow_negative_stock,

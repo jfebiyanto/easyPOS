@@ -144,6 +144,8 @@ Route::prefix('admin')
 
         // Product catalog
         Route::resource('warehouses', Admin\WarehouseController::class)->except('show');
+        Route::resource('tax-groups', Admin\TaxGroupController::class)->except('show')
+            ->parameters(['tax-groups' => 'taxGroup']);
         Route::resource('units', Admin\UnitController::class)->except('show');
         Route::resource('groups', Admin\ProductGroupController::class)->except('show')->names('groups');
         Route::resource('brands', Admin\BrandController::class)->except('show')->names('brands');
