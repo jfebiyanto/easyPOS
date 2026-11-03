@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\Store;
 use App\Support\StockService;
+use App\Support\WarehouseStockService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -25,11 +26,15 @@ class StockController extends Controller
             ->orderBy('sku')
             ->get();
 
+        $store = $storeId ? Store::with('warehouse')->find($storeId) : null;
+        $warehouse = $store?->warehouse;
+
         return view('admin.stock.index', [
             'storeId' => $storeId,
-            'store' => $storeId ? Store::find($storeId) : null,
+            'store' => $store,
             'products' => $products,
-            'balances' => $storeId ? StockService::balances($storeId, $products->pluck('id')->all()) : [],
+            'warehouse' => $warehouse,
+            'balances' => WarehouseStockService::balances($warehouse?->id, $products->pluck('id')->all()),
             'stores' => $request->user()->isOwner()
                 ? Store::where('company_id', current_company_id())->orderBy('code')->get()
                 : collect(),

@@ -13,6 +13,7 @@ use App\Models\ProductGroup;
 use App\Models\SapSyncRun;
 use App\Models\Unit;
 use App\Models\Warehouse;
+use App\Models\WarehouseStock;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
@@ -51,6 +52,7 @@ class SapImportService
         'item_master' => ['Produk (Item Master Data)', 'OITM'],
         'price_list' => ['Price List', 'OPLN'],
         'price_list_detail' => ['Price List Details', 'ITM1'],
+        'warehouse_stock' => ['Saldo Stok per Warehouse', 'OITW'],
     ];
 
     /** @var array<string, array<string, int|string>> */
@@ -125,6 +127,7 @@ class SapImportService
             $this->importItems($client, $since);    // OITM
             $this->importPriceLists($client);       // OPLN
             $this->importPriceListDetails($client, $since); // ITM1
+            $this->importWarehouseStocks($client);  // OITW
 
             $this->abortIfCancelled();
 
@@ -175,14 +178,10 @@ class SapImportService
      */
     private function importWarehouses(SapServiceLayer $client): void
     {
-        $query = [
-            '$select' => 'WarehouseCode,WarehouseName,Inactive,U_SOL_PRFC',
-            '$filter' => "U_SOL_RETAIL eq 'Y'",
-        ];
-
-        $this->each('warehouse', $client, 'Warehouses', $query, function (array $row) {
+        // Service Layer menolak UDF pada $filter/$select untuk Warehouses, jadi disaring di sini.
+        $this->each('warehouse', $client, 'Warehouses', [], function (array $row) {
             $code = $this->cut($row['WarehouseCode'] ?? '', 30);
-            if ($code === '') {
+            if ($code === '' || ($row['U_SOL_RETAIL'] ?? null) !== 'Y') {
                 return null;
             }
 
@@ -351,9 +350,10 @@ class SapImportService
 
     private function importPriceLists(SapServiceLayer $client): void
     {
-        $this->each('price_list', $client, 'PriceLists', ['$select' => 'PriceListNo,PriceListName,Active'], function (array $row) {
+        // Hanya price list retail (UDF U_SOL_RETAIL = 'Y'); disaring di sini seperti Warehouses.
+        $this->each('price_list', $client, 'PriceLists', [], function (array $row) {
             $code = $this->cut($row['PriceListNo'] ?? '', 30);
-            if ($code === '') {
+            if ($code === '' || ($row['U_SOL_RETAIL'] ?? null) !== 'Y') {
                 return null;
             }
 
@@ -388,7 +388,8 @@ class SapImportService
                 return null;
             }
 
-            $prices = $this->extractPrices($row['ItemPrices'] ?? []);
+            // Hanya harga pada price list retail yang diimpor.
+            $prices = array_intersect_key($this->extractPrices($row['ItemPrices'] ?? []), $this->priceLists);
             if ($prices === []) {
                 return 'unchanged';
             }
@@ -411,6 +412,51 @@ class SapImportService
             }
 
             return in_array('updated', $outcomes, true) || $baseChanged ? 'updated' : 'unchanged';
+        });
+    }
+
+    /**
+     * Saldo inventory (OITW) hanya untuk warehouse yang ada di easyPOS dan produk yang sudah
+     * terimpor. Selalu diambil penuh: perubahan saldo tidak mengubah UpdateDate item di SAP.
+     */
+    private function importWarehouseStocks(SapServiceLayer $client): void
+    {
+        $warehouses = Warehouse::where('company_id', $this->companyId)->pluck('id', 'code')->all();
+
+        $this->each('warehouse_stock', $client, 'Items', ['$select' => 'ItemCode,ItemWarehouseInfoCollection'], function (array $row) use ($warehouses) {
+            $sku = $this->cut($row['ItemCode'] ?? '', 40);
+            $productId = $sku === '' ? null : ($this->products[$sku]
+                ?? Product::where('company_id', $this->companyId)->where('sku', $sku)->value('id'));
+            if (! $productId || $warehouses === []) {
+                return null;
+            }
+
+            $outcomes = [];
+            foreach ($row['ItemWarehouseInfoCollection'] ?? [] as $info) {
+                $warehouseId = $warehouses[(string) ($info['WarehouseCode'] ?? '')] ?? null;
+                if ($warehouseId === null) {
+                    continue;
+                }
+
+                [, $outcomes[]] = $this->store(WarehouseStock::class, ['warehouse_id' => $warehouseId, 'product_id' => $productId], [
+                    'on_hand' => (float) ($info['InStock'] ?? 0),
+                    'committed' => (float) ($info['Committed'] ?? 0),
+                    'on_order' => (float) ($info['Ordered'] ?? 0),
+                    'avg_price' => (float) ($info['StandardAveragePrice'] ?? 0),
+                ]);
+            }
+
+            if ($outcomes === []) {
+                return null;
+            }
+
+            foreach (['created', 'updated', 'unchanged'] as $outcome) {
+                if (in_array($outcome, $outcomes, true)) {
+                    return $outcome;
+                }
+            }
+
+            return 'skipped';
         });
     }
 

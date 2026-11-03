@@ -23,6 +23,17 @@
     </div>
 @endif
 
+@if ($store && ! $warehouse)
+    <div class="md-snackbar error">
+        <span class="material-symbols-rounded">warning</span>
+        Gerai ini belum dihubungkan ke warehouse. Atur di Daftar Gerai agar saldo stok tampil.
+    </div>
+@elseif ($warehouse)
+    <p class="hint" style="margin-bottom:8px;">Warehouse: <strong>{{ $warehouse->code }} · {{ $warehouse->name }}</strong></p>
+@endif
+
+@php $fmt = fn ($n) => rtrim(rtrim(number_format((float) $n, 3, ',', '.'), '0'), ','); @endphp
+
 <div class="table-wrap">
     <table class="md-table">
         <thead>
@@ -31,25 +42,23 @@
                 <th>Nama Produk</th>
                 <th>Satuan</th>
                 <th style="text-align:right;">Saldo</th>
-                <th style="text-align:right;">Aksi</th>
+                <th style="text-align:right;">Komitmen</th>
+                <th style="text-align:right;">Dipesan</th>
             </tr>
         </thead>
         <tbody>
             @forelse ($products as $product)
-                @php $balance = $balances[$product->id] ?? 0; @endphp
+                @php $stock = $balances[$product->id] ?? null; @endphp
                 <tr>
                     <td><strong class="sku">{{ $product->sku }}</strong></td>
                     <td>{{ $product->name }}</td>
                     <td>{{ $product->unit?->code ?? '-' }}</td>
-                    <td style="text-align:right;" class="money {{ $balance < 0 ? 'neg' : '' }}">
-                        {{ rtrim(rtrim(number_format($balance, 3, ',', '.'), '0'), ',') }}
-                    </td>
-                    <td style="text-align:right;">
-                        <a href="{{ route('admin.stock.ledger', ['product' => $product, 'store' => $storeId]) }}" class="btn btn-tonal btn-sm">Riwayat</a>
-                    </td>
+                    <td style="text-align:right;" class="money {{ (float) $stock?->on_hand < 0 ? 'neg' : '' }}">{{ $fmt($stock?->on_hand ?? 0) }}</td>
+                    <td style="text-align:right;" class="money">{{ $fmt($stock?->committed ?? 0) }}</td>
+                    <td style="text-align:right;" class="money">{{ $fmt($stock?->on_order ?? 0) }}</td>
                 </tr>
             @empty
-                <tr><td colspan="5"><div class="empty-state"><span class="material-symbols-rounded">warehouse</span><p>Belum ada produk yang dilacak stoknya.</p></div></td></tr>
+                <tr><td colspan="6"><div class="empty-state"><span class="material-symbols-rounded">warehouse</span><p>Belum ada produk yang dilacak stoknya.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>

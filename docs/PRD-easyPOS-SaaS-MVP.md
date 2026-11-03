@@ -1,14 +1,16 @@
-# PRD — easyPOS SaaS (MVP) v1.5 — BASELINE
+# PRD — easyPOS SaaS (MVP) v1.6
 
 | Field | Value |
 |---|---|
 | Produk | easyPOS SaaS |
 | Dokumen | Product Requirements Document (PRD) |
-| Versi | 1.5 (baseline) |
+| Versi | 1.6 (baseline 1.5 + integrasi SAP B1, Warehouse) |
 | Status | Disetujui — siap freeze |
 | Pemilik | Product |
-| Terakhir diperbarui | 2026-09-14 |
+| Terakhir diperbarui | 2026-11-03 |
 | Stack | Backend Laravel, Frontend React JS |
+
+**Perubahan v1.6 (2026-11-03):** integrasi SAP B1 (impor master data & saldo stok, sinkronisasi berkala), modul Warehouse, pricelist jual/beli per gerai, default pelanggan retail per gerai, saldo stok per warehouse. Lihat Bagian 6b (C1–C5), model data (Bagian 7), serta penyesuaian FR-A7-04 dan FR-A9-02.
 
 Dokumen ini adalah baseline yang disetujui. Semua keputusan klarifikasi sudah di-fold-in. Satu constraint teknis dikunci pada Bagian 3 dan 8.
 
@@ -262,7 +264,7 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - FR-A7-01: CRUD pricelist: kode, nama, `effective_from`, `effective_until`, `is_default`, status.
 - FR-A7-02: Harga per produk per pricelist dengan tier `min_qty`.
 - FR-A7-03: Pricelist memiliki scope `company` (dibagi semua gerai) atau `store` (khusus satu gerai).
-- FR-A7-04: Setiap store memilih pricelist yang dipakai (satu default + boleh beberapa untuk tanggal efektif). Assignment dilakukan Owner/Store Manager.
+- FR-A7-04: Setiap store memiliki satu pricelist jual dan satu pricelist beli, dipilih lewat dua dropdown di form Gerai (menggantikan daftar centang multi-pricelist). Assignment dilakukan Owner. *(Diubah di v1.6; sebelumnya satu default + beberapa pricelist ber-tanggal.)*
 - FR-A7-05: Resolusi harga di POS (tanpa customer di MVP): evaluasi pricelist yang di-assign ke store dari prioritas terendah ke tertinggi: (1) pricelist `is_default` aktif & berlaku, (2) pricelist ber-tanggal efektif aktif & berlaku, (3) fallback `base_price`.
 - FR-A7-06: Produk baru → baris harga di pricelist default store (tier `min_qty=1`).
 - FR-A7-07: Perubahan harga dasar → sinkron harga tier `min_qty=1` di pricelist default store.
@@ -288,7 +290,7 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 
 ### A9 — Stock ledger & saldo
 - FR-A9-01: Tipe entri: `opening`, `sale`, `sale_return`, `adjustment`, `transfer_out`, `transfer_in`.
-- FR-A9-02: Saldo per (store, product) = akumulasi ledger (boleh di-cache).
+- FR-A9-02: Saldo per (store, product) = akumulasi ledger (boleh di-cache). Ledger per store ini dipakai POS (jual, retur, void, transfer, validasi stok negatif). Halaman Saldo Stok admin menampilkan saldo per warehouse (lihat C5).
 - FR-A9-03: Halaman stok: Owner semua gerai, Store Manager gerainya.
 - FR-A9-04: Ledger append-only; koreksi via entri baru.
 - FR-A9-05: Tiap entri mencantumkan dokumen sumber + aktor.
@@ -393,11 +395,55 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 
 ---
 
+## 6b. Fungsi tambahan v1.6 (integrasi SAP B1 & Warehouse)
+
+### C1 — Warehouse
+- FR-C1-01: Modul Warehouse (menu Konfigurasi, khusus superuser): CRUD dengan field `code` (unik per company), `name`, `profit_center` (opsional), `is_active`.
+- FR-C1-02: Satu Gerai memiliki satu Warehouse untuk pencatatan stok (`stores.warehouse_id`, nullable agar gerai lama tetap valid).
+- FR-C1-03: Satu Warehouse hanya boleh dipakai satu Gerai (unik di database dan validasi form). Dropdown Gerai hanya menampilkan warehouse aktif yang belum dipakai gerai lain.
+- FR-C1-04: Warehouse yang masih dipakai Gerai tidak dapat dihapus.
+
+### C2 — Default Pelanggan Retail (per Gerai)
+- FR-C2-01: Form Gerai memiliki `default_customer_id`, dipilih dari pelanggan non-member yang aktif.
+- FR-C2-02: Transaksi tanpa pelanggan (walk-in non-member) otomatis dicatat atas nama pelanggan retail default gerai, baik dari POS online maupun sinkronisasi offline. Bila kasir memilih pelanggan, pilihan kasir yang dipakai.
+- FR-C2-03: Pelanggan retail default tidak dicatat sebagai member dan tidak memperoleh poin dari transaksi; retur atas transaksinya tidak menulis loyalty ledger.
+- FR-C2-04: Pelanggan yang menjadi default sebuah gerai tidak dapat diubah menjadi member.
+- FR-C2-05: Gerai tanpa default: transaksi walk-in tetap tanpa pelanggan (perilaku sebelumnya).
+
+### C3 — Pricelist jual & beli per Gerai
+- FR-C3-01: Gerai memilih satu pricelist jual (disimpan di `store_price_lists`, `is_default = true`; dipakai resolusi harga POS pada A7) dan satu pricelist beli (`stores.purchase_price_list_id`).
+- FR-C3-02: Pricelist beli baru tersimpan dan tampil; belum dipakai transaksi karena modul pembelian belum ada.
+
+### C4 — Integrasi SAP B1 (Service Layer)
+- FR-C4-01: Konfigurasi koneksi SAP B1 di Setting Perusahaan (endpoint, database, user, password terenkripsi, verifikasi SSL). Uji koneksi memakai nilai form tanpa perlu menyimpan; endpoint divalidasi terhadap SSRF (alamat privat/reservasi ditolak).
+- FR-C4-02: Menu **Impor Data SAP B1** hanya muncul bila integrasi aktif dan konfigurasi lengkap, khusus superuser; tombol aksi khusus Owner.
+- FR-C4-03: Urutan objek impor, hanya field yang dibutuhkan easyPOS: Warehouse (OWHS), Item Category (OITB), Manufacturer (OMRC → brand), Satuan (OUOM), Customer Group (OCRG, CardType C), Customer (OCRD, CardType C), Produk (OITM), Price List (OPLN), Price List Details (ITM1), Saldo Stok per Warehouse (OITW).
+- FR-C4-04: Filter retail: hanya Warehouse dan Price List dengan UDF `U_SOL_RETAIL = 'Y'` yang diimpor (UDF `U_SOL_PRFC` pada Warehouse menjadi `profit_center`, boleh kosong). Penyaringan dilakukan di sisi easyPOS karena Service Layer menolak UDF di `$filter`. Harga item hanya diimpor untuk price list retail, dan `base_price` produk dihitung dari price list retail bernomor terkecil yang berharga lebih dari 0.
+- FR-C4-05: Impor awal (sekali): easyPOS masih kosong, semua baris di-INSERT tanpa pencocokan; bila terhenti di tengah jalan, impor dapat diulang dan baris yang sudah ada dilewati. Impor awal tidak dapat diulang setelah selesai.
+- FR-C4-06: Sinkronisasi berikutnya (delta): pencocokan berdasarkan kode SAP, tambah yang baru dan perbarui yang berubah. Produk dan Customer memakai filter `UpdateDate`; Warehouse, Price List, dan Saldo Stok diambil penuh setiap sinkronisasi.
+- FR-C4-07: Sinkronisasi berkala otomatis (default 30 menit, dapat diubah admin 1–10080 menit; dapat dimatikan), hanya berjalan setelah impor awal dan bila tidak ada run aktif. Membutuhkan scheduler (`schedule:run` tiap menit) dan queue worker; `composer run dev` menjalankan keduanya.
+- FR-C4-08: Tabel progres per objek (Menunggu/Sedang diimpor/Selesai/Gagal, dengan centang bila selesai) beserta jumlah diambil/baru/diubah/dilewati. Riwayat menampilkan 5 impor terakhir.
+- FR-C4-09: Impor yang antre/berjalan dapat dibatalkan; run yang macet lebih dari 3 jam dianggap tidak aktif.
+- FR-C4-10: Kegagalan satu objek menandai objek itu Gagal, objek sesudahnya tetap Menunggu, dan run berstatus Gagal dengan pesan error.
+
+### C5 — Saldo stok per Warehouse
+- FR-C5-01: Tabel `warehouse_stocks` (padanan OITW): saldo per (warehouse, produk) dengan `on_hand`, `committed`, `on_order`, `avg_price`.
+- FR-C5-02: Saldo diisi dari SAP (`InStock`, `Committed`, `Ordered`, `StandardAveragePrice` pada `ItemWarehouseInfoCollection`) hanya untuk warehouse yang ada di easyPOS dan produk yang sudah terimpor.
+- FR-C5-03: Halaman Saldo Stok menampilkan saldo, komitmen, dan dipesan dari warehouse milik gerai terpilih; gerai tanpa warehouse menampilkan peringatan.
+- FR-C5-04 (kerangka, belum dipakai): `warehouse_stock_ledgers` (append-only, qty bertanda, `balance_after`, tipe seperti A9) dan `WarehouseStockService::record()` untuk pergerakan stok per warehouse. Penjualan, retur, transfer, dan penyesuaian belum dipindahkan ke ledger ini; sinkronisasi SAP menimpa `on_hand` dan perlu disesuaikan saat pergerakan diaktifkan.
+
+---
+
 ## 7. Sketsa data model (entitas + field kunci)
 
-- **company**: `id`, `name`, `address`, `logo_path`, `npwp`, `phone`, `email`, `ppn_enabled`, `ppn_rate`, `ppn_inclusive`, `base_currency_code`, `timezone`, `allow_negative_stock`, `return_window_days`, `return_require_receipt`, `sku_config` (JSON), `payment_providers` (terenkripsi).
-- **stores**: `id`, `company_id`, `code`, `name`, `address`, `pic_name`, `pic_phone`, `ppn_enabled`, `ppn_rate`, `currency_code`, `is_active`.
+- **company**: `id`, `name`, `address`, `logo_path`, `npwp`, `phone`, `email`, `ppn_enabled`, `ppn_rate`, `ppn_inclusive`, `base_currency_code`, `timezone`, `allow_negative_stock`, `return_window_days`, `return_require_receipt`, `sku_config` (JSON), `payment_providers` (terenkripsi), `sap_enabled`, `sap_endpoint_url`, `sap_db_name`, `sap_username`, `sap_password` (terenkripsi), `sap_verify_ssl`, `sap_auto_sync`, `sap_sync_interval_minutes`, `sap_last_synced_at`, `sap_initial_imported_at`.
+- **stores**: `id`, `company_id`, `code`, `name`, `address`, `pic_name`, `pic_phone`, `ppn_enabled`, `ppn_rate`, `currency_code`, `is_active`, `warehouse_id` (nullable, unik), `purchase_price_list_id` (nullable), `default_customer_id` (nullable).
 - **users**: `id`, `company_id`, `store_id` (null untuk Owner), `name`, `username`, `email`, `phone`, `role`, `is_active`, `password`.
+- **warehouses**: `id`, `company_id`, `code` (unik per company), `name`, `profit_center`, `is_active`.
+- **warehouse_stocks**: `id`, `company_id`, `warehouse_id`, `product_id`, `on_hand`, `committed`, `on_order`, `avg_price` (unik warehouse+produk).
+- **warehouse_stock_ledgers**: `id`, `company_id`, `warehouse_id`, `product_id`, `type`, `qty` (signed), `balance_after`, `unit_cost`, `ref_type`, `ref_id`, `note`, `created_by`, `created_at` (kerangka, belum dipakai).
+- **customer_groups**: `id`, `company_id`, `code`, `name`.
+- **sap_sync_runs**: `id`, `company_id`, `mode` (initial/delta), `trigger` (manual/schedule), `status` (queued/running/success/failed/cancelled), `summary` (JSON progres per objek), `error`, `started_at`, `finished_at`.
 - **units**: `id`, `company_id`, `code`, `name`, `is_active`.
 - **currencies**: `id`, `company_id`, `code`, `symbol`, `decimal_places`, `is_active`.
 - **product_groups**: `id`, `company_id`, `code` (unik per company), `name`, `is_active`.
@@ -410,7 +456,7 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - **stock_adjustment_lines**: `id`, `stock_adjustment_id`, `product_id`, `qty_before`, `qty_after`, `delta`.
 - **stock_transfers**: `id`, `company_id`, `number`, `from_store_id`, `to_store_id`, `status`, `shipped_at`, `received_at`, `note`, `created_by`.
 - **stock_transfer_lines**: `id`, `stock_transfer_id`, `product_id`, `qty_requested`, `qty_shipped`, `qty_received`, `variance_reason`.
-- **customers**: `id`, `company_id`, `code`, `name`, `phone` (unique), `email`, `address`, `is_member`, `member_level_id`, `points_balance`, `joined_at`.
+- **customers**: `id`, `company_id`, `code`, `name`, `phone` (unique), `email`, `address`, `is_member`, `member_level_id`, `customer_group_id` (nullable), `points_balance`, `joined_at`.
 - **member_levels**: `id`, `company_id`, `name` (Silver/Gold/Platinum), `min_points`, `earn_amount_per_point`, `order`, `is_active`.
 - **loyalty_config**: `id`, `company_id`, `rounding`, `min_spend`, `expiry_days`, `is_active`.
 - **loyalty_ledger**: `id`, `customer_id`, `type` (earn/adjust/expire), `points`, `balance_after`, `ref_type`, `ref_id`, `note`, `created_by`, `created_at`.

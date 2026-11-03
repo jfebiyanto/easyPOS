@@ -16,6 +16,7 @@ use App\Models\Store;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Models\WarehouseStock;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\Http;
@@ -72,15 +73,17 @@ class SapImportTest extends TestCase
             '*/Login' => Http::response(['SessionId' => 'abc'], 200),
             '*/Logout' => Http::response('', 204),
             '*/Warehouses*' => Http::response(['value' => [
-                ['WarehouseCode' => 'WH-01', 'WarehouseName' => 'Gudang Retail 1', 'Inactive' => 'tNO', 'U_SOL_PRFC' => 'PC-JKT'],
-                ['WarehouseCode' => 'WH-02', 'WarehouseName' => 'Gudang Retail 2', 'Inactive' => 'tYES', 'U_SOL_PRFC' => ''],
+                ['WarehouseCode' => 'WH-01', 'WarehouseName' => 'Gudang Retail 1', 'Inactive' => 'tNO', 'U_SOL_RETAIL' => 'Y', 'U_SOL_PRFC' => 'PC-JKT'],
+                ['WarehouseCode' => 'WH-02', 'WarehouseName' => 'Gudang Retail 2', 'Inactive' => 'tYES', 'U_SOL_RETAIL' => 'Y', 'U_SOL_PRFC' => ''],
+                ['WarehouseCode' => 'GL99', 'WarehouseName' => 'Gudang Load', 'Inactive' => 'tNO', 'U_SOL_RETAIL' => 'N', 'U_SOL_PRFC' => null],
             ]]),
             '*/UnitOfMeasurements*' => Http::response(['value' => [['Code' => 'PCS', 'Name' => 'Pieces']]]),
             '*/ItemGroups*' => Http::response(['value' => [['Number' => 100, 'GroupName' => 'Minuman']]]),
             '*/Manufacturers*' => Http::response(['value' => [['Code' => 5, 'ManufacturerName' => 'Indo Coffee']]]),
             '*/PriceLists*' => Http::response(['value' => [
-                ['PriceListNo' => 1, 'PriceListName' => 'Harga Dasar', 'Active' => 'tYES'],
-                ['PriceListNo' => 2, 'PriceListName' => 'Harga Member', 'Active' => 'tYES'],
+                ['PriceListNo' => 1, 'PriceListName' => 'Harga Dasar', 'Active' => 'tYES', 'U_SOL_RETAIL' => 'Y'],
+                ['PriceListNo' => 2, 'PriceListName' => 'Harga Member', 'Active' => 'tYES', 'U_SOL_RETAIL' => 'Y'],
+                ['PriceListNo' => 3, 'PriceListName' => 'Harga Non Retail', 'Active' => 'tYES', 'U_SOL_RETAIL' => 'N'],
             ]]),
             '*/Items*' => Http::response(['value' => [[
                 'ItemCode' => 'ITM-001',
@@ -94,10 +97,14 @@ class SapImportTest extends TestCase
                 'Frozen' => 'tNO',
                 'InventoryItem' => 'tYES',
                 'AvgStdPrice' => 7000,
+                'ItemWarehouseInfoCollection' => [
+                    ['WarehouseCode' => 'WH-01', 'InStock' => 25, 'Committed' => 2, 'Ordered' => 5, 'StandardAveragePrice' => 7000],
+                    ['WarehouseCode' => 'GL99', 'InStock' => 99, 'Committed' => 0, 'Ordered' => 0, 'StandardAveragePrice' => 1],
+                ],
                 'ItemPrices' => [
                     ['PriceList' => 1, 'Price' => 15000],
                     ['PriceList' => 2, 'Price' => 13500],
-                    ['PriceList' => 3, 'Price' => 0],
+                    ['PriceList' => 3, 'Price' => 9000],
                 ],
             ]]]),
             '*/BusinessPartnerGroups*' => Http::response(['value' => [['Code' => 101, 'Name' => 'Grosir']]]),
@@ -125,8 +132,8 @@ class SapImportTest extends TestCase
         $run = SapSyncRun::first();
         $this->assertSame(SapSyncRun::STATUS_SUCCESS, $run->status);
 
-        Http::assertSent(fn ($request) => str_contains($request->url(), '/Warehouses')
-            && str_contains(urldecode($request->url()), "U_SOL_RETAIL eq 'Y'"));
+        $this->assertSame(0, Warehouse::where('code', 'GL99')->count());
+        $this->assertSame(1, $run->summary['warehouse']['skipped']);
         $this->assertSame(2, Warehouse::count());
         $this->assertSame('PC-JKT', Warehouse::where('code', 'WH-01')->value('profit_center'));
         $this->assertTrue(Warehouse::where('code', 'WH-01')->value('is_active'));
@@ -134,10 +141,20 @@ class SapImportTest extends TestCase
         $this->assertNull($inactive->profit_center);
         $this->assertFalse($inactive->is_active);
 
+        $stock = WarehouseStock::firstOrFail();
+        $this->assertSame(1, WarehouseStock::count());
+        $this->assertSame(Warehouse::where('code', 'WH-01')->value('id'), $stock->warehouse_id);
+        $this->assertSame('25.000', $stock->on_hand);
+        $this->assertSame('2.000', $stock->committed);
+        $this->assertSame('5.000', $stock->on_order);
+        $this->assertSame('7000.00', $stock->avg_price);
+
         $this->assertSame('Pieces', Unit::where('code', 'PCS')->value('name'));
         $this->assertSame('Minuman', ProductGroup::where('code', '100')->value('name'));
         $this->assertSame('Indo Coffee', Brand::where('code', '5')->value('name'));
         $this->assertSame(2, PriceList::count());
+        $this->assertSame(0, PriceList::where('code', '3')->count());
+        $this->assertSame(1, $run->summary['price_list']['skipped']);
         $this->assertSame('Grosir', CustomerGroup::where('code', '101')->value('name'));
 
         $product = Product::where('sku', 'ITM-001')->firstOrFail();
@@ -154,7 +171,7 @@ class SapImportTest extends TestCase
         $this->assertSame(1, $run->summary['item_master']['created']);
 
         $this->assertSame(
-            ['warehouse', 'item_category', 'manufacturer', 'unit', 'customer_group', 'customer', 'item_master', 'price_list', 'price_list_detail'],
+            ['warehouse', 'item_category', 'manufacturer', 'unit', 'customer_group', 'customer', 'item_master', 'price_list', 'price_list_detail', 'warehouse_stock'],
             array_keys($run->summary)
         );
         foreach ($run->summary as $progress) {
