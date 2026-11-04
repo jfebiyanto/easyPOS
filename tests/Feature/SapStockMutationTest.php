@@ -252,6 +252,37 @@ class SapStockMutationTest extends TestCase
         $this->assertSame(1, SapSyncRun::count());
     }
 
+    public function test_saldo_sap_item_yang_bermutasi_langsung_dibaca_ulang(): void
+    {
+        $this->fakeSap([['rows' => [$this->row(1, 20, 'WH-01', 10, 0)]]]);
+        $this->artisan('sap:sync-stock')->assertSuccessful();
+
+        Http::swap(new HttpFactory);
+        Http::fake(function (Request $request) {
+            $url = urldecode($request->url());
+
+            return match (true) {
+                str_ends_with($url, '/List') => Http::response(['value' => [$this->row(2, 67, 'WH-01', 0, 4), $this->row(3, 67, 'DC', 4, 0)]]),
+                str_contains($url, '/Items') => Http::response(['value' => [[
+                    'ItemCode' => 'ITM-001',
+                    'ItemWarehouseInfoCollection' => [
+                        ['WarehouseCode' => 'WH-01', 'InStock' => 6, 'Committed' => 0, 'Ordered' => 0],
+                        ['WarehouseCode' => 'DC', 'InStock' => 4, 'Committed' => 0, 'Ordered' => 0],
+                    ],
+                ]]]),
+                default => Http::response(['SessionId' => 'abc']),
+            };
+        });
+        $this->artisan('sap:sync-stock')->assertSuccessful();
+
+        Http::assertSent(fn (Request $request) => str_contains(urldecode($request->url()), "ItemCode eq 'ITM-001'"));
+        foreach ([$this->retail, $this->central] as $warehouse) {
+            $stock = WarehouseStock::where('warehouse_id', $warehouse->id)->where('product_id', $this->product->id)->firstOrFail();
+            $this->assertSame($stock->sap_on_hand, $stock->on_hand, "Saldo SAP {$warehouse->code} sama dengan saldo easyPOS");
+            $this->assertNotNull($stock->sap_checked_at);
+        }
+    }
+
     public function test_perintah_menunggu_impor_awal(): void
     {
         $this->company->forceFill(['sap_initial_imported_at' => null])->save();

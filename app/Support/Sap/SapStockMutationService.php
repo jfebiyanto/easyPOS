@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
+use Throwable;
 
 /**
  * Salin mutasi stok SAP B1 (log OIVL) ke buku besar warehouse easyPOS, baris per baris,
@@ -25,6 +26,8 @@ use RuntimeException;
  *   agar baris yang ter-commit tidak berurutan di SAP tidak terlewat, dijalankan tiap
  *   LOOKBACK_EVERY_MINUTES dan pada sinkronisasi master; baris yang sudah ada dilewati.
  * - Teks SQL Query di SAP hanya dicek saat teksnya berubah atau query tidak ditemukan.
+ * - Setelah menyalin mutasi, saldo SAP (OITW) item yang bermutasi saja langsung dibaca ulang
+ *   agar kolom Saldo SAP tidak menunggu sinkronisasi master (selisih semu).
  * - Bila item/warehouse belum ada di easyPOS, penyalinan berhenti di baris itu (tidak dilewati)
  *   sampai master data tersinkron.
  * - Harga/cost item tidak disalin: cost hanya dilihat di SAP.
@@ -54,6 +57,12 @@ class SapStockMutationService
     /** @var array<string, string> sku → id */
     private array $products = [];
 
+    /** @var array<string, true> sku yang bermutasi pada sinkronisasi ini */
+    private array $touchedSkus = [];
+
+    /** Batas jumlah ItemCode per filter OData saat membaca ulang saldo SAP. */
+    private const ITEM_FILTER_CHUNK = 20;
+
     public function __construct(private readonly CompanyDetail $company) {}
 
     /**
@@ -80,6 +89,7 @@ class SapStockMutationService
 
             $lookbackDue = Cache::add('sap-stock-lookback:'.$this->company->id, true, now()->addMinutes(self::LOOKBACK_EVERY_MINUTES));
             $result = $this->copyMutations($client, $result, $lookback || $lookbackDue);
+            $this->refreshSapBalances($client);
 
             $this->company->forceFill([
                 'sap_stock_synced_at' => now(),
@@ -127,8 +137,10 @@ class SapStockMutationService
                     return $result;
                 }
 
-                $result[$this->linkToEasyPosSale($row) || ! $this->apply($row) ? 'skipped' : 'created']++;
+                $linked = $this->linkToEasyPosSale($row);
+                $result[$linked || ! $this->apply($row) ? 'skipped' : 'created']++;
                 $known[$seq] = true;
+                $this->touchedSkus[(string) $row['ItemCode']] = true;
             }
 
             if (! $hasMore || $rows === []) {
@@ -139,6 +151,67 @@ class SapStockMutationService
         }
 
         return $result;
+    }
+
+    /**
+     * Simpan saldo OITW (ItemWarehouseInfoCollection) satu item sebagai sap_on_hand per warehouse.
+     * on_hand tidak disentuh: saldo easyPOS berasal dari buku besar mutasi.
+     *
+     * @param  array<string, string>  $warehouses  kode → id
+     * @param  array<int, array<string, mixed>>  $infos
+     * @return list<string> created|updated|unchanged per warehouse
+     */
+    public static function storeSapBalances(string $companyId, string $productId, array $warehouses, array $infos, Carbon $checkedAt): array
+    {
+        $outcomes = [];
+
+        foreach ($infos as $info) {
+            $warehouseId = $warehouses[(string) ($info['WarehouseCode'] ?? '')] ?? null;
+            if ($warehouseId === null) {
+                continue;
+            }
+
+            // Selalu dicocokkan (juga saat impor awal): baris bisa sudah dibuat oleh mutasi stok.
+            $stock = WarehouseStock::firstOrNew(['company_id' => $companyId, 'warehouse_id' => $warehouseId, 'product_id' => $productId]);
+            $stock->forceFill([
+                'committed' => (float) ($info['Committed'] ?? 0),
+                'on_order' => (float) ($info['Ordered'] ?? 0),
+                'sap_on_hand' => (float) ($info['InStock'] ?? 0),
+            ]);
+            $outcomes[] = ! $stock->exists ? 'created' : ($stock->isDirty() ? 'updated' : 'unchanged');
+            $stock->forceFill(['sap_checked_at' => $checkedAt])->save();
+        }
+
+        return $outcomes;
+    }
+
+    /**
+     * Baca ulang saldo SAP item yang bermutasi. Kegagalan diabaikan: sinkronisasi master
+     * merekonsiliasi item yang bermutasi sesudah saldo SAP-nya terakhir dicek.
+     */
+    private function refreshSapBalances(SapServiceLayer $client): void
+    {
+        if ($this->touchedSkus === []) {
+            return;
+        }
+
+        $warehouses = Warehouse::where('company_id', $this->company->id)->pluck('id', 'code')->all();
+        $checkedAt = now();
+
+        try {
+            foreach (array_chunk(array_keys($this->touchedSkus), self::ITEM_FILTER_CHUNK) as $skus) {
+                $filter = collect($skus)->map(fn ($sku) => "ItemCode eq '".str_replace("'", "''", (string) $sku)."'")->implode(' or ');
+
+                foreach ($client->each('Items', ['$select' => 'ItemCode,ItemWarehouseInfoCollection', '$filter' => $filter]) as $row) {
+                    $productId = $this->productId((string) ($row['ItemCode'] ?? ''));
+                    if ($productId !== null) {
+                        self::storeSapBalances($this->company->id, $productId, $warehouses, $row['ItemWarehouseInfoCollection'] ?? [], $checkedAt);
+                    }
+                }
+            }
+        } catch (Throwable) {
+            // Dicoba lagi oleh rekonsiliasi pada sinkronisasi master.
+        }
     }
 
     /**

@@ -14,7 +14,6 @@ use App\Models\SapSyncRun;
 use App\Models\TaxGroup;
 use App\Models\Unit;
 use App\Models\Warehouse;
-use App\Models\WarehouseStock;
 use App\Models\WarehouseStockLedger;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -580,23 +579,7 @@ class SapImportService
                 return null;
             }
 
-            $outcomes = [];
-            foreach ($row['ItemWarehouseInfoCollection'] ?? [] as $info) {
-                $warehouseId = $warehouses[(string) ($info['WarehouseCode'] ?? '')] ?? null;
-                if ($warehouseId === null) {
-                    continue;
-                }
-
-                // Selalu dicocokkan (juga saat impor awal): baris bisa sudah dibuat oleh mutasi stok.
-                $stock = WarehouseStock::firstOrNew(['company_id' => $this->companyId, 'warehouse_id' => $warehouseId, 'product_id' => $productId]);
-                $stock->forceFill([
-                    'committed' => (float) ($info['Committed'] ?? 0),
-                    'on_order' => (float) ($info['Ordered'] ?? 0),
-                    'sap_on_hand' => (float) ($info['InStock'] ?? 0),
-                ]);
-                $outcomes[] = ! $stock->exists ? 'created' : ($stock->isDirty() ? 'updated' : 'unchanged');
-                $stock->forceFill(['sap_checked_at' => $checkedAt])->save();
-            }
+            $outcomes = SapStockMutationService::storeSapBalances($this->companyId, $productId, $warehouses, $row['ItemWarehouseInfoCollection'] ?? [], $checkedAt);
 
             if ($outcomes === []) {
                 return null;
