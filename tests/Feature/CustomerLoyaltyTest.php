@@ -183,6 +183,19 @@ class CustomerLoyaltyTest extends TestCase
         $this->assertDatabaseHas('customers', ['phone' => '081277777777']);
     }
 
+    public function test_daftar_pelanggan_diurutkan_berdasarkan_kode_tanpa_kolom_transaksi(): void
+    {
+        foreach (['ZZ-002', 'AA-001'] as $code) {
+            Customer::create(['company_id' => $this->company->id, 'code' => $code, 'name' => "Pelanggan {$code}", 'is_active' => true]);
+        }
+
+        $this->actingAs($this->owner)
+            ->get(route('admin.customers.index'))
+            ->assertOk()
+            ->assertSeeInOrder(['AA-001', 'ZZ-002'])
+            ->assertDontSee('<th>Transaksi</th>', false);
+    }
+
     public function test_transaksi_member_mendapat_poin_sesuai_tarif_level(): void
     {
         $sale = $this->sell(1, $this->member->id);

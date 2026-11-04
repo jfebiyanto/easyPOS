@@ -20,7 +20,7 @@ class CustomerController extends Controller
 {
     public function index(Request $request): View
     {
-        $query = Customer::with('memberLevel')->withCount('sales');
+        $query = Customer::with('memberLevel');
 
         if ($q = $request->query('q')) {
             $query->where(fn ($x) => $x->whereLike('name', "%{$q}%")
@@ -35,7 +35,7 @@ class CustomerController extends Controller
             $query,
             $request->query('sort'), $request->query('dir'),
             ['name', 'code', 'phone', 'points_balance', 'is_active', 'created_at'],
-            'created_at'
+            'code', 'asc'
         );
 
         return view('admin.customers.index', [

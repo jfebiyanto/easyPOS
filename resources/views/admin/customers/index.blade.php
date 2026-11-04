@@ -38,7 +38,6 @@
                 <th>{!! sort_link('No. HP', 'phone') !!}</th>
                 <th>Level</th>
                 <th>{!! sort_link('Poin', 'points_balance') !!}</th>
-                <th>Transaksi</th>
                 <th>{!! sort_link('Status', 'is_active') !!}</th>
                 <th style="text-align:right;">Aksi</th>
             </tr>
@@ -56,7 +55,6 @@
                     <td class="mono">{{ $customer->phone ?? '-' }}</td>
                     <td><span class="chip chip-info">{{ $customer->memberLevel?->name ?? '-' }}</span></td>
                     <td class="money">{{ rtrim(rtrim(number_format((float) $customer->points_balance, 2, ',', '.'), '0'), ',') }}</td>
-                    <td>{{ $customer->sales_count }}</td>
                     <td><span class="badge {{ $customer->is_active ? 'active' : 'inactive' }}">{{ $customer->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
                     <td style="text-align:right;">
                         <div class="actions-cell">
@@ -70,7 +68,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="8"><div class="empty-state"><span class="material-symbols-rounded">person_off</span><p>Belum ada pelanggan.</p></div></td></tr>
+                <tr><td colspan="7"><div class="empty-state"><span class="material-symbols-rounded">person_off</span><p>Belum ada pelanggan.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>
