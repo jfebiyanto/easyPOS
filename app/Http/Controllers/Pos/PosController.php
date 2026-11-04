@@ -19,6 +19,7 @@ use App\Support\ActivityLogger;
 use App\Support\LoyaltyService;
 use App\Support\PricingService;
 use App\Support\SaleService;
+use App\Support\Sap\SapCustomerSync;
 use App\Support\StockService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -501,7 +502,12 @@ class PosController extends Controller
         if (filled($data['phone'] ?? null)) {
             abort_if(Customer::where('company_id', $companyId)->where('phone', $data['phone'])->exists(), 422, 'Nomor HP sudah terdaftar.');
         }
-        if (blank($data['code'] ?? null)) {
+        $sapActive = (bool) CompanyDetail::find($companyId)?->sapIntegrationActive();
+
+        if ($sapActive) {
+            // Kode customer = CardCode yang dibuat SAP B1 setelah customer terkirim.
+            $data['code'] = null;
+        } elseif (blank($data['code'] ?? null)) {
             $data['code'] = 'CUST-'.str_pad((string) (Customer::where('company_id', $companyId)->count() + 1), 5, '0', STR_PAD_LEFT);
         } else {
             abort_if(Customer::where('company_id', $companyId)->where('code', $data['code'])->exists(), 422, 'Kode customer sudah dipakai.');
@@ -514,9 +520,12 @@ class PosController extends Controller
             'member_level_id' => LoyaltyService::levelFor($companyId, 0)?->id,
             'joined_at' => now(),
             'is_active' => true,
+            'source' => Customer::SOURCE_MANUAL,
         ]);
 
         ActivityLogger::log('customer.created', "Mendaftarkan customer {$customer->name} ({$customer->code})", $customer);
+
+        SapCustomerSync::queue($customer);
 
         return response()->json(['data' => $this->customerPayload($customer->load('memberLevel'))], 201);
     }

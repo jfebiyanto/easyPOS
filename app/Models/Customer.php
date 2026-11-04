@@ -9,9 +9,28 @@ class Customer extends Model
 {
     use HasUuid7;
 
+    public const SOURCE_SAP = 'sap';
+
+    public const SOURCE_MANUAL = 'manual';
+
+    public const SYNC_PENDING = 'pending';
+
+    public const SYNC_SYNCED = 'synced';
+
+    public const SYNC_FAILED = 'failed';
+
+    /**
+     * Field yang dikuasai SAP B1: hanya-baca untuk customer dari SAP, dan dikirim ke SAP
+     * untuk customer manual.
+     *
+     * @var list<string>
+     */
+    public const SAP_FIELDS = ['name', 'phone', 'email', 'address', 'customer_group_id'];
+
     protected $fillable = [
         'company_id', 'code', 'name', 'phone', 'email', 'address', 'is_member',
         'member_level_id', 'customer_group_id', 'points_balance', 'joined_at', 'is_active',
+        'source', 'sap_sync_status', 'sap_sync_error', 'sap_synced_at',
     ];
 
     protected function casts(): array
@@ -21,7 +40,18 @@ class Customer extends Model
             'is_active' => 'boolean',
             'points_balance' => 'decimal:2',
             'joined_at' => 'datetime',
+            'sap_synced_at' => 'datetime',
         ];
+    }
+
+    public function isFromSap(): bool
+    {
+        return $this->source === self::SOURCE_SAP;
+    }
+
+    public function customerGroup()
+    {
+        return $this->belongsTo(CustomerGroup::class);
     }
 
     public function memberLevel()

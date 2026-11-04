@@ -229,10 +229,12 @@ class SapImportService
             }
 
             $profitCenter = $this->cut($row['U_SOL_PRFC'] ?? '', 50);
+            $cashAccount = $this->cut($row['U_SOL_CASH_ACC'] ?? '', 25);
 
             [, $outcome] = $this->store(Warehouse::class, ['code' => $code], [
                 'name' => $this->cut($row['WarehouseName'] ?? '', 255) ?: $code,
                 'profit_center' => $profitCenter !== '' ? $profitCenter : null,
+                'cash_account' => $cashAccount !== '' ? $cashAccount : null,
                 'is_retail' => ($row['U_SOL_RETAIL'] ?? null) === 'Y',
                 'is_active' => ($row['Inactive'] ?? 'tNO') !== 'tYES',
             ]);
@@ -302,7 +304,10 @@ class SapImportService
                 return null;
             }
 
-            [$model, $outcome] = $this->store(CustomerGroup::class, ['code' => $code], ['name' => $row['Name'] ?: $code]);
+            [$model, $outcome] = $this->store(CustomerGroup::class, ['code' => $code], [
+                'name' => $row['Name'] ?: $code,
+                'source' => CustomerGroup::SOURCE_SAP,
+            ]);
             if ($model) {
                 $this->customerGroups[$code] = $model->id;
             }
@@ -329,7 +334,13 @@ class SapImportService
                 return null;
             }
 
+            // Customer yang dibuat di easyPOS lalu dikirim ke SAP tetap dikelola dari easyPOS.
+            if (! $this->isInitial() && Customer::where('company_id', $this->companyId)->where('code', $code)->where('source', Customer::SOURCE_MANUAL)->exists()) {
+                return 'skipped';
+            }
+
             $attrs = [
+                'source' => Customer::SOURCE_SAP,
                 'name' => $row['CardName'] ?: $code,
                 'email' => $this->cut($row['EmailAddress'] ?? '', 150) ?: null,
                 'address' => ($row['Address'] ?? null) ?: null,

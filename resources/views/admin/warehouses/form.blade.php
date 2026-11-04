@@ -29,6 +29,11 @@
                 @error('profit_center') <div class="error">{{ $message }}</div> @enderror
             </div>
             <div class="field">
+                <label for="cash_account">Akun Kas</label>
+                <input type="text" id="cash_account" value="{{ $warehouse->cash_account ?? '-' }}" readonly>
+                <div class="hint">Diambil dari SAP B1 (UDF U_SOL_CASH_ACC) untuk Incoming Payment tunai gerai.</div>
+            </div>
+            <div class="field">
                 <div class="checkbox-row">
                     <input type="checkbox" id="is_retail" name="is_retail" value="1" @checked(old('is_retail', $warehouse->exists ? $warehouse->is_retail : true))>
                     <label for="is_retail">Warehouse retail</label>

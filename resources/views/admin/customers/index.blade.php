@@ -46,7 +46,12 @@
         <tbody>
             @forelse ($customers as $customer)
                 <tr>
-                    <td class="mono">{{ $customer->code ?? '-' }}</td>
+                    <td class="mono">
+                        {{ $customer->code ?? '-' }}
+                        @if (! $customer->isFromSap() && in_array($customer->sap_sync_status, ['pending', 'failed'], true))
+                            <span class="chip {{ $customer->sap_sync_status === 'failed' ? 'chip-danger' : 'chip-neutral' }}" title="{{ $customer->sap_sync_error }}">{{ $customer->sap_sync_status === 'failed' ? 'Gagal ke SAP' : 'Menunggu SAP' }}</span>
+                        @endif
+                    </td>
                     <td><strong>{{ $customer->name }}</strong></td>
                     <td class="mono">{{ $customer->phone ?? '-' }}</td>
                     <td><span class="chip chip-info">{{ $customer->memberLevel?->name ?? '-' }}</span></td>

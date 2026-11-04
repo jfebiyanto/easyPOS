@@ -86,7 +86,7 @@ class SapImportTest extends TestCase
                 ['Code' => 'S1', 'Name' => 'AU Sales', 'Category' => 'bovcOutputTax', 'Inactive' => 'tYES', 'VatGroups_Lines' => [['Effectivefrom' => '2000-01-01T00:00:00Z', 'Rate' => 10]]],
             ]]),
             '*/Warehouses*' => Http::response(['value' => [
-                ['WarehouseCode' => 'WH-01', 'WarehouseName' => 'Gudang Retail 1', 'Inactive' => 'tNO', 'U_SOL_RETAIL' => 'Y', 'U_SOL_PRFC' => 'PC-JKT'],
+                ['WarehouseCode' => 'WH-01', 'WarehouseName' => 'Gudang Retail 1', 'Inactive' => 'tNO', 'U_SOL_RETAIL' => 'Y', 'U_SOL_PRFC' => 'PC-JKT', 'U_SOL_CASH_ACC' => '1100-1001-0002'],
                 ['WarehouseCode' => 'WH-02', 'WarehouseName' => 'Gudang Retail 2', 'Inactive' => 'tYES', 'U_SOL_RETAIL' => 'Y', 'U_SOL_PRFC' => ''],
                 ['WarehouseCode' => 'GL99', 'WarehouseName' => 'Gudang Load', 'Inactive' => 'tNO', 'U_SOL_RETAIL' => 'N', 'U_SOL_PRFC' => null],
             ]]),
@@ -162,6 +162,8 @@ class SapImportTest extends TestCase
         $this->assertFalse(Warehouse::where('code', 'GL99')->value('is_retail'));
         $this->assertTrue(Warehouse::where('code', 'WH-01')->value('is_retail'));
         $this->assertSame('PC-JKT', Warehouse::where('code', 'WH-01')->value('profit_center'));
+        $this->assertSame('1100-1001-0002', Warehouse::where('code', 'WH-01')->value('cash_account'));
+        $this->assertNull(Warehouse::where('code', 'GL99')->value('cash_account'));
         $this->assertTrue(Warehouse::where('code', 'WH-01')->value('is_active'));
         $inactive = Warehouse::where('code', 'WH-02')->firstOrFail();
         $this->assertNull($inactive->profit_center);
@@ -190,6 +192,7 @@ class SapImportTest extends TestCase
         $this->assertSame(0, PriceList::where('code', '3')->count());
         $this->assertSame(1, $run->summary['price_list']['skipped']);
         $this->assertSame('Grosir', CustomerGroup::where('code', '101')->value('name'));
+        $this->assertSame(CustomerGroup::SOURCE_SAP, CustomerGroup::where('code', '101')->value('source'));
 
         $product = Product::where('sku', 'ITM-001')->firstOrFail();
         $this->assertSame('Kopi Susu', $product->name);
@@ -200,6 +203,7 @@ class SapImportTest extends TestCase
 
         $customer = Customer::where('code', 'C0001')->firstOrFail();
         $this->assertSame('Budi', $customer->name);
+        $this->assertSame(Customer::SOURCE_SAP, $customer->source);
         $this->assertSame(CustomerGroup::where('code', '101')->value('id'), $customer->customer_group_id);
 
         $this->assertNotNull($this->company->fresh()->sap_initial_imported_at);
@@ -317,6 +321,21 @@ class SapImportTest extends TestCase
 
         Http::assertSent(fn ($request) => str_contains($request->url(), '/Items')
             && str_contains(urldecode($request->url()), "UpdateDate ge '"));
+    }
+
+    public function test_sinkronisasi_tidak_menimpa_customer_easypos_yang_sudah_dikirim_ke_sap(): void
+    {
+        $this->fakeSap();
+        $this->actingAs($this->owner)->post(route('admin.sap-import.run'), ['mode' => 'initial']);
+        // Customer C0001 dibuat di easyPOS lalu dikirim ke SAP (CardCode dikembalikan SAP).
+        Customer::where('code', 'C0001')->update(['source' => Customer::SOURCE_MANUAL, 'name' => 'Budi easyPOS']);
+
+        $this->fakeSap();
+        $this->actingAs($this->owner)->post(route('admin.sap-import.run'), ['mode' => 'delta']);
+
+        $customer = Customer::where('code', 'C0001')->firstOrFail();
+        $this->assertSame('Budi easyPOS', $customer->name);
+        $this->assertSame(Customer::SOURCE_MANUAL, $customer->source);
     }
 
     public function test_impor_gagal_dicatat_bila_login_sap_ditolak(): void

@@ -6,6 +6,7 @@ use App\Models\CompanyDetail;
 use Generator;
 use GuzzleHttp\Cookie\CookieJar;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -121,6 +122,56 @@ class SapServiceLayer
             $url = $next ? $this->resolveNextLink($next) : null;
             $params = [];
         }
+    }
+
+    /**
+     * GET satu resource/entitas. Mengembalikan null bila tidak ditemukan (404).
+     *
+     * @param  array<string, string>  $query
+     * @return ?array<string, mixed>
+     */
+    public function find(string $resource, array $query = []): ?array
+    {
+        $response = $this->http->get($this->baseUrl.'/'.$resource, $query);
+
+        if ($response->status() === 404) {
+            return null;
+        }
+
+        return $this->decode($response, "mengambil {$resource}");
+    }
+
+    /**
+     * POST (buat entitas atau panggil action) dan kembalikan body respons.
+     *
+     * @param  array<string, mixed>  $body
+     * @return array<string, mixed>
+     */
+    public function create(string $resource, array $body): array
+    {
+        return $this->decode($this->http->post($this->baseUrl.'/'.$resource, $body), "membuat {$resource}");
+    }
+
+    /**
+     * PATCH sebagian field entitas.
+     *
+     * @param  array<string, mixed>  $body
+     */
+    public function update(string $resource, array $body): void
+    {
+        $this->decode($this->http->patch($this->baseUrl.'/'.$resource, $body), "memperbarui {$resource}");
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function decode(Response $response, string $action): array
+    {
+        if (! $response->successful()) {
+            throw new RuntimeException("Gagal {$action} di SAP B1 (HTTP {$response->status()}): ".$this->errorMessage($response->json()));
+        }
+
+        return $response->json() ?? [];
     }
 
     /**

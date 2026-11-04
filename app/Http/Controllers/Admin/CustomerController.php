@@ -3,11 +3,17 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\CompanyDetail;
 use App\Models\Customer;
+use App\Models\CustomerGroup;
 use App\Models\MemberLevel;
 use App\Support\ActivityLogger;
 use App\Support\LoyaltyService;
+use App\Support\Sap\SapCustomerSync;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class CustomerController extends Controller
@@ -40,7 +46,7 @@ class CustomerController extends Controller
 
     public function create(): View
     {
-        return view('admin.customers.form', ['customer' => new Customer]);
+        return view('admin.customers.form', $this->formData(new Customer));
     }
 
     public function store(Request $request)
@@ -52,13 +58,18 @@ class CustomerController extends Controller
         $data['joined_at'] = now();
         $data['member_level_id'] = LoyaltyService::levelFor(current_company_id(), 0)?->id;
 
-        if (blank($data['code'] ?? null)) {
+        if ($this->sapActive()) {
+            // Kode customer = CardCode yang dibuat SAP B1 setelah customer terkirim.
+            $data['code'] = null;
+        } elseif (blank($data['code'] ?? null)) {
             $data['code'] = 'CUST-'.str_pad((string) (Customer::where('company_id', $data['company_id'])->count() + 1), 5, '0', STR_PAD_LEFT);
         }
 
-        $customer = Customer::create($data);
+        $customer = Customer::create($data + ['source' => Customer::SOURCE_MANUAL]);
 
         ActivityLogger::log('customer.created', "Menambah customer: {$customer->name} ({$customer->code})", $customer);
+
+        SapCustomerSync::queue($customer);
 
         return redirect()->route('admin.customers.index')->with('success', 'Customer berhasil dibuat.');
     }
@@ -73,25 +84,50 @@ class CustomerController extends Controller
 
     public function edit(Customer $customer): View
     {
-        return view('admin.customers.form', ['customer' => $customer]);
+        return view('admin.customers.form', $this->formData($customer));
     }
 
     public function update(Request $request, Customer $customer)
     {
-        $data = $this->validated($request, $customer->id);
+        $data = $customer->isFromSap() ? [] : $this->validated($request, $customer->id);
         $data['is_member'] = $request->boolean('is_member');
-        $data['is_active'] = $request->boolean('is_active');
+        if (! $customer->isFromSap()) {
+            $data['is_active'] = $request->boolean('is_active');
+        }
+
+        // Kode customer tersinkron = CardCode SAP B1, tidak dapat diubah.
+        if ($this->sapActive()) {
+            unset($data['code']);
+        }
 
         // Pelanggan retail default gerai tidak boleh menjadi member.
         if (LoyaltyService::isRetailDefault($customer->id)) {
             $data['is_member'] = false;
         }
 
-        $customer->update($data);
+        $customer->fill($data);
+        $sapFieldsChanged = $customer->isDirty(Customer::SAP_FIELDS);
+        $customer->save();
 
         ActivityLogger::log('customer.updated', "Mengubah customer: {$customer->name}", $customer);
 
+        if ($sapFieldsChanged || $customer->sap_sync_status === Customer::SYNC_FAILED) {
+            SapCustomerSync::queue($customer);
+        }
+
         return redirect()->route('admin.customers.index')->with('success', 'Customer berhasil diperbarui.');
+    }
+
+    /**
+     * Kirim ulang customer manual yang gagal tersinkron ke SAP B1.
+     */
+    public function syncSap(Customer $customer): RedirectResponse
+    {
+        abort_if($customer->isFromSap() || ! $this->sapActive(), 404);
+
+        SapCustomerSync::queue($customer);
+
+        return back()->with('success', 'Customer dijadwalkan untuk dikirim ke SAP B1.');
     }
 
     public function adjustPoints(Request $request, Customer $customer)
@@ -116,6 +152,9 @@ class CustomerController extends Controller
             'code' => ['nullable', 'string', 'max:30'],
             'email' => ['nullable', 'email', 'max:150'],
             'address' => ['nullable', 'string', 'max:500'],
+            'customer_group_id' => ['nullable', Rule::exists('customer_groups', 'id')
+                ->where('company_id', current_company_id())
+                ->where(fn ($q) => $this->sapActive() ? $q->where('source', CustomerGroup::SOURCE_SAP) : $q)],
             'is_member' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
@@ -140,5 +179,29 @@ class CustomerController extends Controller
         }
 
         return $data;
+    }
+
+    /**
+     * @return array{customer: Customer, groups: Collection<int, CustomerGroup>, sapActive: bool}
+     */
+    private function formData(Customer $customer): array
+    {
+        $sapActive = $this->sapActive();
+
+        return [
+            'customer' => $customer,
+            'sapActive' => $sapActive,
+            // Selama integrasi aktif hanya grup dari SAP yang dapat dipilih (GroupCode BP).
+            'groups' => CustomerGroup::where('company_id', current_company_id())
+                ->where(fn ($q) => $q->where('is_active', true)->orWhere('id', $customer->customer_group_id))
+                ->when($sapActive, fn ($q) => $q->where(fn ($w) => $w->where('source', CustomerGroup::SOURCE_SAP)->orWhere('id', $customer->customer_group_id)))
+                ->orderBy('name')
+                ->get(),
+        ];
+    }
+
+    private function sapActive(): bool
+    {
+        return (bool) CompanyDetail::find(current_company_id())?->sapIntegrationActive();
     }
 }

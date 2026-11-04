@@ -102,6 +102,7 @@ Route::prefix('admin')
         // Customer & loyalty
         Route::resource('customers', Admin\CustomerController::class);
         Route::post('customers/{customer}/adjust-points', [Admin\CustomerController::class, 'adjustPoints'])->name('customers.adjust-points');
+        Route::post('customers/{customer}/sap-sync', [Admin\CustomerController::class, 'syncSap'])->name('customers.sap-sync');
         Route::get('member-levels', [Admin\MemberLevelController::class, 'index'])->name('member-levels.index');
         Route::get('member-levels/create', [Admin\MemberLevelController::class, 'create'])->name('member-levels.create');
         Route::post('member-levels', [Admin\MemberLevelController::class, 'store'])->name('member-levels.store');
