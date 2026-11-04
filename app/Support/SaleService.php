@@ -11,6 +11,7 @@ use App\Models\Sale;
 use App\Models\StockLedger;
 use App\Models\Store;
 use App\Models\User;
+use App\Support\Sap\SapSalePosting;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -190,6 +191,9 @@ class SaleService
             }
 
             LoyaltyService::earnForSale($sale);
+
+            // Posting ke SAP B1 (A/R Invoice + Incoming Payment) setelah transaksi tersimpan.
+            SapSalePosting::queue($sale);
 
             return $sale->load('lines', 'payments', 'delivery', 'customer');
         });

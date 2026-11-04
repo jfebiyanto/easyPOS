@@ -5,6 +5,7 @@ namespace App\Support\Sap;
 use App\Jobs\PushCustomerToSap;
 use App\Models\CompanyDetail;
 use App\Models\Customer;
+use App\Models\Sale;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
@@ -59,6 +60,12 @@ class SapCustomerSync
                 'sap_sync_error' => null,
                 'sap_synced_at' => now(),
             ])->saveQuietly();
+
+            // Penjualan yang menunggu CardCode customer ini dikirim sekarang.
+            Sale::where('customer_id', $customer->id)
+                ->whereIn('sap_post_status', [Sale::SAP_PENDING, Sale::SAP_FAILED])
+                ->whereNull('sap_invoice_doc_entry')
+                ->each(fn (Sale $sale) => SapSalePosting::queue($sale));
         } catch (Throwable $e) {
             $customer->forceFill([
                 'sap_sync_status' => Customer::SYNC_FAILED,

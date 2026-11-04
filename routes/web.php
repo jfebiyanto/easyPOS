@@ -66,6 +66,10 @@ Route::prefix('admin')
         Route::put('/sap-import/settings', [Admin\SapImportController::class, 'updateSettings'])->name('sap-import.settings');
         Route::get('/sap-import/status', [Admin\SapImportController::class, 'status'])->name('sap-import.status');
 
+        // Posting penjualan POS ke SAP B1
+        Route::get('/sap-postings', [Admin\SapPostingController::class, 'index'])->name('sap-postings.index');
+        Route::post('/sap-postings/{sale}/retry', [Admin\SapPostingController::class, 'retry'])->name('sap-postings.retry');
+
         // Activity log
         Route::get('/activity-logs', [Admin\ActivityLogController::class, 'index'])->name('logs.index');
 

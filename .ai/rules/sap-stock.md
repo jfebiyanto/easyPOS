@@ -22,3 +22,6 @@ Setiap penjualan POS yang selesai diposting lewat antrean: A/R Invoice (13) lalu
 
 ## Customer manual dikirim ke SAP
 Customer yang dibuat di easyPOS dikirim ke SAP (BusinessPartners, CardType cCustomer) lewat antrean setelah disimpan, dengan `U_SOL_FRST = 'Y'` dan `U_SOL_TRKY` = UUID customer (OCRD tidak punya `U_SOL_STID`). CardCode dibuat SAP dari numbering series BP otomatis (opsi A; series default SAP untuk BP saat ini hanya "Manual") lalu disimpan sebagai `customers.code`. GroupCode = kode customer group easyPOS (harus grup yang berasal dari SAP). Posting penjualan menunggu sampai customer punya CardCode. Selama integrasi aktif, form customer hanya menawarkan customer group yang berasal dari SAP. Perubahan customer manual (nama, HP, email, alamat, grup) setelah tersinkron dikirim ke SAP (PATCH BusinessPartners); customer yang berasal dari SAP tetap hanya-baca.
+
+## Query OIVL bisa tertahan sementara
+Teramati di SAP pelanggan: `SQLQueries('EPOS_STOCK_MUTATION')/List` kadang tidak merespons beberapa menit sesudah dokumen stok baru diposting (sesi SL ikut tertahan, Logout pun timeout), lalu normal lagi (0,1 detik). Jangan perpanjang timeout; biarkan sinkronisasi per menit mencoba ulang. SAP menulis ulang teks query (mis. `"OIVL"`), jadi bandingkan teks secara ternormalisasi agar tidak PATCH berulang.

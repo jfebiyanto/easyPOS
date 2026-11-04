@@ -96,6 +96,7 @@ class WarehouseStockLedger extends Model
         19 => 'A/P Credit Memo',
         20 => 'Goods Receipt PO',
         21 => 'Goods Return',
+        24 => 'Incoming Payment',
         59 => 'Goods Receipt',
         60 => 'Goods Issue',
         67 => 'Inventory Transfer',

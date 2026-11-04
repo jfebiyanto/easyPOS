@@ -10,6 +10,7 @@ class Sale extends Model
     use HasUuid7;
 
     public const STATUS_COMPLETED = 'completed';
+
     public const STATUS_VOID = 'void';
 
     protected $fillable = [
@@ -17,7 +18,23 @@ class Sale extends Model
         'type', 'customer_id', 'points_earned', 'cashier_id', 'status', 'stock_review_status', 'review_reason', 'resolved_by', 'resolved_at',
         'subtotal', 'discount_total', 'tax_total', 'shipping_cost', 'total', 'paid_total', 'change_total',
         'currency_code', 'sold_at', 'voided_at', 'void_reason',
+        'sap_post_status', 'sap_post_error', 'sap_invoice_obj_type', 'sap_invoice_doc_num', 'sap_invoice_doc_entry',
+        'sap_payment_obj_type', 'sap_payment_doc_num', 'sap_payment_doc_entry', 'sap_posted_at',
     ];
+
+    public const SAP_PENDING = 'pending';
+
+    /** Invoice sudah ada di SAP, pembayaran belum. */
+    public const SAP_INVOICED = 'invoiced';
+
+    public const SAP_POSTED = 'posted';
+
+    public const SAP_FAILED = 'failed';
+
+    /**
+     * DocEntry hanya kunci teknis; yang ditampilkan ke user ObjType + DocNum.
+     */
+    protected $hidden = ['sap_invoice_doc_entry', 'sap_payment_doc_entry'];
 
     protected function casts(): array
     {
@@ -34,6 +51,7 @@ class Sale extends Model
             'total' => 'decimal:2',
             'paid_total' => 'decimal:2',
             'change_total' => 'decimal:2',
+            'sap_posted_at' => 'datetime',
         ];
     }
 
