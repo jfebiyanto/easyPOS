@@ -152,9 +152,9 @@ class SapImportTest extends TestCase
         $this->assertSame('2025-01-01', $ppn11->effective_from->toDateString());
         $this->assertSame(TaxGroup::SOURCE_SAP, $ppn11->source);
         $this->assertSame('11.00', $this->company->fresh()->ppn_rate);
-        $this->assertSame(0, Warehouse::where('code', 'GL99')->count());
-        $this->assertSame(1, $run->summary['warehouse']['skipped']);
-        $this->assertSame(2, Warehouse::count());
+        $this->assertSame(3, Warehouse::count());
+        $this->assertFalse(Warehouse::where('code', 'GL99')->value('is_retail'));
+        $this->assertTrue(Warehouse::where('code', 'WH-01')->value('is_retail'));
         $this->assertSame('PC-JKT', Warehouse::where('code', 'WH-01')->value('profit_center'));
         $this->assertTrue(Warehouse::where('code', 'WH-01')->value('is_active'));
         $inactive = Warehouse::where('code', 'WH-02')->firstOrFail();

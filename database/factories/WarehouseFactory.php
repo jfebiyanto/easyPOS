@@ -19,7 +19,16 @@ class WarehouseFactory extends Factory
             'code' => strtoupper(fake()->unique()->bothify('WH-###')),
             'name' => fake()->words(2, true),
             'profit_center' => null,
+            'is_retail' => true,
             'is_active' => true,
         ];
+    }
+
+    /**
+     * Warehouse non-retail (mis. gudang pusat): tidak dapat dipakai gerai.
+     */
+    public function nonRetail(): static
+    {
+        return $this->state(fn (array $attributes) => ['is_retail' => false]);
     }
 }

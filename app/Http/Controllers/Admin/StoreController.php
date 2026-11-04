@@ -179,7 +179,9 @@ class StoreController extends Controller
             ],
             'warehouse_id' => [
                 'nullable', 'string',
-                Rule::exists('warehouses', 'id')->where('company_id', current_company_id()),
+                // Hanya warehouse retail; warehouse yang sudah terpasang tetap diterima walau tidak lagi retail.
+                Rule::exists('warehouses', 'id')->where('company_id', current_company_id())
+                    ->where(fn ($q) => $q->where('is_retail', true)->orWhere('id', $id ? Store::whereKey($id)->value('warehouse_id') : null)),
                 Rule::unique('stores', 'warehouse_id')->ignore($id),
             ],
         ]);
@@ -191,12 +193,12 @@ class StoreController extends Controller
     }
 
     /**
-     * Warehouse aktif yang belum dipakai gerai lain (plus milik gerai ini).
+     * Warehouse retail aktif yang belum dipakai gerai lain (plus milik gerai ini).
      */
     private function warehouseOptions(?Store $store = null): Collection
     {
         return Warehouse::where('company_id', current_company_id())
-            ->where(fn ($q) => $q->where('is_active', true)->orWhere('id', $store?->warehouse_id))
+            ->where(fn ($q) => $q->where('is_active', true)->where('is_retail', true)->orWhere('id', $store?->warehouse_id))
             ->where(fn ($q) => $q->whereDoesntHave('store')->orWhere('id', $store?->warehouse_id))
             ->orderBy('code')
             ->get(['id', 'code', 'name']);

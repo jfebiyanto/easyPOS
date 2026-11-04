@@ -89,6 +89,45 @@ class WarehouseTest extends TestCase
             ->assertDontSee($warehouse->code.' · ');
     }
 
+    public function test_gerai_hanya_dapat_memakai_warehouse_retail(): void
+    {
+        $nonRetail = Warehouse::factory()->nonRetail()->create(['company_id' => $this->company->id]);
+        $store = $this->makeStore('GR01');
+
+        $this->actingAs($this->owner)
+            ->put(route('admin.stores.update', $store), $this->storePayload($store, ['warehouse_id' => $nonRetail->id]))
+            ->assertSessionHasErrors('warehouse_id');
+
+        $this->assertNull($store->refresh()->warehouse_id);
+
+        $this->get(route('admin.stores.edit', $store))
+            ->assertOk()
+            ->assertDontSee($nonRetail->code.' · ');
+    }
+
+    public function test_gerai_tetap_bisa_disimpan_bila_warehousenya_tidak_lagi_retail(): void
+    {
+        $warehouse = Warehouse::factory()->nonRetail()->create(['company_id' => $this->company->id]);
+        $store = $this->makeStore('GR01');
+        $store->update(['warehouse_id' => $warehouse->id]);
+
+        $this->actingAs($this->owner)
+            ->put(route('admin.stores.update', $store), $this->storePayload($store, ['name' => 'Gerai Baru', 'warehouse_id' => $warehouse->id]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('Gerai Baru', $store->refresh()->name);
+        $this->assertSame($warehouse->id, $store->warehouse_id);
+    }
+
+    public function test_warehouse_manual_dapat_ditandai_non_retail(): void
+    {
+        $this->actingAs($this->owner)
+            ->post(route('admin.warehouses.store'), ['code' => 'DC-01', 'name' => 'Gudang Pusat', 'is_active' => 1])
+            ->assertRedirect(route('admin.warehouses.index'));
+
+        $this->assertFalse(Warehouse::where('code', 'DC-01')->value('is_retail'));
+    }
+
     public function test_warehouse_yang_dipakai_gerai_tidak_bisa_dihapus(): void
     {
         $warehouse = Warehouse::factory()->create(['company_id' => $this->company->id]);

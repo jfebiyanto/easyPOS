@@ -10,7 +10,7 @@
 | Terakhir diperbarui | 2026-11-04 |
 | Stack | Backend Laravel, Frontend React JS |
 
-**Perubahan v1.6 (2026-11-03):** integrasi SAP B1 (impor master data & saldo stok, sinkronisasi berkala), modul Warehouse, pricelist jual/beli per gerai, default pelanggan retail per gerai, saldo stok per warehouse, Tax Group (Output Tax) untuk Setting Pajak. Lihat Bagian 6b (C1–C6), model data (Bagian 7), serta penyesuaian FR-A2-02, FR-A7-04, dan FR-A9-02. Tambahan 2026-11-04: penguncian koneksi SAP setelah impor awal (FR-C4-11 s.d. FR-C4-16).
+**Perubahan v1.6 (2026-11-03):** integrasi SAP B1 (impor master data & saldo stok, sinkronisasi berkala), modul Warehouse, pricelist jual/beli per gerai, default pelanggan retail per gerai, saldo stok per warehouse, Tax Group (Output Tax) untuk Setting Pajak. Lihat Bagian 6b (C1–C6), model data (Bagian 7), serta penyesuaian FR-A2-02, FR-A7-04, dan FR-A9-02. Tambahan 2026-11-04: penguncian koneksi SAP setelah impor awal (FR-C4-11 s.d. FR-C4-16); semua warehouse SAP diimpor dengan penanda retail (FR-C1-03, FR-C4-04).
 
 Dokumen ini adalah baseline yang disetujui. Semua keputusan klarifikasi sudah di-fold-in. Satu constraint teknis dikunci pada Bagian 3 dan 8.
 
@@ -398,9 +398,9 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 ## 6b. Fungsi tambahan v1.6 (integrasi SAP B1 & Warehouse)
 
 ### C1 — Warehouse
-- FR-C1-01: Modul Warehouse (menu Konfigurasi, khusus superuser): CRUD dengan field `code` (unik per company), `name`, `profit_center` (opsional), `is_active`.
+- FR-C1-01: Modul Warehouse (menu Konfigurasi, khusus superuser): CRUD dengan field `code` (unik per company), `name`, `profit_center` (opsional), `is_retail` (default ya), `is_active`.
 - FR-C1-02: Satu Gerai memiliki satu Warehouse untuk pencatatan stok (`stores.warehouse_id`, nullable agar gerai lama tetap valid).
-- FR-C1-03: Satu Warehouse hanya boleh dipakai satu Gerai (unik di database dan validasi form). Dropdown Gerai hanya menampilkan warehouse aktif yang belum dipakai gerai lain.
+- FR-C1-03: Satu Warehouse hanya boleh dipakai satu Gerai (unik di database dan validasi form). Hanya warehouse retail (`is_retail`) yang dapat dipilih; dropdown Gerai menampilkan warehouse retail aktif yang belum dipakai gerai lain. Warehouse yang sudah terpasang tetap diterima walau tidak lagi retail. *(Diubah 2026-11-04.)*
 - FR-C1-04: Warehouse yang masih dipakai Gerai tidak dapat dihapus.
 
 ### C2 — Default Pelanggan Retail (per Gerai)
@@ -418,7 +418,7 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - FR-C4-01: Konfigurasi koneksi SAP B1 di Setting Perusahaan (endpoint, database, user, password terenkripsi, verifikasi SSL). Uji koneksi memakai nilai form tanpa perlu menyimpan; endpoint divalidasi terhadap SSRF (alamat privat/reservasi ditolak).
 - FR-C4-02: Menu **Impor Data SAP B1** hanya muncul bila integrasi aktif dan konfigurasi lengkap, khusus superuser; tombol aksi khusus Owner.
 - FR-C4-03: Urutan objek impor, hanya field yang dibutuhkan easyPOS: Warehouse (OWHS), Item Category (OITB), Manufacturer (OMRC → brand), Satuan (OUOM), Customer Group (OCRG, CardType C), Customer (OCRD, CardType C), Produk (OITM), Price List (OPLN), Price List Details (ITM1), Saldo Stok per Warehouse (OITW).
-- FR-C4-04: Filter retail: hanya Warehouse dan Price List dengan UDF `U_SOL_RETAIL = 'Y'` yang diimpor (UDF `U_SOL_PRFC` pada Warehouse menjadi `profit_center`, boleh kosong). Penyaringan dilakukan di sisi easyPOS karena Service Layer menolak UDF di `$filter`. Harga item hanya diimpor untuk price list retail, dan `base_price` produk dihitung dari price list retail bernomor terkecil yang berharga lebih dari 0.
+- FR-C4-04: Filter retail: semua Warehouse diimpor dan UDF `U_SOL_RETAIL = 'Y'` menandai `is_retail` (warehouse yang dapat dipakai gerai); hanya Price List dengan `U_SOL_RETAIL = 'Y'` yang diimpor. UDF `U_SOL_PRFC` pada Warehouse menjadi `profit_center`, boleh kosong. *(Diubah 2026-11-04; sebelumnya warehouse non-retail tidak diimpor.)* Penyaringan dilakukan di sisi easyPOS karena Service Layer menolak UDF di `$filter`. Harga item hanya diimpor untuk price list retail, dan `base_price` produk dihitung dari price list retail bernomor terkecil yang berharga lebih dari 0.
 - FR-C4-05: Impor awal (sekali): easyPOS masih kosong, semua baris di-INSERT tanpa pencocokan; bila terhenti di tengah jalan, impor dapat diulang dan baris yang sudah ada dilewati. Impor awal tidak dapat diulang setelah selesai.
 - FR-C4-06: Sinkronisasi berikutnya (delta): pencocokan berdasarkan kode SAP, tambah yang baru dan perbarui yang berubah. Produk dan Customer memakai filter `UpdateDate`; Warehouse, Price List, dan Saldo Stok diambil penuh setiap sinkronisasi.
 - FR-C4-07: Sinkronisasi berkala otomatis (default 30 menit, dapat diubah admin 1–10080 menit; dapat dimatikan), hanya berjalan setelah impor awal dan bila tidak ada run aktif. Membutuhkan scheduler (`schedule:run` tiap menit) dan queue worker; `composer run dev` menjalankan keduanya.
@@ -434,7 +434,7 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 
 ### C5 — Saldo stok per Warehouse
 - FR-C5-01: Tabel `warehouse_stocks` (padanan OITW): saldo per (warehouse, produk) dengan `on_hand`, `committed`, `on_order`, `avg_price`.
-- FR-C5-02: Saldo diisi dari SAP (`InStock`, `Committed`, `Ordered`, `StandardAveragePrice` pada `ItemWarehouseInfoCollection`) hanya untuk warehouse yang ada di easyPOS dan produk yang sudah terimpor.
+- FR-C5-02: Saldo diisi dari SAP (`InStock`, `Committed`, `Ordered`, `StandardAveragePrice` pada `ItemWarehouseInfoCollection`) hanya untuk warehouse retail di easyPOS dan produk yang sudah terimpor.
 - FR-C5-03: Halaman Saldo Stok menampilkan saldo, komitmen, dan dipesan dari warehouse milik gerai terpilih; gerai tanpa warehouse menampilkan peringatan.
 - FR-C5-04 (kerangka, belum dipakai): `warehouse_stock_ledgers` (append-only, qty bertanda, `balance_after`, tipe seperti A9) dan `WarehouseStockService::record()` untuk pergerakan stok per warehouse. Penjualan, retur, transfer, dan penyesuaian belum dipindahkan ke ledger ini; sinkronisasi SAP menimpa `on_hand` dan perlu disesuaikan saat pergerakan diaktifkan.
 
@@ -457,7 +457,7 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - **stores**: `id`, `company_id`, `code`, `name`, `address`, `pic_name`, `pic_phone`, `ppn_enabled`, `ppn_rate`, `currency_code`, `is_active`, `warehouse_id` (nullable, unik), `purchase_price_list_id` (nullable), `default_customer_id` (nullable).
 - **users**: `id`, `company_id`, `store_id` (null untuk Owner), `name`, `username`, `email`, `phone`, `role`, `is_active`, `password`.
 - **tax_groups**: `id`, `company_id`, `code` (unik per company), `name`, `rate`, `effective_from`, `source` (sap/manual), `is_active`.
-- **warehouses**: `id`, `company_id`, `code` (unik per company), `name`, `profit_center`, `is_active`.
+- **warehouses**: `id`, `company_id`, `code` (unik per company), `name`, `profit_center`, `is_retail`, `is_active`.
 - **warehouse_stocks**: `id`, `company_id`, `warehouse_id`, `product_id`, `on_hand`, `committed`, `on_order`, `avg_price` (unik warehouse+produk).
 - **warehouse_stock_ledgers**: `id`, `company_id`, `warehouse_id`, `product_id`, `type`, `qty` (signed), `balance_after`, `unit_cost`, `ref_type`, `ref_id`, `note`, `created_by`, `created_at` (kerangka, belum dipakai).
 - **customer_groups**: `id`, `company_id`, `code`, `name`.

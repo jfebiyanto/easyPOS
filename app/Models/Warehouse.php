@@ -8,11 +8,11 @@ class Warehouse extends MasterModel
 {
     use HasFactory;
 
-    protected $fillable = ['company_id', 'code', 'name', 'profit_center', 'is_active'];
+    protected $fillable = ['company_id', 'code', 'name', 'profit_center', 'is_retail', 'is_active'];
 
     protected function casts(): array
     {
-        return ['is_active' => 'boolean'];
+        return ['is_retail' => 'boolean', 'is_active' => 'boolean'];
     }
 
     public function store()

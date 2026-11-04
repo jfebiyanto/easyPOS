@@ -121,7 +121,7 @@ class SapImportService
 
             // Urutan mengikuti ketergantungan data.
             $this->importTaxGroups($client);       // OVTG (Output Tax, aktif)
-            $this->importWarehouses($client);       // OWHS (U_SOL_RETAIL = Y)
+            $this->importWarehouses($client);       // OWHS (semua; U_SOL_RETAIL = Y → retail)
             $this->importItemGroups($client);       // OITB
             $this->importManufacturers($client);    // OMRC
             $this->importUnits($client);            // OUOM
@@ -214,14 +214,15 @@ class SapImportService
     }
 
     /**
-     * Hanya warehouse retail: UDF U_SOL_RETAIL = 'Y'. Profit center dari UDF U_SOL_PRFC (boleh kosong).
+     * Semua warehouse diimpor; UDF U_SOL_RETAIL = 'Y' menandai warehouse retail (yang dapat dipakai gerai).
+     * Profit center dari UDF U_SOL_PRFC (boleh kosong).
      */
     private function importWarehouses(SapServiceLayer $client): void
     {
-        // Service Layer menolak UDF pada $filter/$select untuk Warehouses, jadi disaring di sini.
+        // Service Layer menolak UDF pada $filter/$select untuk Warehouses, jadi dibaca dari baris penuh.
         $this->each('warehouse', $client, 'Warehouses', [], function (array $row) {
             $code = $this->cut($row['WarehouseCode'] ?? '', 30);
-            if ($code === '' || ($row['U_SOL_RETAIL'] ?? null) !== 'Y') {
+            if ($code === '') {
                 return null;
             }
 
@@ -230,6 +231,7 @@ class SapImportService
             [, $outcome] = $this->store(Warehouse::class, ['code' => $code], [
                 'name' => $this->cut($row['WarehouseName'] ?? '', 255) ?: $code,
                 'profit_center' => $profitCenter !== '' ? $profitCenter : null,
+                'is_retail' => ($row['U_SOL_RETAIL'] ?? null) === 'Y',
                 'is_active' => ($row['Inactive'] ?? 'tNO') !== 'tYES',
             ]);
 
@@ -456,12 +458,12 @@ class SapImportService
     }
 
     /**
-     * Saldo inventory (OITW) hanya untuk warehouse yang ada di easyPOS dan produk yang sudah
+     * Saldo inventory (OITW) hanya untuk warehouse retail di easyPOS dan produk yang sudah
      * terimpor. Selalu diambil penuh: perubahan saldo tidak mengubah UpdateDate item di SAP.
      */
     private function importWarehouseStocks(SapServiceLayer $client): void
     {
-        $warehouses = Warehouse::where('company_id', $this->companyId)->pluck('id', 'code')->all();
+        $warehouses = Warehouse::where('company_id', $this->companyId)->where('is_retail', true)->pluck('id', 'code')->all();
 
         $this->each('warehouse_stock', $client, 'Items', ['$select' => 'ItemCode,ItemWarehouseInfoCollection'], function (array $row) use ($warehouses) {
             $sku = $this->cut($row['ItemCode'] ?? '', 40);

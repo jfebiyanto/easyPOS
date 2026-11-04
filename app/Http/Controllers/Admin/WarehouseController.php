@@ -24,7 +24,7 @@ class WarehouseController extends Controller
             'warehouses' => apply_sort(
                 Warehouse::with('store:id,warehouse_id,code,name'),
                 $request->query('sort'), $request->query('dir'),
-                ['code', 'name', 'profit_center', 'is_active', 'created_at'],
+                ['code', 'name', 'profit_center', 'is_retail', 'is_active', 'created_at'],
                 'code', 'asc'
             )->paginate(10),
         ]);
@@ -93,6 +93,7 @@ class WarehouseController extends Controller
             'profit_center' => ['nullable', 'string', 'max:50'],
         ]);
 
+        $data['is_retail'] = $request->boolean('is_retail');
         $data['is_active'] = $request->boolean('is_active');
 
         return $data;

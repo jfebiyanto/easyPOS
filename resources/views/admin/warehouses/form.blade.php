@@ -30,6 +30,13 @@
             </div>
             <div class="field">
                 <div class="checkbox-row">
+                    <input type="checkbox" id="is_retail" name="is_retail" value="1" @checked(old('is_retail', $warehouse->exists ? $warehouse->is_retail : true))>
+                    <label for="is_retail">Warehouse retail</label>
+                </div>
+                <div class="hint">Hanya warehouse retail yang dapat dipilih sebagai warehouse gerai.</div>
+            </div>
+            <div class="field">
+                <div class="checkbox-row">
                     <input type="checkbox" id="is_active" name="is_active" value="1" @checked(old('is_active', $warehouse->exists ? $warehouse->is_active : true))>
                     <label for="is_active">Aktif</label>
                 </div>
