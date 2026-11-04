@@ -451,6 +451,8 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - FR-C7-04: Selama integrasi aktif, form customer hanya menawarkan customer group yang berasal dari SAP; `GroupCode` = kode customer group.
 - FR-C7-05: Perubahan customer manual yang sudah tersinkron (nama, telepon, email, alamat, grup) dikirim ke SAP (PATCH).
 - FR-C7-06: Pengiriman idempoten: sebelum membuat BP, easyPOS mencari BP dengan `U_SOL_TRKY` yang sama; bila ada, CardCode-nya yang dipakai.
+- FR-C7-08: Modul **Grup Pelanggan** (menu Operasional, khusus Owner): daftar grup hasil impor SAP dan manual beserta jumlah pelanggan. Grup dari SAP: kode, nama, dan status hanya-baca, tidak dapat dihapus. Grup manual dapat dibuat, diubah, dan dihapus selama belum dipakai pelanggan.
+- FR-C7-09: Satu grup aktif per perusahaan dapat ditandai **default** (`is_default`); menandai grup lain melepas default sebelumnya. Grup default menjadi pilihan awal form pelanggan baru di admin dan otomatis dipakai pelanggan yang didaftarkan dari POS (selama integrasi SAP aktif, hanya bila grup default berasal dari SAP).
 - FR-C7-07: Status sinkron customer (`pending`/`synced`/`failed` + pesan error) tampil di daftar dan form customer; customer gagal dapat dikirim ulang. Customer yang belum punya CardCode tetap dapat dipakai di POS; posting penjualannya menunggu (C8).
 
 ### C8 — Posting penjualan POS ke SAP B1 *(baru 2026-11-04)*
@@ -490,7 +492,7 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - **warehouses**: `id`, `company_id`, `code` (unik per company), `name`, `profit_center`, `is_retail`, `cash_account`, `is_active`.
 - **warehouse_stocks**: `id`, `company_id`, `warehouse_id`, `product_id`, `on_hand`, `committed`, `on_order`, `avg_price`, `sap_on_hand`, `sap_checked_at` (unik warehouse+produk).
 - **warehouse_stock_ledgers**: `id`, `company_id`, `warehouse_id`, `product_id`, `type`, `qty` (signed), `balance_after`, `unit_cost`, `ref_type`, `ref_id`, `note`, `sap_trans_seq` (unik per company), `sap_trans_type`, `sap_doc_entry`, `sap_doc_num`, `sap_doc_line`, `doc_date`, `created_by`, `created_at`.
-- **customer_groups**: `id`, `company_id`, `code`, `name`.
+- **customer_groups**: `id`, `company_id`, `code`, `name`, `source` (sap/manual), `is_default`, `is_active`.
 - **sap_sync_runs**: `id`, `company_id`, `mode` (initial/delta), `trigger` (manual/schedule), `status` (queued/running/success/failed/cancelled), `summary` (JSON progres per objek), `error`, `started_at`, `finished_at`.
 - **units**: `id`, `company_id`, `code`, `name`, `is_active`.
 - **currencies**: `id`, `company_id`, `code`, `symbol`, `decimal_places`, `is_active`.

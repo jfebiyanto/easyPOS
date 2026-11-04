@@ -85,7 +85,6 @@ Route::prefix('admin')
         // Placeholder untuk fitur yang belum dibangun
         $placeholders = [
             'bundles' => 'Produk Paket',
-            'customer-groups' => 'Grup Pelanggan',
             'supplier-groups' => 'Grup Pemasok',
             'suppliers' => 'Daftar Pemasok',
         ];
@@ -151,6 +150,8 @@ Route::prefix('admin')
 
         // Product catalog
         Route::resource('warehouses', Admin\WarehouseController::class)->except('show');
+        Route::resource('customer-groups', Admin\CustomerGroupController::class)->except('show')
+            ->parameters(['customer-groups' => 'customerGroup']);
         Route::resource('tax-groups', Admin\TaxGroupController::class)->except('show')
             ->parameters(['tax-groups' => 'taxGroup']);
         Route::resource('units', Admin\UnitController::class)->except('show');

@@ -46,7 +46,10 @@ class CustomerController extends Controller
 
     public function create(): View
     {
-        return view('admin.customers.form', $this->formData(new Customer));
+        // Grup default menjadi pilihan awal customer baru.
+        return view('admin.customers.form', $this->formData(new Customer([
+            'customer_group_id' => CustomerGroup::defaultFor(current_company_id())?->id,
+        ])));
     }
 
     public function store(Request $request)

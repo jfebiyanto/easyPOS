@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Pos;
 use App\Http\Controllers\Controller;
 use App\Models\CompanyDetail;
 use App\Models\Customer;
+use App\Models\CustomerGroup;
 use App\Models\NumberingConfig;
 use App\Models\PaymentType;
 use App\Models\Product;
@@ -512,6 +513,12 @@ class PosController extends Controller
             $data['code'] = 'CUST-'.str_pad((string) (Customer::where('company_id', $companyId)->count() + 1), 5, '0', STR_PAD_LEFT);
         } else {
             abort_if(Customer::where('company_id', $companyId)->where('code', $data['code'])->exists(), 422, 'Kode customer sudah dipakai.');
+        }
+
+        // POS tidak memilih grup: pakai grup default (selama integrasi SAP aktif hanya grup dari SAP).
+        $defaultGroup = CustomerGroup::defaultFor($companyId);
+        if ($defaultGroup && (! $sapActive || $defaultGroup->isFromSap())) {
+            $data['customer_group_id'] = $defaultGroup->id;
         }
 
         $customer = Customer::create($data + [

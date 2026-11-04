@@ -60,7 +60,7 @@
                         ['admin.stock-transfers.index', 'swap_horiz', 'Transfer Stok', true],
                     ]],
                     'operasional' => ['Operasional', [
-                        ['admin.customer-groups.index', 'diversity_3', 'Grup Pelanggan', true],
+                        ['admin.customer-groups.index', 'diversity_3', 'Grup Pelanggan', $isSuperuser],
                         ['admin.supplier-groups.index', 'groups_3', 'Grup Pemasok', true],
                         ['admin.customers.index', 'person', 'Daftar Pelanggan', true],
                         ['admin.suppliers.index', 'local_shipping', 'Daftar Pemasok', true],
