@@ -82,6 +82,42 @@ class WarehouseStockLedger extends Model
         ];
     }
 
+    /**
+     * Nama objek dokumen SAP B1 (ObjType) untuk ditampilkan bersama DocNum.
+     *
+     * @var array<int, string>
+     */
+    public const SAP_OBJECT_NAMES = [
+        13 => 'A/R Invoice',
+        14 => 'A/R Credit Memo',
+        15 => 'Delivery',
+        16 => 'Return',
+        18 => 'A/P Invoice',
+        19 => 'A/P Credit Memo',
+        20 => 'Goods Receipt PO',
+        21 => 'Goods Return',
+        59 => 'Goods Receipt',
+        60 => 'Goods Issue',
+        67 => 'Inventory Transfer',
+        202 => 'Production Order',
+        10000071 => 'Inventory Posting',
+        310000001 => 'Inventory Opening Balance',
+    ];
+
+    /**
+     * Referensi dokumen SAP yang ditampilkan: ObjType + DocNum (DocEntry tidak ditampilkan).
+     */
+    public function sapDocumentLabel(): ?string
+    {
+        if ($this->sap_doc_num === null) {
+            return null;
+        }
+
+        $object = self::SAP_OBJECT_NAMES[$this->sap_trans_type] ?? 'ObjType '.$this->sap_trans_type;
+
+        return "{$object} {$this->sap_doc_num}";
+    }
+
     public static function typeForSap(int $transType, float $qty): string
     {
         if ($transType === 67) {

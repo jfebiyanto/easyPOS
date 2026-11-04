@@ -12,7 +12,13 @@ paths:
 Saldo OITW hanya ditulis ke `sap_on_hand` untuk rekonsiliasi; jangan pernah menimpa `on_hand` dari OITW.
 SQLQueries List harus `POST .../List` dengan body `{"ParamList":"lastTransSeq=N"}` (GET ditolak, error 704).
 Baris dengan item/warehouse yang belum ada di easyPOS menghentikan penyalinan (tidak dilewati) agar saldo tidak bolong; kunci unik `(company_id, sap_trans_seq)` + baca ulang 100 TransSeq terakhir mencegah dobel dan baris terlambat.
-Saat posting transaksi easyPOS ke SAP dibuat, dokumen easyPOS harus ditandai (mis. UDF referensi) supaya mutasinya tidak tercatat dua kali ketika OIVL disalin kembali.
+Dokumen yang diposting easyPOS ke SAP diberi UDF header: `U_SOL_FRST = 'Y'`, `U_SOL_TRKY` = UUID dokumen easyPOS (50 char), `U_SOL_STID` = UUID store (50 char). Tersedia (default `U_SOL_FRST = 'N'`) di marketing documents, OIGN/OIGE, OWTR/OWTQ, dan pembayaran (ORCT/OVPM/ARCT/OPDF). Dari respons posting simpan ObjType, DocNum, dan DocEntry. Yang ditampilkan ke user hanya ObjType + DocNum; DocEntry disimpan tapi tidak ditampilkan (kunci teknis: OIVL.CreatedBy dan URL Service Layer; DocNum bisa berulang antar-series). Mutasinya tidak boleh tercatat dua kali saat OIVL disalin kembali.
 
 ## Cost item hanya di SAP
 Harga mutasi OIVL, `AvgStdPrice` (OITM), dan `StandardAveragePrice` (OITW) tidak diimpor. Kolom lama `products.cost_price`, `warehouse_stocks.avg_price`, dan `warehouse_stock_ledgers.unit_cost` dibiarkan tapi disembunyikan ($hidden) dan tidak ditampilkan di UI/API.
+
+## Posting penjualan POS ke SAP
+Setiap penjualan POS yang selesai diposting lewat antrean: A/R Invoice (13) lalu Incoming Payment (24) yang menunjuk DocEntry invoice di `PaymentInvoices` (rekonsiliasi otomatis). Satu Incoming Payment per penjualan (boleh multi metode; MVP hanya tunai). `CashAccount` = UDF `U_SOL_CASH_ACC` pada warehouse gerai (OWHS, 25 char). CardCode = customer penjualan (default pelanggan retail gerai bila kasir tidak memilih). Numbering series default SAP. Kirim ulang harus idempoten: cari dulu dokumen dengan `U_SOL_TRKY` yang sama sebelum membuat dokumen baru.
+
+## Customer manual dikirim ke SAP
+Customer yang dibuat di easyPOS dikirim ke SAP (BusinessPartners, CardType cCustomer) lewat antrean setelah disimpan, dengan `U_SOL_FRST = 'Y'` dan `U_SOL_TRKY` = UUID customer (OCRD tidak punya `U_SOL_STID`). CardCode dibuat SAP dari numbering series BP otomatis (opsi A; series default SAP untuk BP saat ini hanya "Manual") lalu disimpan sebagai `customers.code`. GroupCode = kode customer group easyPOS (harus grup yang berasal dari SAP). Posting penjualan menunggu sampai customer punya CardCode. Selama integrasi aktif, form customer hanya menawarkan customer group yang berasal dari SAP. Perubahan customer manual (nama, HP, email, alamat, grup) setelah tersinkron dikirim ke SAP (PATCH BusinessPartners); customer yang berasal dari SAP tetap hanya-baca.

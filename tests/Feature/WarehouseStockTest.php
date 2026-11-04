@@ -107,7 +107,7 @@ class WarehouseStockTest extends TestCase
         $otherWarehouse = Warehouse::factory()->create(['company_id' => $this->company->id]);
         $this->store->update(['warehouse_id' => $warehouse->id]);
         WarehouseStockService::record($warehouse, $this->product->id, WarehouseStockLedger::TYPE_GOODS_ISSUE, -2, [
-            'attributes' => ['sap_trans_seq' => 7, 'sap_doc_num' => '2600002', 'sap_doc_line' => 0],
+            'attributes' => ['sap_trans_seq' => 7, 'sap_trans_type' => 60, 'sap_doc_entry' => 5, 'sap_doc_num' => '2600002', 'sap_doc_line' => 0],
         ]);
         WarehouseStockService::record($otherWarehouse, $this->product->id, WarehouseStockLedger::TYPE_PURCHASE, 5, [
             'attributes' => ['sap_trans_seq' => 8, 'sap_doc_num' => '2609999'],
@@ -116,7 +116,7 @@ class WarehouseStockTest extends TestCase
         $this->actingAs($this->owner)
             ->get(route('admin.stock.mutations', ['product' => $this->product, 'store' => $this->store->id]))
             ->assertOk()
-            ->assertSeeInOrder(['Goods Issue', '2600002 / baris 1', '-2'])
+            ->assertSeeInOrder(['Goods Issue 2600002', '-2'])
             ->assertDontSee('2609999');
     }
 

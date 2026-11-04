@@ -42,7 +42,7 @@
                     <tr>
                         <td class="mono">{{ ($entry->doc_date ?? $entry->created_at)?->format('d/m/Y') }}</td>
                         <td><span class="chip chip-neutral">{{ $typeLabels[$entry->type] ?? $entry->type }}</span></td>
-                        <td class="mono">{{ $entry->sap_doc_num ? $entry->sap_doc_num.' / baris '.($entry->sap_doc_line + 1) : '-' }}</td>
+                        <td>{{ $entry->sapDocumentLabel() ?? '-' }}</td>
                         <td style="text-align:right;" class="money {{ (float) $entry->qty < 0 ? 'neg' : 'pos' }}">
                             {{ (float) $entry->qty > 0 ? '+' : '' }}{{ $fmt($entry->qty) }}
                         </td>

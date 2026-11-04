@@ -10,7 +10,7 @@
 | Terakhir diperbarui | 2026-11-04 |
 | Stack | Backend Laravel, Frontend React JS |
 
-**Perubahan v1.6 (2026-11-03):** integrasi SAP B1 (impor master data & saldo stok, sinkronisasi berkala), modul Warehouse, pricelist jual/beli per gerai, default pelanggan retail per gerai, saldo stok per warehouse, Tax Group (Output Tax) untuk Setting Pajak. Lihat Bagian 6b (C1–C6), model data (Bagian 7), serta penyesuaian FR-A2-02, FR-A7-04, dan FR-A9-02. Tambahan 2026-11-04: penguncian koneksi SAP setelah impor awal (FR-C4-11 s.d. FR-C4-16); semua warehouse SAP diimpor dengan penanda retail (FR-C1-03, FR-C4-04); mutasi stok SAP (OIVL) disalin tiap menit dan menjadi sumber saldo, OITW hanya untuk rekonsiliasi (FR-C4-17 s.d. FR-C4-21, C5).
+**Perubahan v1.6 (2026-11-03):** integrasi SAP B1 (impor master data & saldo stok, sinkronisasi berkala), modul Warehouse, pricelist jual/beli per gerai, default pelanggan retail per gerai, saldo stok per warehouse, Tax Group (Output Tax) untuk Setting Pajak. Lihat Bagian 6b (C1–C6), model data (Bagian 7), serta penyesuaian FR-A2-02, FR-A7-04, dan FR-A9-02. Tambahan 2026-11-04: penguncian koneksi SAP setelah impor awal (FR-C4-11 s.d. FR-C4-16); semua warehouse SAP diimpor dengan penanda retail (FR-C1-03, FR-C4-04); mutasi stok SAP (OIVL) disalin tiap menit dan menjadi sumber saldo, OITW hanya untuk rekonsiliasi (FR-C4-17 s.d. FR-C4-21, C5); cost item hanya di SAP; akun kas gerai dari warehouse (FR-C1-05); customer manual dikirim ke SAP (C7); posting penjualan POS ke SAP sebagai A/R Invoice + Incoming Payment (C8).
 
 Dokumen ini adalah baseline yang disetujui. Semua keputusan klarifikasi sudah di-fold-in. Satu constraint teknis dikunci pada Bagian 3 dan 8.
 
@@ -402,6 +402,7 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - FR-C1-02: Satu Gerai memiliki satu Warehouse untuk pencatatan stok (`stores.warehouse_id`, nullable agar gerai lama tetap valid).
 - FR-C1-03: Satu Warehouse hanya boleh dipakai satu Gerai (unik di database dan validasi form). Hanya warehouse retail (`is_retail`) yang dapat dipilih; dropdown Gerai menampilkan warehouse retail aktif yang belum dipakai gerai lain. Warehouse yang sudah terpasang tetap diterima walau tidak lagi retail. *(Diubah 2026-11-04.)*
 - FR-C1-04: Warehouse yang masih dipakai Gerai tidak dapat dihapus.
+- FR-C1-05: Akun kas gerai (`cash_account`) diimpor dari UDF `U_SOL_CASH_ACC` pada Warehouse (OWHS, 25 karakter) dan ditampilkan hanya-baca. Dipakai sebagai `CashAccount` Incoming Payment tunai (C8). Warehouse gerai tanpa akun kas membuat posting penjualannya gagal dengan pesan yang jelas. *(Baru 2026-11-04.)*
 
 ### C2 — Default Pelanggan Retail (per Gerai)
 - FR-C2-01: Form Gerai memiliki `default_customer_id`, dipilih dari pelanggan non-member yang aktif.
@@ -443,6 +444,28 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - FR-C5-03: Halaman Saldo Stok menampilkan saldo, komitmen, dipesan, saldo SAP, dan selisih (saldo easyPOS − saldo SAP saat pengecekan terakhir) dari warehouse milik gerai terpilih; gerai tanpa warehouse menampilkan peringatan. SKU membuka riwayat mutasi warehouse (jenis, dokumen SAP, qty, saldo). Cost item (harga mutasi, `AvgStdPrice`, `StandardAveragePrice`) tidak diimpor dari SAP dan hanya dilihat di SAP; Harga Beli tidak ditampilkan di form Produk maupun API. *(Diubah 2026-11-04.)*
 - FR-C5-04: `warehouse_stock_ledgers` (append-only, qty bertanda, `balance_after`) lewat `WarehouseStockService::record()`; saat ini diisi mutasi SAP. Penjualan, retur, transfer, dan penyesuaian easyPOS belum memakai ledger ini; saat posting ke SAP dibuat, dokumen easyPOS perlu ditandai agar mutasinya tidak tercatat dua kali saat OIVL disalin.
 
+### C7 — Customer easyPOS dikirim ke SAP B1 *(baru 2026-11-04)*
+- FR-C7-01: Customer menyimpan `source` (`sap`/`manual`). Customer dari SAP hanya-baca di easyPOS (ditegakkan di server).
+- FR-C7-02: Selama integrasi aktif, customer manual dikirim ke SAP lewat antrean setelah disimpan, sebagai BusinessPartner `CardType = cCustomer` dengan `CardName`, telepon, email, alamat, `GroupCode`, `U_SOL_FRST = 'Y'`, dan `U_SOL_TRKY` = UUID customer.
+- FR-C7-03: CardCode dibuat SAP dari numbering series BP Customer otomatis (series default dokumen BP subtype Customer) lalu disimpan sebagai `customers.code`. Series manual tidak didukung: pengiriman gagal dengan pesan agar series otomatis disiapkan.
+- FR-C7-04: Selama integrasi aktif, form customer hanya menawarkan customer group yang berasal dari SAP; `GroupCode` = kode customer group.
+- FR-C7-05: Perubahan customer manual yang sudah tersinkron (nama, telepon, email, alamat, grup) dikirim ke SAP (PATCH).
+- FR-C7-06: Pengiriman idempoten: sebelum membuat BP, easyPOS mencari BP dengan `U_SOL_TRKY` yang sama; bila ada, CardCode-nya yang dipakai.
+- FR-C7-07: Status sinkron customer (`pending`/`synced`/`failed` + pesan error) tampil di daftar dan form customer; customer gagal dapat dikirim ulang. Customer yang belum punya CardCode tetap dapat dipakai di POS; posting penjualannya menunggu (C8).
+
+### C8 — Posting penjualan POS ke SAP B1 *(baru 2026-11-04)*
+- FR-C8-01: Selama integrasi aktif, setiap penjualan POS yang selesai (online maupun offline setelah tersinkron) dikirim ke SAP lewat antrean.
+- FR-C8-02: Dokumen yang dibuat: A/R Invoice (ObjType 13) lalu satu Incoming Payment (ObjType 24) yang menunjuk DocEntry invoice di `PaymentInvoices` sehingga otomatis terekonsiliasi. Satu Incoming Payment per penjualan, dapat multi metode; MVP hanya tunai (`CashSum`, `CashAccount` dari FR-C1-05).
+- FR-C8-03: Invoice: `CardCode` = customer penjualan (default pelanggan retail gerai bila kasir tidak memilih, FR-C2-02); tanggal dokumen = tanggal bisnis penjualan; baris memakai SKU, qty, harga, diskon, warehouse gerai, dan `VatGroup` = `tax_group_code` baris. Numbering series default SAP.
+- FR-C8-04: Header semua dokumen yang dikirim easyPOS diisi `U_SOL_FRST = 'Y'`, `U_SOL_TRKY` = UUID dokumen easyPOS, dan `U_SOL_STID` = UUID gerai.
+- FR-C8-05: Dari respons SAP disimpan ObjType, DocNum, dan DocEntry untuk invoice dan pembayaran. Yang ditampilkan ke user hanya ObjType + DocNum; DocEntry hanya kunci teknis.
+- FR-C8-06: `CashSum` = `DocTotal` invoice dari SAP. Bila berbeda dengan total easyPOS, pembayaran tidak dibuat dan penjualan ditandai untuk dicek.
+- FR-C8-07: Status posting per penjualan: `pending`, `invoiced` (invoice ada, pembayaran belum), `posted`, `failed` (dengan pesan). Kirim ulang melanjutkan dari langkah terakhir dan idempoten: sebelum membuat dokumen, easyPOS mencari dokumen dengan `U_SOL_TRKY` yang sama.
+- FR-C8-08: Penjualan tidak dapat diposting (status `failed` dengan pesan, dapat dikirim ulang) bila customer belum punya CardCode (menunggu C7, dikirim otomatis setelah customer tersinkron), warehouse gerai tanpa akun kas, atau SAP menolak dokumen.
+- FR-C8-09: Halaman admin menampilkan status posting penjualan beserta referensi dokumen SAP dan tombol kirim ulang untuk yang gagal.
+- FR-C8-10: Penjualan langsung mengurangi stok warehouse easyPOS. Saat mutasi OIVL dari invoice easyPOS (TransType 13, `CreatedBy` = DocEntry tersimpan) disalin, baris itu ditautkan ke mutasi penjualan yang sudah ada, tidak dicatat dua kali.
+- FR-C8-11: Di luar MVP: retur (A/R Credit Memo), void, metode bayar non-tunai, transfer dan penyesuaian stok.
+
 ### C6 — Tax Group (Output Tax)
 - FR-C6-01: Master Tax Group (menu Konfigurasi, khusus superuser): `code` (unik per company), `name`, `rate`, `effective_from`, `source` (`sap`/`manual`), `is_active`. Satu interface yang sama baik terintegrasi SAP maupun tidak.
 - FR-C6-02: Tanpa integrasi SAP, user membuat dan mengubah Tax Group sendiri. Tax Group dari SAP (`source = sap`) hanya-baca: tidak dapat diubah atau dihapus (ditegakkan di server).
@@ -462,7 +485,7 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - **stores**: `id`, `company_id`, `code`, `name`, `address`, `pic_name`, `pic_phone`, `ppn_enabled`, `ppn_rate`, `currency_code`, `is_active`, `warehouse_id` (nullable, unik), `purchase_price_list_id` (nullable), `default_customer_id` (nullable).
 - **users**: `id`, `company_id`, `store_id` (null untuk Owner), `name`, `username`, `email`, `phone`, `role`, `is_active`, `password`.
 - **tax_groups**: `id`, `company_id`, `code` (unik per company), `name`, `rate`, `effective_from`, `source` (sap/manual), `is_active`.
-- **warehouses**: `id`, `company_id`, `code` (unik per company), `name`, `profit_center`, `is_retail`, `is_active`.
+- **warehouses**: `id`, `company_id`, `code` (unik per company), `name`, `profit_center`, `is_retail`, `cash_account`, `is_active`.
 - **warehouse_stocks**: `id`, `company_id`, `warehouse_id`, `product_id`, `on_hand`, `committed`, `on_order`, `avg_price`, `sap_on_hand`, `sap_checked_at` (unik warehouse+produk).
 - **warehouse_stock_ledgers**: `id`, `company_id`, `warehouse_id`, `product_id`, `type`, `qty` (signed), `balance_after`, `unit_cost`, `ref_type`, `ref_id`, `note`, `sap_trans_seq` (unik per company), `sap_trans_type`, `sap_doc_entry`, `sap_doc_num`, `sap_doc_line`, `doc_date`, `created_by`, `created_at`.
 - **customer_groups**: `id`, `company_id`, `code`, `name`.
@@ -479,12 +502,12 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - **stock_adjustment_lines**: `id`, `stock_adjustment_id`, `product_id`, `qty_before`, `qty_after`, `delta`.
 - **stock_transfers**: `id`, `company_id`, `number`, `from_store_id`, `to_store_id`, `status`, `shipped_at`, `received_at`, `note`, `created_by`.
 - **stock_transfer_lines**: `id`, `stock_transfer_id`, `product_id`, `qty_requested`, `qty_shipped`, `qty_received`, `variance_reason`.
-- **customers**: `id`, `company_id`, `code`, `name`, `phone` (unique), `email`, `address`, `is_member`, `member_level_id`, `customer_group_id` (nullable), `points_balance`, `joined_at`.
+- **customers**: `id`, `company_id`, `code`, `name`, `phone` (unique), `email`, `address`, `is_member`, `member_level_id`, `customer_group_id` (nullable), `points_balance`, `joined_at`, `source` (sap/manual), `sap_sync_status` (pending/synced/failed), `sap_sync_error`, `sap_synced_at`.
 - **member_levels**: `id`, `company_id`, `name` (Silver/Gold/Platinum), `min_points`, `earn_amount_per_point`, `order`, `is_active`.
 - **loyalty_config**: `id`, `company_id`, `rounding`, `min_spend`, `expiry_days`, `is_active`.
 - **loyalty_ledger**: `id`, `customer_id`, `type` (earn/adjust/expire), `points`, `balance_after`, `ref_type`, `ref_id`, `note`, `created_by`, `created_at`.
 - **sale_drafts**: `id`, `company_id`, `store_id`, `client_uuid` (unique), `cashier_id`, `device_label`, `payload` (JSON keranjang), `status` (held/finalized/cancelled), `updated_at`, `synced_at`.
-- **sales**: `id`, `company_id`, `store_id`, `number`, `client_uuid` (unique), `origin` (online/offline), `sync_status` (pending/synced), `business_date`, `type`, `customer_id` (nullable), `cashier_id`, `status` (completed/void), `stock_review_status` (none/pending/resolved), `review_reason`, `resolved_by`, `resolved_at`, `subtotal`, `discount_total`, `tax_total`, `shipping_cost`, `total`, `paid_total`, `change_total`, `currency_code`, `sold_at`, `voided_at`, `void_reason`.
+- **sales**: `id`, `company_id`, `store_id`, `number`, `client_uuid` (unique), `origin` (online/offline), `sync_status` (pending/synced), `business_date`, `type`, `customer_id` (nullable), `cashier_id`, `status` (completed/void), `stock_review_status` (none/pending/resolved), `review_reason`, `resolved_by`, `resolved_at`, `subtotal`, `discount_total`, `tax_total`, `shipping_cost`, `total`, `paid_total`, `change_total`, `currency_code`, `sold_at`, `voided_at`, `void_reason`, `sap_post_status` (pending/invoiced/posted/failed), `sap_post_error`, `sap_invoice_obj_type`, `sap_invoice_doc_num`, `sap_invoice_doc_entry`, `sap_payment_obj_type`, `sap_payment_doc_num`, `sap_payment_doc_entry`, `sap_posted_at`.
 - **sale_lines**: `id`, `sale_id`, `product_id`, `sku_snapshot`, `name_snapshot`, `qty`, `unit_price`, `discount`, `tax_amount`, `tax_group_code`, `tax_rate`, `line_total`.
 - **sale_payments**: `id`, `sale_id`, `payment_type_id`, `amount`, `status` (pending/confirmed/void), `provider`, `provider_ref`, `confirmed_at`.
 - **sales_returns**: `id`, `number`, `original_sale_id`, `store_id`, `customer_id`, `reason`, `total`, `refund_method`, `receipt_verified`, `created_by`, `created_at`.
