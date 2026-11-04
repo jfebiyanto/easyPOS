@@ -64,7 +64,11 @@ class SapCustomerSyncTest extends TestCase
             return match (true) {
                 str_ends_with($url, '/Login') => Http::response(['SessionId' => 'abc']),
                 str_ends_with($url, '/Logout') => Http::response('', 204),
-                str_contains($url, 'SeriesService_GetDefaultSeries') => Http::response(['Series' => 70, 'IsManual' => $isManual]),
+                str_contains($url, 'SeriesService_GetDocumentSeries') => Http::response(['value' => [
+                    ['Series' => 1, 'Name' => 'Manual', 'IsManual' => 'tYES', 'Locked' => 'tYES', 'U_SOL_RETAIL' => 'N'],
+                    ['Series' => 74, 'Name' => 'PARTAI', 'IsManual' => 'tNO', 'Locked' => 'tNO', 'U_SOL_RETAIL' => 'N'],
+                    ['Series' => 70, 'Name' => 'RETAIL', 'IsManual' => $isManual, 'Locked' => 'tNO', 'U_SOL_RETAIL' => 'Y'],
+                ]]),
                 $request->method() === 'GET' && str_contains($url, '/BusinessPartners') => Http::response(['value' => $existingCardCode ? [['CardCode' => $existingCardCode]] : []]),
                 $request->method() === 'POST' && str_ends_with($url, '/BusinessPartners') => Http::response(['CardCode' => 'CR00002'], 201),
                 default => Http::response('', 204),
@@ -98,6 +102,7 @@ class SapCustomerSyncTest extends TestCase
             && str_ends_with($request->url(), '/BusinessPartners')
             && $request['CardType'] === 'cCustomer'
             && $request['Series'] === 70
+            && $request['U_SOL_RETAIL'] === 'Y'
             && $request['GroupCode'] === 102
             && $request['CardName'] === 'Budi'
             && $request['U_SOL_FRST'] === 'Y'
@@ -114,14 +119,14 @@ class SapCustomerSyncTest extends TestCase
         Http::assertNotSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/BusinessPartners'));
     }
 
-    public function test_series_manual_membuat_pengiriman_gagal_dan_dapat_dikirim_ulang(): void
+    public function test_tanpa_series_retail_otomatis_pengiriman_gagal_dan_dapat_dikirim_ulang(): void
     {
         $this->fakeSap(isManual: 'tYES');
         $customer = $this->storeCustomer();
 
         $this->assertNull($customer->code);
         $this->assertSame(Customer::SYNC_FAILED, $customer->sap_sync_status);
-        $this->assertStringContainsString('series', $customer->sap_sync_error);
+        $this->assertStringContainsString('U_SOL_RETAIL', $customer->sap_sync_error);
 
         $this->fakeSap();
         $this->actingAs($this->owner)->post(route('admin.customers.sap-sync', $customer))->assertSessionHas('success');

@@ -198,7 +198,7 @@ class SapSalePostingTest extends TestCase
             $url = $request->url();
 
             return match (true) {
-                str_contains($url, 'SeriesService_GetDefaultSeries') => Http::response(['Series' => 70, 'IsManual' => 'tNO']),
+                str_contains($url, 'SeriesService_GetDocumentSeries') => Http::response(['value' => [['Series' => 70, 'IsManual' => 'tNO', 'Locked' => 'tNO', 'U_SOL_RETAIL' => 'Y']]]),
                 $request->method() === 'GET' && str_contains($url, '/BusinessPartners') => Http::response(['value' => []]),
                 str_ends_with($url, '/BusinessPartners') => Http::response(['CardCode' => 'CR00002'], 201),
                 $request->method() === 'GET' && str_contains($url, '/Invoices(') => Http::response(['DocTotal' => 8880]),

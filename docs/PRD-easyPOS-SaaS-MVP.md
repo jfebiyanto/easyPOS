@@ -447,7 +447,7 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 ### C7 — Customer easyPOS dikirim ke SAP B1 *(baru 2026-11-04)*
 - FR-C7-01: Customer menyimpan `source` (`sap`/`manual`). Customer dari SAP hanya-baca di easyPOS (ditegakkan di server).
 - FR-C7-02: Selama integrasi aktif, customer manual dikirim ke SAP lewat antrean setelah disimpan, sebagai BusinessPartner `CardType = cCustomer` dengan `CardName`, telepon, email, alamat, `GroupCode`, `U_SOL_FRST = 'Y'`, dan `U_SOL_TRKY` = UUID customer.
-- FR-C7-03: CardCode dibuat SAP dari numbering series BP Customer otomatis (series default dokumen BP subtype Customer) lalu disimpan sebagai `customers.code`. Series manual tidak didukung: pengiriman gagal dengan pesan agar series otomatis disiapkan.
+- FR-C7-03: CardCode dibuat SAP dari numbering series BP Customer yang ditandai UDF `U_SOL_RETAIL = 'Y'` pada series (NNM1), otomatis dan tidak dikunci; lalu disimpan sebagai `customers.code`. BP dari easyPOS diisi `U_SOL_RETAIL = 'Y'`. Tanpa series seperti itu pengiriman gagal dengan pesan yang jelas. *(Diubah 2026-11-04; sebelumnya series default.)*
 - FR-C7-04: Selama integrasi aktif, form customer hanya menawarkan customer group yang berasal dari SAP; `GroupCode` = kode customer group.
 - FR-C7-05: Perubahan customer manual yang sudah tersinkron (nama, telepon, email, alamat, grup) dikirim ke SAP (PATCH).
 - FR-C7-06: Pengiriman idempoten: sebelum membuat BP, easyPOS mencari BP dengan `U_SOL_TRKY` yang sama; bila ada, CardCode-nya yang dipakai.

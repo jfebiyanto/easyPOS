@@ -13,8 +13,8 @@ use Throwable;
 /**
  * Kirim customer yang dibuat di easyPOS ke SAP B1 sebagai BusinessPartner (Customer).
  *
- * - CardCode dibuat SAP dari numbering series BP Customer default (harus otomatis), lalu
- *   disimpan sebagai `customers.code`.
+ * - CardCode dibuat SAP dari numbering series BP Customer retail (UDF U_SOL_RETAIL = 'Y' pada
+ *   series, harus otomatis), lalu disimpan sebagai `customers.code`. BP ditandai retail.
  * - Idempoten: sebelum membuat BP, cari BP dengan U_SOL_TRKY = UUID customer.
  * - Setelah tersinkron, perubahan field SAP (nama, HP, email, alamat, grup) dikirim lewat PATCH.
  */
@@ -88,15 +88,19 @@ class SapCustomerSync
 
     private function createBusinessPartner(SapServiceLayer $client, Customer $customer): string
     {
-        $series = $client->create('SeriesService_GetDefaultSeries', self::SERIES_PARAMS);
+        $series = collect($client->create('SeriesService_GetDocumentSeries', self::SERIES_PARAMS)['value'] ?? [])
+            ->first(fn (array $row) => ($row['U_SOL_RETAIL'] ?? 'N') === 'Y'
+                && ($row['IsManual'] ?? 'tYES') === 'tNO'
+                && ($row['Locked'] ?? 'tNO') === 'tNO');
 
-        if (($series['IsManual'] ?? 'tYES') === 'tYES') {
-            throw new RuntimeException('Numbering series Business Partner Customer di SAP B1 masih manual. Siapkan series otomatis dan jadikan default agar CardCode dibuat SAP.');
+        if ($series === null) {
+            throw new RuntimeException("Numbering series Business Partner Customer retail (UDF U_SOL_RETAIL = 'Y', otomatis, tidak dikunci) belum ada di SAP B1.");
         }
 
         $created = $client->create('BusinessPartners', $this->payload($customer) + [
             'CardType' => 'cCustomer',
             'Series' => $series['Series'],
+            'U_SOL_RETAIL' => 'Y',
             'U_SOL_FRST' => 'Y',
             'U_SOL_TRKY' => $customer->id,
         ]);
