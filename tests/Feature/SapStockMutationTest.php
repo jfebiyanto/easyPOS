@@ -138,12 +138,26 @@ class SapStockMutationTest extends TestCase
             && $request['SqlCode'] === SapStockMutationService::QUERY_CODE);
     }
 
-    public function test_sinkronisasi_ulang_tidak_menggandakan_mutasi_dan_mengambil_baris_yang_terlambat(): void
+    public function test_sinkronisasi_per_menit_hanya_meminta_mutasi_baru_tanpa_cek_ulang_query(): void
     {
         $this->fakeSap([['rows' => [$this->row(1, 20, 'WH-01', 10, 0), $this->row(3, 60, 'WH-01', 0, 1)]]]);
         $this->artisan('sap:sync-stock')->assertSuccessful();
 
-        // TransSeq 2 baru ter-commit setelah 3 terbaca; pembacaan ulang menemukannya.
+        $this->fakeSap([['rows' => [$this->row(4, 59, 'WH-01', 2, 0)]]]);
+        $this->artisan('sap:sync-stock')->assertSuccessful();
+
+        Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/List') && $request['ParamList'] === 'lastTransSeq=3');
+        Http::assertNotSent(fn (Request $request) => str_contains($request->url(), "SQLQueries('".SapStockMutationService::QUERY_CODE."')") && ! str_ends_with($request->url(), '/List'));
+        $this->assertSame('11.000', $this->onHand($this->retail));
+    }
+
+    public function test_pembacaan_ulang_berkala_mengambil_baris_terlambat_tanpa_menggandakan_mutasi(): void
+    {
+        $this->fakeSap([['rows' => [$this->row(1, 20, 'WH-01', 10, 0), $this->row(3, 60, 'WH-01', 0, 1)]]]);
+        $this->artisan('sap:sync-stock')->assertSuccessful();
+
+        // TransSeq 2 baru ter-commit setelah 3 terbaca; pembacaan ulang 10 menit kemudian menemukannya.
+        $this->travel(11)->minutes();
         $this->fakeSap([['rows' => [
             $this->row(1, 20, 'WH-01', 10, 0),
             $this->row(2, 60, 'WH-01', 0, 4),
@@ -155,6 +169,30 @@ class SapStockMutationTest extends TestCase
         $this->assertSame(4, WarehouseStockLedger::count());
         $this->assertSame('7.000', $this->onHand($this->retail));
         Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/List') && $request['ParamList'] === 'lastTransSeq=0');
+    }
+
+    public function test_query_yang_terhapus_di_sap_dibuat_ulang(): void
+    {
+        $this->fakeSap([['rows' => [$this->row(1, 20, 'WH-01', 10, 0)]]]);
+        $this->artisan('sap:sync-stock')->assertSuccessful();
+
+        $listCalls = 0;
+        Http::swap(new HttpFactory);
+        Http::fake(function (Request $request) use (&$listCalls) {
+            $url = $request->url();
+
+            return match (true) {
+                str_ends_with($url, '/List') => ++$listCalls === 1
+                    ? Http::response(['error' => ['message' => ['value' => 'No matching records found']]], 404)
+                    : Http::response(['value' => [$this->row(2, 60, 'WH-01', 0, 1)]]),
+                $request->method() === 'GET' && str_contains($url, 'SQLQueries') => Http::response(['error' => ['message' => ['value' => 'No matching records found']]], 404),
+                default => Http::response(['SessionId' => 'abc'], $request->method() === 'POST' ? 201 : 200),
+            };
+        });
+        $this->artisan('sap:sync-stock')->assertSuccessful();
+
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/SQLQueries'));
+        $this->assertSame('9.000', $this->onHand($this->retail));
     }
 
     public function test_halaman_berikutnya_diminta_dari_transseq_terakhir_dan_query_lama_diperbarui(): void

@@ -486,7 +486,7 @@ class SapImportService
         $this->run->update(['summary' => $this->summary]);
 
         try {
-            $result = (new SapStockMutationService($this->company))->sync($client, wait: true);
+            $result = (new SapStockMutationService($this->company))->sync($client, wait: true, lookback: true);
         } catch (Throwable $e) {
             $this->summary[$entity]['status'] = self::STATUS_FAILED;
             $this->run->update(['summary' => $this->summary]);

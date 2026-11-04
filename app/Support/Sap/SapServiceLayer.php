@@ -213,15 +213,19 @@ class SapServiceLayer
      * masih ada baris berikutnya sehingga pemanggil mengulang dengan parameter (cursor) baru.
      *
      * @param  array<string, int|string>  $params
-     * @return array{rows: array<int, array<string, mixed>>, hasMore: bool}
+     * @return ?array{rows: array<int, array<string, mixed>>, hasMore: bool} null bila query belum ada di SAP (404)
      */
-    public function runSqlQuery(string $code, array $params = []): array
+    public function runSqlQuery(string $code, array $params = []): ?array
     {
         $paramList = collect($params)->map(fn ($value, $key) => "{$key}={$value}")->implode('&');
 
         // Query OIVL dapat tertahan beberapa menit di sisi SAP sesudah ada dokumen stok baru;
         // batas waktu dijaga pendek agar sinkronisasi per menit berikutnya mencoba lagi.
         $response = (clone $this->http)->timeout(60)->post($this->baseUrl."/SQLQueries('{$code}')/List", ['ParamList' => $paramList]);
+
+        if ($response->status() === 404) {
+            return null;
+        }
 
         if (! $response->successful()) {
             throw new RuntimeException("Gagal menjalankan SQL Query {$code} di SAP B1 (HTTP {$response->status()}): ".$this->errorMessage($response->json()));
