@@ -4,14 +4,6 @@
 @section('page_title', 'Promosi')
 
 @section('content')
-<div class="tabs">
-    <a href="{{ route('admin.groups.index') }}">Kategori Produk</a>
-    <a href="{{ route('admin.products.index') }}">Daftar Produk</a>
-    <a href="{{ route('admin.price-lists.index') }}">Daftar Harga</a>
-    <a href="{{ route('admin.promotions.index') }}" class="active">Promosi</a>
-    <a href="{{ route('admin.brands.index') }}">Daftar Merk</a>
-</div>
-
 <div class="table-toolbar">
     <h2 style="margin:0; font-size:16px;">Daftar Promosi</h2>
     <a href="{{ route('admin.promotions.create') }}" class="btn btn-filled">

@@ -4,15 +4,6 @@
 @section('page_title', 'Daftar Produk')
 
 @section('content')
-<div class="tabs">
-    <a href="{{ route('admin.groups.index') }}">Kategori Produk</a>
-    <a href="{{ route('admin.units.index') }}">Satuan</a>
-    <a href="{{ route('admin.products.index') }}" class="active">Daftar Produk</a>
-    <a href="{{ route('admin.price-lists.index') }}">Daftar Harga</a>
-    <a href="{{ route('admin.promotions.index') }}">Promosi</a>
-    <a href="{{ route('admin.brands.index') }}">Daftar Merk</a>
-</div>
-
 <div class="table-toolbar">
     <form method="GET" action="{{ route('admin.products.index') }}" class="search-box">
         <div class="field" style="margin-bottom:0; display:flex; gap:8px;">

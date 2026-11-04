@@ -4,14 +4,6 @@
 @section('page_title', 'Daftar Harga')
 
 @section('content')
-<div class="tabs">
-    <a href="{{ route('admin.groups.index') }}">Kategori Produk</a>
-    <a href="{{ route('admin.products.index') }}">Daftar Produk</a>
-    <a href="{{ route('admin.price-lists.index') }}" class="active">Daftar Harga</a>
-    <a href="{{ route('admin.promotions.index') }}">Promosi</a>
-    <a href="{{ route('admin.brands.index') }}">Daftar Merk</a>
-</div>
-
 <div class="table-toolbar">
     <h2 style="margin:0; font-size:16px;">Daftar Harga</h2>
     @if (auth()->user()->isSuperuser())
