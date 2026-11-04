@@ -217,8 +217,8 @@ class FoundationTest extends TestCase
             $this->get(route($name))->assertOk();
         }
 
-        // Halaman master produk tanpa baris tab: navigasinya sudah ada di menu samping.
-        foreach (['admin.units.index', 'admin.groups.index', 'admin.brands.index', 'admin.products.index', 'admin.price-lists.index', 'admin.promotions.index'] as $name) {
+        // Halaman master produk & stok tanpa baris tab: navigasinya sudah ada di menu samping.
+        foreach (['admin.units.index', 'admin.groups.index', 'admin.brands.index', 'admin.products.index', 'admin.price-lists.index', 'admin.promotions.index', 'admin.stock.index', 'admin.stock-adjustments.index', 'admin.stock-transfers.index'] as $name) {
             $this->get(route($name))->assertDontSee('<div class="tabs">', false);
         }
 

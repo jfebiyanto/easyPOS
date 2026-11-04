@@ -4,12 +4,6 @@
 @section('page_title', 'Transfer Stok')
 
 @section('content')
-<div class="tabs">
-    <a href="{{ route('admin.stock.index') }}">Saldo Stok</a>
-    <a href="{{ route('admin.stock-adjustments.index') }}">Penyesuaian Stok</a>
-    <a href="{{ route('admin.stock-transfers.index') }}" class="active">Transfer Stok</a>
-</div>
-
 <div class="table-toolbar">
     <h2 style="margin:0; font-size:16px;">Daftar Transfer</h2>
     <a href="{{ route('admin.stock-transfers.create') }}" class="btn btn-filled">

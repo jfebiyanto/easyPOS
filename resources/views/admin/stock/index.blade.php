@@ -4,12 +4,6 @@
 @section('page_title', 'Saldo Stok')
 
 @section('content')
-<div class="tabs">
-    <a href="{{ route('admin.stock.index') }}" class="active">Saldo Stok</a>
-    <a href="{{ route('admin.stock-adjustments.index') }}">Penyesuaian Stok</a>
-    <a href="{{ route('admin.stock-transfers.index') }}">Transfer Stok</a>
-</div>
-
 @if ($stores->isNotEmpty())
     <div class="table-toolbar">
         <form method="GET" action="{{ route('admin.stock.index') }}" style="display:flex; gap:8px; align-items:center;">
