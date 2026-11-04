@@ -158,3 +158,23 @@ table.md-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .login-footer { text-align: center; font-size: 12px; color: var(--md-on-surface-variant); margin-top: 20px; }
 .login-footer strong { color: var(--md-primary); }
 .login-page .field input { background: #fff; }
+/* Input terkunci (read-only) */
+.field input[readonly] { background: var(--md-surface-container); color: var(--md-on-surface-variant); cursor: not-allowed; }
+
+.md-snackbar.warning { background: var(--color-accent-container); color: var(--color-on-accent-container); align-items: flex-start; }
+
+/* Dialog konfirmasi (elemen <dialog> native) */
+.md-dialog {
+    width: min(520px, calc(100vw - 32px));
+    border: none; border-radius: 24px; padding: 24px;
+    background: #fff; color: var(--md-on-surface);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .25);
+}
+.md-dialog::backdrop { background: rgba(16, 24, 40, .45); }
+.md-dialog-title { font-size: 18px; font-weight: 600; margin: 0 0 16px; display: flex; align-items: center; gap: 10px; }
+.md-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.change-list { list-style: none; margin: 0 0 16px; padding: 0; border: 1px solid var(--md-outline-variant); border-radius: var(--md-radius-sm); }
+.change-list li { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--md-outline-variant); overflow-wrap: anywhere; }
+.change-list li:last-child { border-bottom: none; }
+.change-list .change-label { display: block; font-weight: 600; margin-bottom: 2px; }
+.change-list .change-old { color: var(--md-on-surface-variant); text-decoration: line-through; }

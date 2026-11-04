@@ -55,7 +55,8 @@ Route::prefix('admin')
         Route::get('/numberings', [Admin\NumberingController::class, 'index'])->name('numberings.index');
         Route::put('/numberings', [Admin\NumberingController::class, 'update'])->name('numberings.update');
 
-        // SAP B1 connection test
+        // SAP B1: simpan konfigurasi (form terpisah) + test koneksi
+        Route::put('/company/sap', [Admin\CompanyController::class, 'updateSap'])->name('company.update-sap');
         Route::post('/company/test-sap', [Admin\CompanyController::class, 'testSap'])->name('company.test-sap');
 
         // Impor data SAP B1 + interval sinkronisasi (muncul bila integrasi SAP aktif)

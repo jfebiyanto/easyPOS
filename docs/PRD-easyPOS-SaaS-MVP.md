@@ -7,10 +7,10 @@
 | Versi | 1.6 (baseline 1.5 + integrasi SAP B1, Warehouse) |
 | Status | Disetujui — siap freeze |
 | Pemilik | Product |
-| Terakhir diperbarui | 2026-11-03 |
+| Terakhir diperbarui | 2026-11-04 |
 | Stack | Backend Laravel, Frontend React JS |
 
-**Perubahan v1.6 (2026-11-03):** integrasi SAP B1 (impor master data & saldo stok, sinkronisasi berkala), modul Warehouse, pricelist jual/beli per gerai, default pelanggan retail per gerai, saldo stok per warehouse, Tax Group (Output Tax) untuk Setting Pajak. Lihat Bagian 6b (C1–C6), model data (Bagian 7), serta penyesuaian FR-A2-02, FR-A7-04, dan FR-A9-02.
+**Perubahan v1.6 (2026-11-03):** integrasi SAP B1 (impor master data & saldo stok, sinkronisasi berkala), modul Warehouse, pricelist jual/beli per gerai, default pelanggan retail per gerai, saldo stok per warehouse, Tax Group (Output Tax) untuk Setting Pajak. Lihat Bagian 6b (C1–C6), model data (Bagian 7), serta penyesuaian FR-A2-02, FR-A7-04, dan FR-A9-02. Tambahan 2026-11-04: penguncian koneksi SAP setelah impor awal (FR-C4-11 s.d. FR-C4-16).
 
 Dokumen ini adalah baseline yang disetujui. Semua keputusan klarifikasi sudah di-fold-in. Satu constraint teknis dikunci pada Bagian 3 dan 8.
 
@@ -425,6 +425,12 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - FR-C4-08: Tabel progres per objek (Menunggu/Sedang diimpor/Selesai/Gagal, dengan centang bila selesai) beserta jumlah diambil/baru/diubah/dilewati. Riwayat menampilkan 5 impor terakhir.
 - FR-C4-09: Impor yang antre/berjalan dapat dibatalkan; run yang macet lebih dari 3 jam dianggap tidak aktif.
 - FR-C4-10: Kegagalan satu objek menandai objek itu Gagal, objek sesudahnya tetap Menunggu, dan run berstatus Gagal dengan pesan error.
+- FR-C4-11: Konfigurasi SAP disimpan lewat form terpisah dari Identitas Perusahaan, khusus Owner. Sebelum impor awal, semua parameter bebas diubah tanpa konfirmasi.
+- FR-C4-12: Setelah impor awal, database SAP (CompanyDB) terkunci permanen (ditolak di server). Pindah database berarti reimplementasi easyPOS; tidak ada fitur reset integrasi.
+- FR-C4-13: Setelah impor awal, Endpoint URL, Username, Password, dan Allow Self-Signed hanya terbuka lewat tombol "Ubah Koneksi SAP". Simpan menjalankan tes login SAP (di klien dan diulang di server; gagal = tidak tersimpan), lalu dialog ringkasan perubahan (lama → baru, password hanya "diubah") dan konfirmasi password akun easyPOS. Konfirmasi berlaku per simpan; salah password dibatasi 5 kali per menit.
+- FR-C4-14: Setelah impor awal, mematikan integrasi wajib konfirmasi password dengan peringatan bahwa transaksi tidak dikirim ke SAP B1 dan stok easyPOS tidak lagi sama dengan SAP B1. Sinkronisasi terjadwal berhenti. Data dari SAP (`source = sap`) tetap hanya-baca.
+- FR-C4-15: Menyalakan kembali integrasi wajib konfirmasi password dan tes login SAP, dengan peringatan bahwa stok easyPOS akan ditimpa saldo SAP pada sinkronisasi berikutnya. Transaksi selama integrasi mati tidak dikirim mundur ke SAP.
+- FR-C4-16: Setiap perubahan konfigurasi SAP setelah impor awal dicatat di activity log (field yang berubah, tanpa nilai password).
 
 ### C5 — Saldo stok per Warehouse
 - FR-C5-01: Tabel `warehouse_stocks` (padanan OITW): saldo per (warehouse, produk) dengan `on_hand`, `committed`, `on_order`, `avg_price`.

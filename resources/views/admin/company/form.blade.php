@@ -123,6 +123,27 @@
         </div>
     </div>
 
+    @if ($canManage)
+        <div class="form-actions">
+            <button type="submit" class="btn btn-filled">
+                <span class="material-symbols-rounded">save</span> Simpan Konfigurasi
+            </button>
+        </div>
+    @endif
+</form>
+
+@php
+    $sapLocked = $company->sapConnectionLocked();
+    $sapErrorKeys = ['sap_endpoint_url', 'sap_db_name', 'sap_username', 'sap_password', 'sap_connection', 'current_password'];
+    $sapHasErrors = $errors->hasAny($sapErrorKeys);
+@endphp
+
+<form method="POST" action="{{ route('admin.company.update-sap') }}" id="sap-form"
+      data-locked="{{ $sapLocked ? '1' : '0' }}" data-start-editing="{{ $sapLocked && $sapHasErrors ? '1' : '0' }}">
+    @csrf
+    @method('PUT')
+    <input type="hidden" name="current_password" id="sap_current_password">
+
     <div class="card">
         <h2 class="card-title">Integrasi SAP Business One (Opsional)</h2>
         <p class="card-subtitle">
@@ -130,9 +151,28 @@
             Jika tidak diaktifkan, aplikasi berjalan <strong>standalone</strong> (tanpa SAP).
         </p>
 
+        @if ($sapLocked)
+            <div class="md-snackbar info">
+                <span class="material-symbols-rounded">lock</span>
+                <span>
+                    Koneksi terkunci sejak impor data awal ({{ $company->sap_initial_imported_at->timezone($company->timezone ?? config('app.timezone'))->format('d M Y H:i') }}).
+                    Database SAP B1 tidak dapat diubah. Perubahan lain memerlukan konfirmasi password akun easyPOS Anda.
+                </span>
+            </div>
+        @endif
+
+        @foreach (['sap_connection', 'current_password'] as $sapErrorKey)
+            @error($sapErrorKey)
+                <div class="md-snackbar error">
+                    <span class="material-symbols-rounded">error</span> {{ $message }}
+                </div>
+            @enderror
+        @endforeach
+
         <div class="field">
             <div class="checkbox-row">
                 <input type="checkbox" id="sap_enabled" name="sap_enabled" value="1"
+                       data-sap-field data-label="Integrasi SAP B1" data-original="{{ $company->sap_enabled ? '1' : '0' }}"
                        @checked(old('sap_enabled', $company->sap_enabled))
                        @disabled(! $canManage)>
                 <label for="sap_enabled"><strong>Aktifkan Integrasi SAP Business One via Service Layer</strong></label>
@@ -154,22 +194,31 @@
                 <div class="field @error('sap_endpoint_url') has-error @enderror" style="grid-column: 1 / -1;">
                     <label for="sap_endpoint_url">SAP Business One Endpoint URL</label>
                     <input type="url" id="sap_endpoint_url" name="sap_endpoint_url" value="{{ old('sap_endpoint_url', $company->sap_endpoint_url) }}"
-                           placeholder="https://sapb1.company.co.id:50000/b1s/v1" @disabled(! $canManage)>
+                           data-sap-field data-sap-unlockable data-label="Endpoint URL" data-original="{{ $company->sap_endpoint_url }}"
+                           placeholder="https://sapb1.company.co.id:50000/b1s/v1" @disabled(! $canManage) @readonly($sapLocked)>
                     @error('sap_endpoint_url') <div class="error">{{ $message }}</div> @enderror
                 </div>
                 <div class="field @error('sap_db_name') has-error @enderror">
-                    <label for="sap_db_name">SAP Business One Database</label>
-                    <input type="text" id="sap_db_name" name="sap_db_name" value="{{ old('sap_db_name', $company->sap_db_name) }}" maxlength="60" @disabled(! $canManage)>
+                    <label for="sap_db_name">SAP Business One Database @if ($sapLocked)<span class="material-symbols-rounded" style="font-size: 14px; vertical-align: -2px;" title="Terkunci permanen">lock</span>@endif</label>
+                    <input type="text" id="sap_db_name" name="sap_db_name" value="{{ old('sap_db_name', $company->sap_db_name) }}" maxlength="60"
+                           @disabled(! $canManage) @readonly($sapLocked)>
+                    @if ($sapLocked)
+                        <div class="hint">Terkunci permanen. Pindah database SAP memerlukan reimplementasi easyPOS.</div>
+                    @endif
                     @error('sap_db_name') <div class="error">{{ $message }}</div> @enderror
                 </div>
                 <div class="field @error('sap_username') has-error @enderror">
                     <label for="sap_username">Username</label>
-                    <input type="text" id="sap_username" name="sap_username" value="{{ old('sap_username', $company->sap_username) }}" maxlength="60" @disabled(! $canManage)>
+                    <input type="text" id="sap_username" name="sap_username" value="{{ old('sap_username', $company->sap_username) }}" maxlength="60"
+                           data-sap-field data-sap-unlockable data-label="Username" data-original="{{ $company->sap_username }}"
+                           @disabled(! $canManage) @readonly($sapLocked)>
                     @error('sap_username') <div class="error">{{ $message }}</div> @enderror
                 </div>
                 <div class="field @error('sap_password') has-error @enderror">
                     <label for="sap_password">Password @if ($company->sap_password)(biarkan kosong jika tidak diubah)@endif</label>
-                    <input type="password" id="sap_password" name="sap_password" autocomplete="new-password" @disabled(! $canManage)>
+                    <input type="password" id="sap_password" name="sap_password" autocomplete="new-password"
+                           data-sap-field data-sap-unlockable data-sap-secret data-label="Password SAP B1" data-original=""
+                           @disabled(! $canManage) @readonly($sapLocked)>
                     @error('sap_password') <div class="error">{{ $message }}</div> @enderror
                 </div>
             </div>
@@ -177,8 +226,9 @@
             <div class="field">
                 <div class="checkbox-row">
                     <input type="checkbox" id="sap_allow_self_signed" name="sap_allow_self_signed" value="1"
+                           data-sap-field data-sap-unlockable data-label="Allow Self-Signed Certificate" data-original="{{ $company->sap_verify_ssl ? '0' : '1' }}"
                            @checked(old('sap_allow_self_signed', ! $company->sap_verify_ssl))
-                           @disabled(! $canManage)>
+                           @disabled(! $canManage || $sapLocked)>
                     <label for="sap_allow_self_signed">Allow Self-Signed Certificate</label>
                 </div>
                 <div class="hint" style="display: none">
@@ -191,19 +241,57 @@
                 <button type="button" class="btn btn-tonal" id="btn-test-sap" data-url="{{ route('admin.company.test-sap') }}" data-csrf="{{ csrf_token() }}">
                     <span class="material-symbols-rounded">network_check</span> Tes Koneksi SAP
                 </button>
+                @if ($sapLocked && $canManage)
+                    <button type="button" class="btn btn-outline" id="btn-unlock-sap">
+                        <span class="material-symbols-rounded">edit</span> Ubah Koneksi SAP
+                    </button>
+                @endif
                 <div id="sap-test-result" style="display: none; flex: 1;"></div>
             </div>
         </div>
-    </div>
 
-    @if ($canManage)
-        <div class="form-actions">
-            <button type="submit" class="btn btn-filled">
-                <span class="material-symbols-rounded">save</span> Simpan Konfigurasi
-            </button>
-        </div>
-    @endif
+        @if ($canManage)
+            <div class="form-actions">
+                <button type="submit" class="btn btn-filled" id="btn-save-sap">
+                    <span class="material-symbols-rounded">save</span> Simpan Integrasi SAP
+                </button>
+            </div>
+        @endif
+    </div>
 </form>
+
+@if ($canManage && $sapLocked)
+    <dialog class="md-dialog" id="sap-confirm-dialog" aria-labelledby="sap-confirm-title">
+        <form method="dialog" id="sap-confirm-form">
+            <h3 class="md-dialog-title" id="sap-confirm-title">
+                <span class="material-symbols-rounded">shield_lock</span> Konfirmasi Perubahan SAP B1
+            </h3>
+            <ul class="change-list" id="sap-change-list"></ul>
+            <div class="md-snackbar warning" id="sap-warning-off" hidden>
+                <span class="material-symbols-rounded">warning</span>
+                <span>Jika integrasi dimatikan, transaksi tidak akan dikirim ke SAP B1 dan stok di easyPOS tidak lagi sama (tally) dengan SAP B1.</span>
+            </div>
+            <div class="md-snackbar warning" id="sap-warning-on" hidden>
+                <span class="material-symbols-rounded">warning</span>
+                <span>Stok easyPOS akan ditimpa saldo SAP B1 pada sinkronisasi berikutnya. Transaksi selama integrasi mati tidak dikirim ke SAP B1.</span>
+            </div>
+            <div class="md-snackbar success" id="sap-test-ok" hidden>
+                <span class="material-symbols-rounded">check_circle</span> <span id="sap-test-ok-text"></span>
+            </div>
+            <div class="field">
+                <label for="sap_confirm_password">Password akun easyPOS Anda</label>
+                <input type="password" id="sap_confirm_password" autocomplete="current-password" required>
+            </div>
+            <div class="md-dialog-actions">
+                <button type="button" class="btn btn-outline" id="sap-confirm-cancel">Batal</button>
+                <button type="submit" class="btn btn-filled" id="sap-confirm-submit">
+                    <span class="material-symbols-rounded">lock_open</span> Konfirmasi &amp; Simpan
+                </button>
+            </div>
+        </form>
+    </dialog>
+@endif
+
     @if ($canManage)
         @push('scripts')
         <script>
@@ -222,11 +310,10 @@
                 refresh();
             })();
 
-            // Test koneksi SAP B1
-            (function () {
+            // Test koneksi SAP B1 (dipakai tombol Tes Koneksi dan alur simpan saat terkunci)
+            var sapTester = (function () {
                 var btn = document.getElementById('btn-test-sap');
                 var result = document.getElementById('sap-test-result');
-                if (! btn) return;
 
                 function show(text, cls) {
                     result.style.display = '';
@@ -239,7 +326,7 @@
                     return el ? el.value.trim() : '';
                 }
 
-                btn.addEventListener('click', function () {
+                function run() {
                     var body = {
                         sap_endpoint_url: val('sap_endpoint_url'),
                         sap_db_name: val('sap_db_name'),
@@ -248,10 +335,9 @@
                         sap_allow_self_signed: document.getElementById('sap_allow_self_signed').checked ? 1 : 0
                     };
 
-                    btn.disabled = true;
                     show('Menguji koneksi ke SAP B1...', 'md-snackbar info');
 
-                    fetch(btn.dataset.url, {
+                    return fetch(btn.dataset.url, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -262,11 +348,155 @@
                         body: JSON.stringify(body)
                     }).then(function (r) { return r.json(); }).then(function (data) {
                         show(data.message || 'Tes koneksi gagal.', data.success ? 'md-snackbar success' : 'md-snackbar error');
+                        return data;
                     }).catch(function (e) {
                         show('Gagal memproses tes koneksi: ' + e, 'md-snackbar error');
-                    }).finally(function () {
-                        btn.disabled = false;
+                        return { success: false };
                     });
+                }
+
+                if (btn) {
+                    btn.addEventListener('click', function () {
+                        btn.disabled = true;
+                        run().finally(function () { btn.disabled = false; });
+                    });
+                }
+
+                return { run: run };
+            })();
+
+            // Koneksi terkunci setelah impor awal: buka field lewat tombol, simpan lewat dialog konfirmasi password.
+            (function () {
+                var form = document.getElementById('sap-form');
+                if (! form || form.dataset.locked !== '1') return;
+
+                var unlockBtn = document.getElementById('btn-unlock-sap');
+                var saveBtn = document.getElementById('btn-save-sap');
+                var dialog = document.getElementById('sap-confirm-dialog');
+                var changeList = document.getElementById('sap-change-list');
+                var passwordInput = document.getElementById('sap_confirm_password');
+                var hiddenPassword = document.getElementById('sap_current_password');
+                var confirmed = false;
+
+                function startEditing() {
+                    form.querySelectorAll('[data-sap-unlockable]').forEach(function (el) {
+                        if (el.type === 'checkbox') {
+                            el.disabled = false;
+                        } else {
+                            el.readOnly = false;
+                        }
+                    });
+                    if (unlockBtn) unlockBtn.hidden = true;
+                    document.getElementById('sap_endpoint_url').focus();
+                }
+
+                function currentValue(el) {
+                    if (el.type === 'checkbox') return el.checked ? '1' : '0';
+                    return el.value.trim();
+                }
+
+                function display(el, value) {
+                    if (el.type === 'checkbox') return value === '1' ? 'Ya' : 'Tidak';
+                    return value === '' ? '(kosong)' : value;
+                }
+
+                function collectChanges() {
+                    var changes = [];
+                    form.querySelectorAll('[data-sap-field]').forEach(function (el) {
+                        var now = currentValue(el);
+                        if (el.hasAttribute('data-sap-secret')) {
+                            if (now !== '') changes.push({ label: el.dataset.label, text: '(diubah)' });
+                            return;
+                        }
+                        if (now !== el.dataset.original) {
+                            changes.push({ label: el.dataset.label, from: display(el, el.dataset.original), to: display(el, now) });
+                        }
+                    });
+                    return changes;
+                }
+
+                function renderChanges(changes) {
+                    changeList.innerHTML = '';
+                    changes.forEach(function (c) {
+                        var li = document.createElement('li');
+                        var label = document.createElement('span');
+                        label.className = 'change-label';
+                        label.textContent = c.label;
+                        li.appendChild(label);
+                        if (c.text) {
+                            li.appendChild(document.createTextNode(c.text));
+                        } else {
+                            var old = document.createElement('span');
+                            old.className = 'change-old';
+                            old.textContent = c.from;
+                            li.appendChild(old);
+                            li.appendChild(document.createTextNode(' → ' + c.to));
+                        }
+                        changeList.appendChild(li);
+                    });
+                }
+
+                function submitForReal() {
+                    confirmed = true;
+                    // Field disabled tidak ikut terkirim; aktifkan agar server menerima nilai lengkap.
+                    form.querySelectorAll('[data-sap-unlockable]').forEach(function (el) { el.disabled = false; });
+                    form.submit();
+                }
+
+                if (unlockBtn) unlockBtn.addEventListener('click', startEditing);
+                if (form.dataset.startEditing === '1') startEditing();
+
+                form.addEventListener('submit', function (e) {
+                    if (confirmed) return;
+                    e.preventDefault();
+
+                    var changes = collectChanges();
+                    if (changes.length === 0) {
+                        submitForReal();
+                        return;
+                    }
+
+                    var toggle = document.getElementById('sap_enabled');
+                    var willBeEnabled = toggle.checked;
+                    var turningOff = toggle.dataset.original === '1' && ! willBeEnabled;
+                    var turningOn = toggle.dataset.original === '0' && willBeEnabled;
+
+                    document.getElementById('sap-warning-off').hidden = ! turningOff;
+                    document.getElementById('sap-warning-on').hidden = ! turningOn;
+                    document.getElementById('sap-test-ok').hidden = true;
+                    renderChanges(changes);
+
+                    function openDialog() {
+                        passwordInput.value = '';
+                        dialog.showModal();
+                        passwordInput.focus();
+                    }
+
+                    // Koneksi yang akan aktif wajib lolos tes login dulu; mematikan integrasi tidak perlu tes.
+                    if (! willBeEnabled) {
+                        openDialog();
+                        return;
+                    }
+
+                    saveBtn.disabled = true;
+                    sapTester.run().then(function (data) {
+                        if (! data.success) return;
+                        document.getElementById('sap-test-ok-text').textContent = data.message;
+                        document.getElementById('sap-test-ok').hidden = false;
+                        openDialog();
+                    }).finally(function () { saveBtn.disabled = false; });
+                });
+
+                document.getElementById('sap-confirm-cancel').addEventListener('click', function () {
+                    dialog.close();
+                });
+
+                document.getElementById('sap-confirm-form').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    if (passwordInput.value === '') return;
+                    hiddenPassword.value = passwordInput.value;
+                    dialog.close();
+                    submitForReal();
                 });
             })();
         </script>

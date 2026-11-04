@@ -59,6 +59,15 @@ class CompanyDetail extends Model
     }
 
     /**
+     * Setelah impor awal, koneksi SAP terkunci: database tidak boleh diganti dan
+     * perubahan lain wajib dikonfirmasi password Owner.
+     */
+    public function sapConnectionLocked(): bool
+    {
+        return $this->sap_initial_imported_at !== null;
+    }
+
+    /**
      * Ambil satu-satunya baris konfigurasi, dibuat otomatis jika belum ada.
      */
     public static function current(): self
