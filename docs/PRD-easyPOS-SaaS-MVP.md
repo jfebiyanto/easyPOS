@@ -442,7 +442,7 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - FR-C5-01: Tabel `warehouse_stocks` (padanan OITW): saldo per (warehouse, produk) dengan `on_hand`, `committed`, `on_order`, `avg_price`.
 - FR-C5-02: `on_hand` = jumlah buku besar mutasi (FR-C4-18). Dari OITW (`ItemWarehouseInfoCollection`, semua warehouse, produk yang sudah terimpor) diambil `Committed`, `Ordered`, dan `InStock` sebagai `sap_on_hand` untuk rekonsiliasi; `on_hand` tidak ditimpa. *(Diubah 2026-11-04.)*
 - FR-C5-03: Halaman Saldo Stok menampilkan saldo, komitmen, dipesan, saldo SAP, dan selisih (saldo easyPOS − saldo SAP saat pengecekan terakhir) dari warehouse milik gerai terpilih; gerai tanpa warehouse menampilkan peringatan. SKU membuka riwayat mutasi warehouse (jenis, dokumen SAP, qty, saldo). Cost item (harga mutasi, `AvgStdPrice`, `StandardAveragePrice`) tidak diimpor dari SAP dan hanya dilihat di SAP; Harga Beli tidak ditampilkan di form Produk maupun API. *(Diubah 2026-11-04.)*
-- FR-C5-04: `warehouse_stock_ledgers` (append-only, qty bertanda, `balance_after`) lewat `WarehouseStockService::record()`; saat ini diisi mutasi SAP. Penjualan, retur, transfer, dan penyesuaian easyPOS belum memakai ledger ini; saat posting ke SAP dibuat, dokumen easyPOS perlu ditandai agar mutasinya tidak tercatat dua kali saat OIVL disalin.
+- FR-C5-04: `warehouse_stock_ledgers` (append-only, qty bertanda, `balance_after`) lewat `WarehouseStockService::record()`; diisi mutasi SAP dan penjualan POS gerai berwarehouse (FR-C8-11). Mutasi OIVL dari A/R Invoice easyPOS ditautkan ke baris penjualan, tidak ditambahkan lagi (FR-C8-10). Retur, transfer, dan penyesuaian easyPOS belum memakai ledger ini.
 
 ### C7 — Customer easyPOS dikirim ke SAP B1 *(baru 2026-11-04)*
 - FR-C7-01: Customer menyimpan `source` (`sap`/`manual`). Customer dari SAP hanya-baca di easyPOS (ditegakkan di server).
@@ -464,7 +464,9 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - FR-C8-08: Penjualan tidak dapat diposting (status `failed` dengan pesan, dapat dikirim ulang) bila customer belum punya CardCode (menunggu C7, dikirim otomatis setelah customer tersinkron), warehouse gerai tanpa akun kas, atau SAP menolak dokumen.
 - FR-C8-09: Halaman admin menampilkan status posting penjualan beserta referensi dokumen SAP dan tombol kirim ulang untuk yang gagal.
 - FR-C8-10: Penjualan langsung mengurangi stok warehouse easyPOS. Saat mutasi OIVL dari invoice easyPOS (TransType 13, `CreatedBy` = DocEntry tersimpan) disalin, baris itu ditautkan ke mutasi penjualan yang sudah ada, tidak dicatat dua kali.
-- FR-C8-11: Di luar MVP: retur (A/R Credit Memo), void, metode bayar non-tunai, transfer dan penyesuaian stok.
+- FR-C8-11: Gerai yang terhubung ke warehouse memakai buku besar warehouse untuk penjualan POS: cek stok (online), tampilan stok POS/hold, pengurangan saat penjualan, dan pengembalian saat void. Gerai tanpa warehouse tetap memakai buku stok gerai (`stock_ledger`). Retur, penyesuaian, dan transfer easyPOS tetap di buku stok gerai sampai diposting ke SAP.
+- FR-C8-12: Penjualan yang sudah punya A/R Invoice di SAP tidak dapat di-void dari easyPOS. Void sebelum terposting membatalkan posting (status posting dikosongkan).
+- FR-C8-13: Di luar MVP: retur (A/R Credit Memo), pembatalan dokumen SAP, metode bayar non-tunai, transfer dan penyesuaian stok.
 
 ### C6 — Tax Group (Output Tax)
 - FR-C6-01: Master Tax Group (menu Konfigurasi, khusus superuser): `code` (unik per company), `name`, `rate`, `effective_from`, `source` (`sap`/`manual`), `is_active`. Satu interface yang sama baik terintegrasi SAP maupun tidak.

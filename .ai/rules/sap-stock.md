@@ -25,3 +25,6 @@ Customer yang dibuat di easyPOS dikirim ke SAP (BusinessPartners, CardType cCust
 
 ## Query OIVL bisa tertahan sementara
 Teramati di SAP pelanggan: `SQLQueries('EPOS_STOCK_MUTATION')/List` kadang tidak merespons beberapa menit sesudah dokumen stok baru diposting (sesi SL ikut tertahan, Logout pun timeout), lalu normal lagi (0,1 detik). Jangan perpanjang timeout; biarkan sinkronisasi per menit mencoba ulang. SAP menulis ulang teks query (mis. `"OIVL"`), jadi bandingkan teks secara ternormalisasi agar tidak PATCH berulang.
+
+## Stok penjualan POS
+Pakai `App\Support\SaleStock` (bukan `StockService`) untuk stok penjualan POS: gerai berwarehouse → buku besar warehouse, tanpa warehouse → `stock_ledger` lama. Retur/penyesuaian/transfer sengaja tetap di `stock_ledger` karena belum diposting ke SAP (kalau dipindah, saldo warehouse berselisih dengan SAP). Mutasi OIVL TransType 13 dengan `CreatedBy` = `sales.sap_invoice_doc_entry` ditautkan ke baris ledger `ref_type = sale` (isi kolom sap_*), bukan ditambah. Void ditolak setelah invoice SAP ada.

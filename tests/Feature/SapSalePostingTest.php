@@ -14,13 +14,19 @@ use App\Models\TaxGroup;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Models\WarehouseStock;
+use App\Models\WarehouseStockLedger;
 use App\Support\SaleService;
+use App\Support\Sap\SapStockMutationService;
+use App\Support\StockService;
+use App\Support\WarehouseStockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class SapSalePostingTest extends TestCase
@@ -115,7 +121,7 @@ class SapSalePostingTest extends TestCase
             'store_id' => $this->store->id,
             'client_uuid' => (string) Str::uuid(),
             'lines' => [['product_id' => $this->product->id, 'qty' => 2]],
-            'payments' => [['payment_type_id' => PaymentType::create(['company_id' => $this->company->id, 'code' => 'CASH', 'count_type' => 'summary', 'order_number' => 1, 'is_active' => true])->id, 'amount' => 10000]],
+            'payments' => [['payment_type_id' => PaymentType::firstOrCreate(['company_id' => $this->company->id, 'code' => 'CASH'], ['count_type' => 'summary', 'order_number' => 1, 'is_active' => true])->id, 'amount' => 10000]],
         ], $this->cashier)->fresh();
     }
 
@@ -229,6 +235,76 @@ class SapSalePostingTest extends TestCase
 
         $this->assertNull($sale->sap_post_status);
         Queue::assertNotPushed(PostSaleToSap::class);
+    }
+
+    public function test_penjualan_memakai_stok_warehouse_gerai_dan_mutasi_invoice_sap_ditautkan_tanpa_dobel(): void
+    {
+        $this->company->update(['allow_negative_stock' => false]);
+        $warehouse = $this->store->warehouse;
+        WarehouseStockService::record($warehouse, $this->product->id, WarehouseStockLedger::TYPE_PURCHASE, 10, ['attributes' => ['sap_trans_seq' => 1]]);
+        $this->fakeSap();
+
+        $sale = $this->sell();
+
+        $this->assertSame('8.000', WarehouseStock::where('warehouse_id', $warehouse->id)->value('on_hand'));
+        $this->assertSame(0.0, StockService::balance($this->store->id, $this->product->id));
+        $this->assertSame(Sale::SAP_POSTED, $sale->sap_post_status);
+
+        // Mutasi OIVL dari A/R Invoice easyPOS (DocEntry 4) ditautkan ke baris penjualan.
+        Http::swap(new HttpFactory);
+        Http::fake(function (Request $request) {
+            $url = $request->url();
+
+            return match (true) {
+                str_ends_with($url, '/List') => Http::response(['value' => [[
+                    'TransSeq' => 2, 'TransType' => 13, 'CreatedBy' => 4, 'BASE_REF' => '2600001', 'DocLineNum' => 0,
+                    'ItemCode' => 'INDF-0001', 'LocCode' => 'G.001.MN', 'InQty' => 0, 'OutQty' => 2, 'DocDate' => '20261104',
+                ]]]),
+                $request->method() === 'GET' && str_contains($url, 'SQLQueries') => Http::response(['SqlText' => SapStockMutationService::QUERY_SQL]),
+                default => Http::response(['SessionId' => 'abc']),
+            };
+        });
+        $this->company->forceFill(['sap_initial_imported_at' => now(), 'sap_stock_synced_at' => now()])->save();
+        $this->artisan('sap:sync-stock')->assertSuccessful();
+
+        $this->assertSame('8.000', WarehouseStock::where('warehouse_id', $warehouse->id)->value('on_hand'));
+        $saleLedger = WarehouseStockLedger::where('ref_type', 'sale')->where('ref_id', $sale->id)->sole();
+        $this->assertSame(2, $saleLedger->sap_trans_seq);
+        $this->assertSame('A/R Invoice 2600001', $saleLedger->sapDocumentLabel());
+        $this->assertSame(2, WarehouseStockLedger::count());
+    }
+
+    public function test_stok_warehouse_tidak_cukup_menolak_penjualan_online(): void
+    {
+        Queue::fake();
+        $this->company->update(['allow_negative_stock' => false]);
+        WarehouseStockService::record($this->store->warehouse, $this->product->id, WarehouseStockLedger::TYPE_PURCHASE, 1);
+
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('Stok tidak mencukupi untuk produk INDF-0001');
+
+        $this->sell();
+    }
+
+    public function test_void_ditolak_setelah_diposting_ke_sap_dan_mengembalikan_stok_warehouse_bila_belum(): void
+    {
+        $this->fakeSap();
+        $posted = $this->sell();
+
+        try {
+            SaleService::void($posted, $this->owner, 'salah input');
+            $this->fail('Void penjualan yang sudah diposting seharusnya ditolak.');
+        } catch (HttpException $e) {
+            $this->assertStringContainsString('SAP B1', $e->getMessage());
+        }
+
+        Queue::fake();
+        $pending = $this->sell();
+        SaleService::void($pending, $this->owner, 'salah input');
+
+        $pending->refresh();
+        $this->assertNull($pending->sap_post_status);
+        $this->assertSame('-2.000', WarehouseStock::where('warehouse_id', $this->store->warehouse_id)->value('on_hand'));
     }
 
     public function test_halaman_posting_menampilkan_dokumen_sap_dan_hanya_owner_yang_bisa_kirim_ulang(): void

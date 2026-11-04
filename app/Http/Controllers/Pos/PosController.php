@@ -19,6 +19,7 @@ use App\Support\ActivityLogger;
 use App\Support\LoyaltyService;
 use App\Support\PricingService;
 use App\Support\SaleService;
+use App\Support\SaleStock;
 use App\Support\Sap\SapCustomerSync;
 use App\Support\StockService;
 use Illuminate\Http\JsonResponse;
@@ -93,7 +94,7 @@ class PosController extends Controller
             'image' => $p->image_url,
             'track_stock' => (bool) $p->track_stock,
             'price' => PricingService::resolve($store->id, $p, 1),
-            'stock' => $p->track_stock ? StockService::balance($store->id, $p->id) : null,
+            'stock' => $p->track_stock ? SaleStock::balance($store->id, $p->id) : null,
         ]);
 
         return response()->json(['data' => $products]);
@@ -138,7 +139,7 @@ class PosController extends Controller
                         'name' => $bonusProduct->name,
                         'price' => PricingService::resolve($store->id, $bonusProduct, 1),
                         'track_stock' => (bool) $bonusProduct->track_stock,
-                        'stock' => $bonusProduct->track_stock ? StockService::balance($store->id, $bonusProduct->id) : null,
+                        'stock' => $bonusProduct->track_stock ? SaleStock::balance($store->id, $bonusProduct->id) : null,
                     ] : null,
                 ];
             });
@@ -447,7 +448,7 @@ class PosController extends Controller
     {
         $productIds = collect($draft->payload['cart'] ?? [])->pluck('id')->filter()->unique()->values()->all();
         $products = Product::where('company_id', current_company_id())->whereIn('id', $productIds)->get(['id', 'track_stock']);
-        $balances = StockService::balances($draft->store_id, $products->where('track_stock', true)->pluck('id')->all());
+        $balances = SaleStock::balances($draft->store_id, $products->where('track_stock', true)->pluck('id')->all());
 
         return $products->mapWithKeys(fn (Product $p) => [
             $p->id => $p->track_stock ? ($balances[$p->id] ?? 0.0) : null,

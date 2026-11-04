@@ -21,7 +21,7 @@ class PostSaleToSap implements ShouldQueue
         $sale = Sale::find($this->saleId);
         $company = $sale ? CompanyDetail::find($sale->company_id) : null;
 
-        if (! $sale || ! $company?->sapIntegrationActive() || $sale->sap_post_status === Sale::SAP_POSTED) {
+        if (! $sale || ! $company?->sapIntegrationActive() || $sale->status !== Sale::STATUS_COMPLETED || $sale->sap_post_status === Sale::SAP_POSTED) {
             return;
         }
 

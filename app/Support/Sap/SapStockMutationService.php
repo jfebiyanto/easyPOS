@@ -4,6 +4,7 @@ namespace App\Support\Sap;
 
 use App\Models\CompanyDetail;
 use App\Models\Product;
+use App\Models\Sale;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
 use App\Models\WarehouseStockLedger;
@@ -118,7 +119,7 @@ class SapStockMutationService
                     return $result;
                 }
 
-                $result[$this->apply($row) ? 'created' : 'skipped']++;
+                $result[$this->linkToEasyPosSale($row) || ! $this->apply($row) ? 'skipped' : 'created']++;
                 $known[$seq] = true;
             }
 
@@ -152,13 +153,67 @@ class SapStockMutationService
     }
 
     /**
+     * Mutasi dari A/R Invoice yang diposting easyPOS sudah tercatat saat penjualan terjadi:
+     * baris OIVL cukup ditautkan ke baris buku besar penjualan itu (qty tidak dihitung dua kali).
+     *
+     * @param  array<string, mixed>  $row
+     */
+    private function linkToEasyPosSale(array $row): bool
+    {
+        if ((int) ($row['TransType'] ?? 0) !== SapSalePosting::OBJ_INVOICE || ! isset($row['CreatedBy'])) {
+            return false;
+        }
+
+        $saleId = Sale::where('company_id', $this->company->id)
+            ->where('sap_invoice_doc_entry', (int) $row['CreatedBy'])
+            ->value('id');
+        if ($saleId === null) {
+            return false;
+        }
+
+        $qty = round((float) ($row['InQty'] ?? 0) - (float) ($row['OutQty'] ?? 0), 3);
+        $ledger = WarehouseStockLedger::where('ref_type', 'sale')
+            ->where('ref_id', $saleId)
+            ->where('warehouse_id', $this->warehouse((string) $row['LocCode'])->id)
+            ->where('product_id', $this->productId((string) $row['ItemCode']))
+            ->whereNull('sap_trans_seq')
+            ->where('qty', $qty)
+            ->orderBy('created_at')
+            ->first();
+        if ($ledger === null) {
+            return false;
+        }
+
+        $ledger->forceFill($this->sapAttributes($row))->save();
+
+        return true;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    private function sapAttributes(array $row): array
+    {
+        $docDate = (string) ($row['DocDate'] ?? '');
+
+        return [
+            'sap_trans_seq' => (int) $row['TransSeq'],
+            'sap_trans_type' => (int) ($row['TransType'] ?? 0),
+            'sap_doc_entry' => isset($row['CreatedBy']) ? (int) $row['CreatedBy'] : null,
+            'sap_doc_num' => isset($row['BASE_REF']) ? mb_substr((string) $row['BASE_REF'], 0, 20) : null,
+            'sap_doc_line' => isset($row['DocLineNum']) ? (int) $row['DocLineNum'] : null,
+            'doc_date' => preg_match('/^\d{8}$/', $docDate) ? Carbon::createFromFormat('Ymd', $docDate)->toDateString() : null,
+        ];
+    }
+
+    /**
      * @param  array<string, mixed>  $row
      */
     private function apply(array $row): bool
     {
         $qty = round((float) ($row['InQty'] ?? 0) - (float) ($row['OutQty'] ?? 0), 3);
         $transType = (int) ($row['TransType'] ?? 0);
-        $docDate = (string) ($row['DocDate'] ?? '');
 
         try {
             WarehouseStockService::record(
@@ -168,14 +223,7 @@ class SapStockMutationService
                 $qty,
                 [
                     'created_by' => null,
-                    'attributes' => [
-                        'sap_trans_seq' => (int) $row['TransSeq'],
-                        'sap_trans_type' => $transType,
-                        'sap_doc_entry' => isset($row['CreatedBy']) ? (int) $row['CreatedBy'] : null,
-                        'sap_doc_num' => isset($row['BASE_REF']) ? mb_substr((string) $row['BASE_REF'], 0, 20) : null,
-                        'sap_doc_line' => isset($row['DocLineNum']) ? (int) $row['DocLineNum'] : null,
-                        'doc_date' => preg_match('/^\d{8}$/', $docDate) ? Carbon::createFromFormat('Ymd', $docDate)->toDateString() : null,
-                    ],
+                    'attributes' => $this->sapAttributes($row),
                 ]
             );
         } catch (UniqueConstraintViolationException) {

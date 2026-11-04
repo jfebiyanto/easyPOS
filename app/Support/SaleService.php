@@ -145,14 +145,14 @@ class SaleService
 
                 if ($p['product']->track_stock) {
                     if ($enforceStock) {
-                        StockService::assertNonNegative($storeId, $p['product']->id, -$p['qty']);
+                        SaleStock::assertAvailable($storeId, $p['product']->id, -$p['qty']);
                     } elseif (! StockService::allowsNegative()
-                        && (StockService::balance($storeId, $p['product']->id) - $p['qty']) < 0) {
+                        && (SaleStock::balance($storeId, $p['product']->id) - $p['qty']) < 0) {
                         $reviewNeeded = true;
                         $reviewReason = trim(($reviewReason ?? '')." Stok tidak mencukupi saat sinkron untuk {$p['product']->sku}.");
                     }
 
-                    StockService::record($storeId, $p['product']->id, StockLedger::TYPE_SALE, -$p['qty'], [
+                    SaleStock::record($storeId, $p['product']->id, StockLedger::TYPE_SALE, -$p['qty'], [
                         'company_id' => $companyId,
                         'ref_type' => 'sale',
                         'ref_id' => $sale->id,
@@ -266,10 +266,22 @@ class SaleService
     public static function void(Sale $sale, User $user, string $reason): Sale
     {
         abort_if($sale->isVoid(), 422, 'Transaksi sudah void.');
+        // Pembatalan dokumen SAP B1 belum didukung: stok easyPOS akan berselisih dengan SAP.
+        abort_if($sale->sap_invoice_doc_entry !== null, 422, 'Transaksi sudah diposting ke SAP B1 dan tidak dapat di-void dari easyPOS.');
 
         return DB::transaction(function () use ($sale, $user, $reason) {
+            $usesWarehouse = SaleStock::usesWarehouseLedger($sale->id);
+
             foreach ($sale->lines as $line) {
-                if ($line->product_id) {
+                if ($line->product_id && $usesWarehouse) {
+                    SaleStock::record($sale->store_id, $line->product_id, StockLedger::TYPE_SALE_RETURN, (float) $line->qty, [
+                        'company_id' => $sale->company_id,
+                        'ref_type' => 'sale_void',
+                        'ref_id' => $sale->id,
+                        'note' => $reason,
+                        'created_by' => $user->id,
+                    ]);
+                } elseif ($line->product_id) {
                     StockService::record($sale->store_id, $line->product_id, StockLedger::TYPE_SALE_RETURN, (float) $line->qty, [
                         'company_id' => $sale->company_id,
                         'ref_type' => 'sale_void',
@@ -284,6 +296,9 @@ class SaleService
                 'status' => Sale::STATUS_VOID,
                 'voided_at' => now(),
                 'void_reason' => $reason,
+                // Belum terkirim ke SAP: posting dibatalkan.
+                'sap_post_status' => null,
+                'sap_post_error' => null,
             ]);
 
             LoyaltyService::reverseForVoid($sale);
