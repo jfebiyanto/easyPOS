@@ -20,6 +20,7 @@ use App\Models\Warehouse;
 use App\Models\WarehouseStock;
 use App\Models\WarehouseStockLedger;
 use App\Support\Sap\SapStockMutationService;
+use App\Support\WarehouseStockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\Http;
@@ -67,7 +68,7 @@ class SapImportTest extends TestCase
         ]);
     }
 
-    private function fakeSap(string $itemName = 'Kopi Susu'): void
+    private function fakeSap(string $itemName = 'Kopi Susu', bool $mutationQueryFails = false): void
     {
         // Reset stub sebelumnya: Http::fake() bersifat menambah dan stub pertama yang cocok menang.
         Http::swap(new HttpFactory);
@@ -90,7 +91,7 @@ class SapImportTest extends TestCase
                 ['WarehouseCode' => 'WH-02', 'WarehouseName' => 'Gudang Retail 2', 'Inactive' => 'tYES', 'U_SOL_RETAIL' => 'Y', 'U_SOL_PRFC' => ''],
                 ['WarehouseCode' => 'GL99', 'WarehouseName' => 'Gudang Load', 'Inactive' => 'tNO', 'U_SOL_RETAIL' => 'N', 'U_SOL_PRFC' => null],
             ]]),
-            "*/SQLQueries('EPOS_STOCK_MUTATION')/List" => Http::response(['value' => [
+            "*/SQLQueries('EPOS_STOCK_MUTATION')/List" => $mutationQueryFails ? Http::response(['error' => ['message' => ['value' => 'timeout']]], 504) : Http::response(['value' => [
                 ['TransSeq' => 1, 'TransType' => 20, 'CreatedBy' => 1, 'BASE_REF' => '1', 'DocLineNum' => 0, 'ItemCode' => 'ITM-001', 'LocCode' => 'WH-01', 'InQty' => 25, 'OutQty' => 0, 'DocDate' => '20261101'],
             ]]),
             '*/SQLQueries*' => Http::response(['SqlText' => SapStockMutationService::QUERY_SQL]),
@@ -114,6 +115,8 @@ class SapImportTest extends TestCase
                 'Frozen' => 'tNO',
                 'InventoryItem' => 'tYES',
                 'AvgStdPrice' => 7000,
+                'UpdateDate' => '2026-11-04T00:00:00Z',
+                'UpdateTime' => '14:49:42',
                 'ItemWarehouseInfoCollection' => [
                     ['WarehouseCode' => 'WH-01', 'InStock' => 25, 'Committed' => 2, 'Ordered' => 5, 'StandardAveragePrice' => 7000],
                     ['WarehouseCode' => 'GL99', 'InStock' => 99, 'Committed' => 0, 'Ordered' => 0, 'StandardAveragePrice' => 1],
@@ -134,6 +137,8 @@ class SapImportTest extends TestCase
                 'Address' => 'Jakarta',
                 'Valid' => 'tYES',
                 'Frozen' => 'tNO',
+                'UpdateDate' => '2026-11-04T00:00:00Z',
+                'UpdateTime' => '16:20:14',
             ]]]),
         ]);
     }
@@ -319,8 +324,69 @@ class SapImportTest extends TestCase
         $deltaRun = SapSyncRun::where('mode', SapSyncRun::MODE_DELTA)->firstOrFail();
         $this->assertSame(1, $deltaRun->summary['item_master']['updated']);
 
+        // Hanya yang berubah sejak penanda waktu terakhir (jam SAP) yang diminta.
+        $this->assertEquals(['items' => '2026-11-04 14:49:42', 'business_partners' => '2026-11-04 16:20:14'], $this->company->fresh()->sap_sync_watermarks);
         Http::assertSent(fn ($request) => str_contains($request->url(), '/Items')
-            && str_contains(urldecode($request->url()), "UpdateDate ge '"));
+            && str_contains(urldecode($request->url()), "UpdateDate gt '2026-11-04' or (UpdateDate eq '2026-11-04' and UpdateTime ge '14:49:42')"));
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/BusinessPartners?')
+            && str_contains(urldecode($request->url()), "CardType eq 'cCustomer' and (UpdateDate gt '2026-11-04' or (UpdateDate eq '2026-11-04' and UpdateTime ge '16:20:14'))"));
+    }
+
+    public function test_query_mutasi_stok_gagal_tidak_menggagalkan_sinkronisasi_master(): void
+    {
+        $this->fakeSap();
+        $this->actingAs($this->owner)->post(route('admin.sap-import.run'), ['mode' => 'initial']);
+
+        $this->fakeSap('Kopi Susu Gula Aren', mutationQueryFails: true);
+        $this->actingAs($this->owner)->post(route('admin.sap-import.run'), ['mode' => 'delta']);
+
+        $run = SapSyncRun::where('mode', SapSyncRun::MODE_DELTA)->firstOrFail();
+        $this->assertSame(SapSyncRun::STATUS_SUCCESS, $run->status);
+        $this->assertSame('failed', $run->summary['stock_mutation']['status']);
+        $this->assertSame('done', $run->summary['warehouse_stock']['status']);
+        $this->assertSame('Kopi Susu Gula Aren', Product::where('sku', 'ITM-001')->value('name'));
+        $this->assertStringContainsString('504', $this->company->fresh()->sap_stock_sync_error);
+        // Sesi SAP diganti baru setelah query gagal.
+        $this->assertSame(2, Http::recorded(fn ($request) => str_ends_with($request->url(), '/Login'))->count());
+    }
+
+    public function test_delta_tanpa_mutasi_stok_tidak_membaca_saldo_oitw(): void
+    {
+        $this->fakeSap();
+        $this->actingAs($this->owner)->post(route('admin.sap-import.run'), ['mode' => 'initial']);
+        $this->assertNotNull($this->company->fresh()->sap_stock_reconciled_at);
+
+        $this->travel(31)->minutes();
+        $this->fakeSap();
+        $this->actingAs($this->owner)->post(route('admin.sap-import.run'), ['mode' => 'delta']);
+
+        $deltaRun = SapSyncRun::where('mode', SapSyncRun::MODE_DELTA)->firstOrFail();
+        $this->assertSame('done', $deltaRun->summary['warehouse_stock']['status']);
+        $this->assertSame(0, $deltaRun->summary['warehouse_stock']['fetched']);
+        Http::assertNotSent(fn ($request) => str_contains(urldecode($request->url()), 'ItemWarehouseInfoCollection'));
+    }
+
+    public function test_delta_hanya_merekonsiliasi_item_yang_bermutasi_dan_penuh_sekali_sehari(): void
+    {
+        $this->fakeSap();
+        $this->actingAs($this->owner)->post(route('admin.sap-import.run'), ['mode' => 'initial']);
+
+        // Mutasi baru sesudah sinkronisasi terakhir.
+        $this->travel(31)->minutes();
+        WarehouseStockService::record(Warehouse::where('code', 'WH-01')->firstOrFail(), Product::where('sku', 'ITM-001')->value('id'), WarehouseStockLedger::TYPE_GOODS_ISSUE, -1);
+        $this->fakeSap();
+        $this->actingAs($this->owner)->post(route('admin.sap-import.run'), ['mode' => 'delta']);
+
+        Http::assertSent(fn ($request) => str_contains(urldecode($request->url()), 'ItemWarehouseInfoCollection')
+            && str_contains(urldecode($request->url()), "ItemCode eq 'ITM-001'"));
+
+        // Lebih dari sehari sejak rekonsiliasi penuh: semua item dibaca lagi.
+        $this->travel(25)->hours();
+        $this->fakeSap();
+        $this->actingAs($this->owner)->post(route('admin.sap-import.run'), ['mode' => 'delta']);
+
+        Http::assertSent(fn ($request) => str_contains(urldecode($request->url()), 'ItemWarehouseInfoCollection')
+            && ! str_contains(urldecode($request->url()), 'ItemCode eq'));
     }
 
     public function test_sinkronisasi_tidak_menimpa_customer_easypos_yang_sudah_dikirim_ke_sap(): void

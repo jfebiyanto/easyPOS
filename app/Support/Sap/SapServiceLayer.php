@@ -79,6 +79,17 @@ class SapServiceLayer
         $this->loggedIn = true;
     }
 
+    /**
+     * Ganti sesi B1SESSION dengan login baru, mis. setelah request timeout: SAP memproses request
+     * per sesi secara berurutan, jadi sesi yang masih memproses request lama ikut tertahan.
+     */
+    public function renewSession(): void
+    {
+        $this->http = $this->http->withOptions(['cookies' => new CookieJar]);
+        $this->loggedIn = false;
+        $this->login();
+    }
+
     public function logout(): void
     {
         if (! $this->loggedIn) {

@@ -15,6 +15,7 @@ use App\Models\TaxGroup;
 use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
+use App\Models\WarehouseStockLedger;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
@@ -28,7 +29,10 @@ use Throwable;
  *   pencocokan. Bila impor awal pernah terhenti di tengah jalan, baris yang sudah ada
  *   (bentrok kode unik) dilewati sehingga impor bisa diulang.
  * - Mode `delta`: baris dicocokkan dengan kode SAP (`code` / `sku` per company) lalu
- *   dibuat atau diperbarui. Items & Customer hanya yang berubah sejak sinkronisasi terakhir.
+ *   dibuat atau diperbarui. Items (termasuk harga) & Customer hanya yang berubah sejak penanda
+ *   waktu terakhir (UpdateDate + UpdateTime dari jam SAP sendiri). Saldo OITW hanya untuk item
+ *   yang bermutasi sejak sinkronisasi sebelumnya; rekonsiliasi penuh sekali sehari. Master kecil
+ *   tanpa penanda waktu di SAP diambil utuh, dan baris yang tidak berubah tidak ditulis ulang.
  */
 class SapImportService
 {
@@ -85,6 +89,15 @@ class SapImportService
     /** @var array<string, string> telepon → kode pelanggan */
     private array $phones = [];
 
+    /** @var array<string, string> objek → "Y-m-d H:i:s" perubahan terbaru yang terbaca (jam SAP) */
+    private array $watermarks = [];
+
+    /** Rekonsiliasi saldo OITW penuh paling lama selang waktu ini. */
+    private const FULL_RECONCILE_HOURS = 24;
+
+    /** Batas jumlah ItemCode per filter OData untuk rekonsiliasi item yang bermutasi. */
+    private const ITEM_FILTER_CHUNK = 20;
+
     private string $companyId;
 
     public function __construct(private readonly CompanyDetail $company, private readonly SapSyncRun $run)
@@ -116,9 +129,9 @@ class SapImportService
             $client = new SapServiceLayer($this->company);
             $client->login();
 
-            $since = ! $this->isInitial() && $this->company->sap_last_synced_at
-                ? Carbon::parse($this->company->sap_last_synced_at)->subDay()->toDateString()
-                : null;
+            $previousSyncAt = $this->company->sap_last_synced_at;
+            $itemsChanged = $this->changedFilter('items');
+            $customersChanged = $this->changedFilter('business_partners');
 
             // Urutan mengikuti ketergantungan data.
             $this->importTaxGroups($client);       // OVTG (Output Tax, aktif)
@@ -127,19 +140,21 @@ class SapImportService
             $this->importManufacturers($client);    // OMRC
             $this->importUnits($client);            // OUOM
             $this->importCustomerGroups($client);   // OCRG (CardType = C)
-            $this->importCustomers($client, $since); // OCRD (CardType = C)
-            $this->importItems($client, $since);    // OITM
+            $this->importCustomers($client, $customersChanged); // OCRD (CardType = C)
+            $this->importItems($client, $itemsChanged);    // OITM
             $this->importPriceLists($client);       // OPLN
-            $this->importPriceListDetails($client, $since); // ITM1
+            $this->importPriceListDetails($client, $itemsChanged); // ITM1
             $this->importStockMutations($client);   // OIVL → buku besar & on_hand
-            $this->importWarehouseStocks($client);  // OITW → sap_on_hand (rekonsiliasi)
+            $fullReconcile = $this->importWarehouseStocks($client, $previousSyncAt);  // OITW → sap_on_hand (rekonsiliasi)
 
             $this->abortIfCancelled();
 
-            $this->company->forceFill([
+            $this->company->forceFill(array_filter([
                 'sap_last_synced_at' => $startedAt,
                 'sap_initial_imported_at' => $this->company->sap_initial_imported_at ?? $startedAt,
-            ])->save();
+                'sap_sync_watermarks' => array_merge($this->company->sap_sync_watermarks ?? [], $this->watermarks),
+                'sap_stock_reconciled_at' => $fullReconcile ? $startedAt : null,
+            ]))->save();
 
             $this->run->update([
                 'status' => SapSyncRun::STATUS_SUCCESS,
@@ -316,19 +331,20 @@ class SapImportService
         });
     }
 
-    private function importCustomers(SapServiceLayer $client, ?string $since): void
+    private function importCustomers(SapServiceLayer $client, ?string $changed): void
     {
         $filter = "CardType eq 'cCustomer'";
-        if ($since !== null) {
-            $filter .= " and UpdateDate ge '{$since}'";
+        if ($changed !== null) {
+            $filter .= " and ({$changed})";
         }
 
         $query = [
-            '$select' => 'CardCode,CardName,GroupCode,Phone1,Cellular,EmailAddress,Address,Valid,Frozen',
+            '$select' => 'CardCode,CardName,GroupCode,Phone1,Cellular,EmailAddress,Address,Valid,Frozen,UpdateDate,UpdateTime',
             '$filter' => $filter,
         ];
 
         $this->each('customer', $client, 'BusinessPartners', $query, function (array $row) {
+            $this->trackWatermark('business_partners', $row);
             $code = $this->cut($row['CardCode'] ?? '', 30);
             if ($code === '') {
                 return null;
@@ -361,16 +377,17 @@ class SapImportService
         });
     }
 
-    private function importItems(SapServiceLayer $client, ?string $since): void
+    private function importItems(SapServiceLayer $client, ?string $changed): void
     {
         $query = [
-            '$select' => 'ItemCode,ItemName,ItemsGroupCode,Manufacturer,InventoryUOM,SalesUnit,BarCode,Valid,Frozen,InventoryItem',
+            '$select' => 'ItemCode,ItemName,ItemsGroupCode,Manufacturer,InventoryUOM,SalesUnit,BarCode,Valid,Frozen,InventoryItem,UpdateDate,UpdateTime',
         ];
-        if ($since !== null) {
-            $query['$filter'] = "UpdateDate ge '{$since}'";
+        if ($changed !== null) {
+            $query['$filter'] = $changed;
         }
 
         $this->each('item_master', $client, 'Items', $query, function (array $row) {
+            $this->trackWatermark('items', $row);
             $sku = $this->cut($row['ItemCode'] ?? '', 40);
             if ($sku === '') {
                 return null;
@@ -427,11 +444,11 @@ class SapImportService
      * Harga per daftar harga (ITM1). Harga dasar produk diisi dari daftar harga
      * dengan nomor terkecil yang berharga lebih dari 0.
      */
-    private function importPriceListDetails(SapServiceLayer $client, ?string $since): void
+    private function importPriceListDetails(SapServiceLayer $client, ?string $changed): void
     {
         $query = ['$select' => 'ItemCode,ItemPrices'];
-        if ($since !== null) {
-            $query['$filter'] = "UpdateDate ge '{$since}'";
+        if ($changed !== null) {
+            $query['$filter'] = $changed;
         }
 
         $this->each('price_list_detail', $client, 'Items', $query, function (array $row) {
@@ -474,8 +491,8 @@ class SapImportService
      * terimpor. Selalu diambil penuh: perubahan saldo tidak mengubah UpdateDate item di SAP.
      */
     /**
-     * Salin mutasi stok OIVL. Bila tertahan karena master belum ada, objek ditandai gagal
-     * tanpa menggagalkan run; sinkronisasi mutasi per menit melanjutkannya.
+     * Salin mutasi stok OIVL. Bila tertahan (master belum ada, atau query SAP timeout), objek
+     * ditandai gagal tanpa menggagalkan run; sinkronisasi mutasi per menit melanjutkannya.
      */
     private function importStockMutations(SapServiceLayer $client): void
     {
@@ -488,10 +505,14 @@ class SapImportService
         try {
             $result = (new SapStockMutationService($this->company))->sync($client, wait: true, lookback: true);
         } catch (Throwable $e) {
+            // Query OIVL bisa tertahan sementara di SAP: jangan gagalkan sinkronisasi master;
+            // sinkronisasi mutasi per menit melanjutkannya. Sesi SL yang tertahan diganti baru.
             $this->summary[$entity]['status'] = self::STATUS_FAILED;
             $this->run->update(['summary' => $this->summary]);
+            $this->company->forceFill(['sap_stock_sync_error' => Str::limit($e->getMessage(), 500)])->save();
+            $client->renewSession();
 
-            throw $e;
+            return;
         }
 
         $this->summary[$entity] = [
@@ -507,14 +528,51 @@ class SapImportService
 
     /**
      * Saldo OITW semua warehouse disimpan sebagai sap_on_hand untuk rekonsiliasi; on_hand
-     * easyPOS berasal dari buku besar mutasi dan tidak ditimpa.
+     * easyPOS berasal dari buku besar mutasi dan tidak ditimpa. Delta hanya membaca item yang
+     * bermutasi sesudah saldo SAP-nya terakhir dicek (dilewati bila tidak ada); rekonsiliasi penuh saat
+     * impor awal dan bila yang terakhir lebih lama dari FULL_RECONCILE_HOURS.
+     *
+     * @return bool true bila rekonsiliasi penuh dijalankan
      */
-    private function importWarehouseStocks(SapServiceLayer $client): void
+    private function importWarehouseStocks(SapServiceLayer $client, ?Carbon $previousSyncAt): bool
     {
         $warehouses = Warehouse::where('company_id', $this->companyId)->pluck('id', 'code')->all();
         $checkedAt = now();
+        $select = ['$select' => 'ItemCode,ItemWarehouseInfoCollection'];
 
-        $this->each('warehouse_stock', $client, 'Items', ['$select' => 'ItemCode,ItemWarehouseInfoCollection'], function (array $row) use ($warehouses, $checkedAt) {
+        $full = $this->isInitial() || $previousSyncAt === null
+            || $this->company->sap_stock_reconciled_at === null
+            || $this->company->sap_stock_reconciled_at->lt(now()->subHours(self::FULL_RECONCILE_HOURS));
+
+        if ($full) {
+            $queries = [$select];
+        } else {
+            $queries = WarehouseStockLedger::query()
+                ->join('products', 'products.id', '=', 'warehouse_stock_ledgers.product_id')
+                ->leftJoin('warehouse_stocks', fn ($join) => $join
+                    ->on('warehouse_stocks.warehouse_id', '=', 'warehouse_stock_ledgers.warehouse_id')
+                    ->on('warehouse_stocks.product_id', '=', 'warehouse_stock_ledgers.product_id'))
+                ->where('warehouse_stock_ledgers.company_id', $this->companyId)
+                // Bermutasi sesudah saldo SAP-nya terakhir dicek.
+                ->where(fn ($q) => $q->whereNull('warehouse_stocks.sap_checked_at')
+                    ->orWhereColumn('warehouse_stock_ledgers.created_at', '>', 'warehouse_stocks.sap_checked_at'))
+                ->distinct()
+                ->pluck('products.sku')
+                ->chunk(self::ITEM_FILTER_CHUNK)
+                ->map(fn ($skus) => $select + ['$filter' => $skus->map(fn ($sku) => "ItemCode eq '".str_replace("'", "''", $sku)."'")->implode(' or ')])
+                ->values()
+                ->all();
+
+            // Tidak ada item yang bermutasi: tidak ada yang perlu dicek ke SAP.
+            if ($queries === []) {
+                $this->summary['warehouse_stock'] = ['status' => self::STATUS_DONE] + array_diff_key($this->emptyProgress(), ['status' => true]);
+                $this->run->update(['summary' => $this->summary]);
+
+                return false;
+            }
+        }
+
+        $this->each('warehouse_stock', $client, 'Items', $queries, function (array $row) use ($warehouses, $checkedAt) {
             $sku = $this->cut($row['ItemCode'] ?? '', 40);
             $productId = $sku === '' ? null : ($this->products[$sku]
                 ?? Product::where('company_id', $this->companyId)->where('sku', $sku)->value('id'));
@@ -552,6 +610,8 @@ class SapImportService
 
             return 'skipped';
         });
+
+        return $full;
     }
 
     private function storePriceListItem(string $priceListId, string $productId, float $price): string
@@ -608,7 +668,7 @@ class SapImportService
     /**
      * Iterasi sebuah resource dan hitung hasilnya per objek.
      *
-     * @param  array<string, string>  $query
+     * @param  array<string, string>|list<array<string, string>>  $query  satu query OData, atau daftar query
      * @param  callable(array<string, mixed>): ?string  $handler  created|updated|unchanged|skipped, atau null bila dilewati
      */
     private function each(string $entity, SapServiceLayer $client, string $resource, array $query, callable $handler): void
@@ -618,22 +678,26 @@ class SapImportService
         $this->summary[$entity] = ['status' => self::STATUS_RUNNING] + $this->emptyProgress();
         $this->run->update(['summary' => $this->summary]);
 
+        $queries = $query !== [] && array_is_list($query) ? $query : [$query];
+
         try {
-            foreach ($client->each($resource, $query) as $row) {
-                $this->summary[$entity]['fetched']++;
+            foreach ($queries as $resourceQuery) {
+                foreach ($client->each($resource, $resourceQuery) as $row) {
+                    $this->summary[$entity]['fetched']++;
 
-                try {
-                    $outcome = $handler($row) ?? 'skipped';
-                } catch (Throwable) {
-                    $outcome = 'skipped';
-                }
+                    try {
+                        $outcome = $handler($row) ?? 'skipped';
+                    } catch (Throwable) {
+                        $outcome = 'skipped';
+                    }
 
-                $this->summary[$entity][$outcome]++;
+                    $this->summary[$entity][$outcome]++;
 
-                // Simpan progres berkala agar UI bisa menampilkan jumlah yang sedang berjalan.
-                if ($this->summary[$entity]['fetched'] % 100 === 0) {
-                    $this->run->update(['summary' => $this->summary]);
-                    $this->abortIfCancelled();
+                    // Simpan progres berkala agar UI bisa menampilkan jumlah yang sedang berjalan.
+                    if ($this->summary[$entity]['fetched'] % 100 === 0) {
+                        $this->run->update(['summary' => $this->summary]);
+                        $this->abortIfCancelled();
+                    }
                 }
             }
         } catch (SapImportCancelled $e) {
@@ -649,6 +713,50 @@ class SapImportService
 
         $this->summary[$entity]['status'] = self::STATUS_DONE;
         $this->run->update(['summary' => $this->summary]);
+    }
+
+    /**
+     * Filter OData "berubah sejak penanda waktu terakhir" untuk objek yang punya UpdateDate +
+     * UpdateTime (Items, BusinessPartners). Batas `ge` membaca ulang baris di detik yang sama
+     * agar tidak ada yang terlewat. Null pada impor awal (ambil semua).
+     */
+    private function changedFilter(string $object): ?string
+    {
+        if ($this->isInitial()) {
+            return null;
+        }
+
+        $watermark = $this->company->sap_sync_watermarks[$object] ?? null;
+        if ($watermark === null) {
+            // Belum ada penanda (data impor lama): perilaku sebelumnya, berubah sejak sehari sebelum sinkronisasi terakhir.
+            return $this->company->sap_last_synced_at
+                ? "UpdateDate ge '".Carbon::parse($this->company->sap_last_synced_at)->subDay()->toDateString()."'"
+                : null;
+        }
+
+        [$date, $time] = explode(' ', $watermark);
+
+        return "UpdateDate gt '{$date}' or (UpdateDate eq '{$date}' and UpdateTime ge '{$time}')";
+    }
+
+    /**
+     * Catat waktu perubahan terbaru yang terbaca dari SAP (jam SAP, bukan jam easyPOS).
+     *
+     * @param  array<string, mixed>  $row
+     */
+    private function trackWatermark(string $object, array $row): void
+    {
+        $date = substr((string) ($row['UpdateDate'] ?? ''), 0, 10);
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            return;
+        }
+
+        $time = preg_match('/^\d{2}:\d{2}(:\d{2})?$/', (string) ($row['UpdateTime'] ?? '')) ? (string) $row['UpdateTime'] : '00:00:00';
+        $stamp = $date.' '.(strlen($time) === 5 ? $time.':00' : $time);
+
+        if ($stamp > ($this->watermarks[$object] ?? '')) {
+            $this->watermarks[$object] = $stamp;
+        }
     }
 
     /**

@@ -19,7 +19,7 @@ class CompanyDetail extends Model
         'return_window_days', 'return_require_receipt', 'sku_config', 'payment_providers',
         'sap_enabled', 'sap_verify_ssl', 'sap_endpoint_url', 'sap_db_name', 'sap_username', 'sap_password',
         'sap_sync_interval_minutes', 'sap_auto_sync', 'sap_last_synced_at', 'sap_initial_imported_at',
-        'sap_stock_synced_at', 'sap_stock_sync_error',
+        'sap_stock_synced_at', 'sap_stock_sync_error', 'sap_sync_watermarks', 'sap_stock_reconciled_at',
     ];
 
     protected $hidden = ['sap_password', 'payment_providers'];
@@ -41,6 +41,8 @@ class CompanyDetail extends Model
             'sap_last_synced_at' => 'datetime',
             'sap_initial_imported_at' => 'datetime',
             'sap_stock_synced_at' => 'datetime',
+            'sap_sync_watermarks' => 'array',
+            'sap_stock_reconciled_at' => 'datetime',
         ];
     }
 

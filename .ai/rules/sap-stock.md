@@ -28,3 +28,6 @@ Teramati di SAP pelanggan: `SQLQueries('EPOS_STOCK_MUTATION')/List` kadang tidak
 
 ## Stok penjualan POS
 Pakai `App\Support\SaleStock` (bukan `StockService`) untuk stok penjualan POS: gerai berwarehouse → buku besar warehouse, tanpa warehouse → `stock_ledger` lama. Retur/penyesuaian/transfer sengaja tetap di `stock_ledger` karena belum diposting ke SAP (kalau dipindah, saldo warehouse berselisih dengan SAP). Mutasi OIVL TransType 13 dengan `CreatedBy` = `sales.sap_invoice_doc_entry` ditautkan ke baris ledger `ref_type = sale` (isi kolom sap_*), bukan ditambah. Void ditolak setelah invoice SAP ada.
+
+## Delta master hanya yang berubah
+Hanya Items dan BusinessPartners punya `UpdateDate`/`UpdateTime` di Service Layer (master lain menolak properti itu). Penanda waktu diambil dari baris SAP (jam SAP, bukan jam easyPOS) ke `company_details.sap_sync_watermarks`, filter `UpdateDate gt d or (UpdateDate eq d and UpdateTime ge t)`. OITW delta hanya item dengan baris ledger sesudah `warehouse_stocks.sap_checked_at`; penuh bila `sap_stock_reconciled_at` > 24 jam. Langkah mutasi stok yang gagal tidak menggagalkan run; panggil `SapServiceLayer::renewSession()` karena sesi SL yang timeout tetap tertahan.
