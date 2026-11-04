@@ -5,3 +5,4 @@ Before planning or editing, find the row whose globs match the file's path and r
 | Applies to | Rule file |
 | --- | --- |
 | app/Http/Controllers/Admin/CompanyController.php | .ai/rules/admin.md |
+| app/Support/Sap/**, app/Support/WarehouseStockService.php, app/Console/Commands/SapSync*.php | .ai/rules/sap-stock.md |

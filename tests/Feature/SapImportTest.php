@@ -18,6 +18,8 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
+use App\Models\WarehouseStockLedger;
+use App\Support\Sap\SapStockMutationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\Http;
@@ -88,6 +90,10 @@ class SapImportTest extends TestCase
                 ['WarehouseCode' => 'WH-02', 'WarehouseName' => 'Gudang Retail 2', 'Inactive' => 'tYES', 'U_SOL_RETAIL' => 'Y', 'U_SOL_PRFC' => ''],
                 ['WarehouseCode' => 'GL99', 'WarehouseName' => 'Gudang Load', 'Inactive' => 'tNO', 'U_SOL_RETAIL' => 'N', 'U_SOL_PRFC' => null],
             ]]),
+            "*/SQLQueries('EPOS_STOCK_MUTATION')/List" => Http::response(['value' => [
+                ['TransSeq' => 1, 'TransType' => 20, 'CreatedBy' => 1, 'BASE_REF' => '1', 'DocLineNum' => 0, 'ItemCode' => 'ITM-001', 'LocCode' => 'WH-01', 'InQty' => 25, 'OutQty' => 0, 'DocDate' => '20261101'],
+            ]]),
+            '*/SQLQueries*' => Http::response(['SqlText' => SapStockMutationService::QUERY_SQL]),
             '*/UnitOfMeasurements*' => Http::response(['value' => [['Code' => 'PCS', 'Name' => 'Pieces']]]),
             '*/ItemGroups*' => Http::response(['value' => [['Number' => 100, 'GroupName' => 'Minuman']]]),
             '*/Manufacturers*' => Http::response(['value' => [['Code' => 5, 'ManufacturerName' => 'Indo Coffee']]]),
@@ -161,13 +167,21 @@ class SapImportTest extends TestCase
         $this->assertNull($inactive->profit_center);
         $this->assertFalse($inactive->is_active);
 
-        $stock = WarehouseStock::firstOrFail();
-        $this->assertSame(1, WarehouseStock::count());
-        $this->assertSame(Warehouse::where('code', 'WH-01')->value('id'), $stock->warehouse_id);
+        // Saldo easyPOS dibangun dari mutasi OIVL; saldo OITW semua warehouse hanya untuk rekonsiliasi.
+        $this->assertSame(1, WarehouseStockLedger::count());
+        $this->assertSame(1, $run->summary['stock_mutation']['created']);
+        $this->assertSame(2, WarehouseStock::count());
+        $stock = WarehouseStock::where('warehouse_id', Warehouse::where('code', 'WH-01')->value('id'))->firstOrFail();
         $this->assertSame('25.000', $stock->on_hand);
+        $this->assertSame('25.000', $stock->sap_on_hand);
+        $this->assertNotNull($stock->sap_checked_at);
+        $nonRetail = WarehouseStock::where('warehouse_id', Warehouse::where('code', 'GL99')->value('id'))->firstOrFail();
+        $this->assertSame('0.000', $nonRetail->on_hand);
+        $this->assertSame('99.000', $nonRetail->sap_on_hand);
         $this->assertSame('2.000', $stock->committed);
         $this->assertSame('5.000', $stock->on_order);
-        $this->assertSame('7000.00', $stock->avg_price);
+        // Cost item hanya dilihat di SAP: tidak diimpor.
+        $this->assertSame(0.0, (float) $stock->getRawOriginal('avg_price'));
 
         $this->assertSame('Pieces', Unit::where('code', 'PCS')->value('name'));
         $this->assertSame('Minuman', ProductGroup::where('code', '100')->value('name'));
@@ -180,6 +194,7 @@ class SapImportTest extends TestCase
         $product = Product::where('sku', 'ITM-001')->firstOrFail();
         $this->assertSame('Kopi Susu', $product->name);
         $this->assertSame('15000.00', $product->base_price);
+        $this->assertSame(0.0, (float) $product->getRawOriginal('cost_price'));
         $this->assertSame(Brand::where('code', '5')->value('id'), $product->brand_id);
         $this->assertSame(2, PriceListItem::where('product_id', $product->id)->count());
 
@@ -191,7 +206,7 @@ class SapImportTest extends TestCase
         $this->assertSame(1, $run->summary['item_master']['created']);
 
         $this->assertSame(
-            ['tax_group', 'warehouse', 'item_category', 'manufacturer', 'unit', 'customer_group', 'customer', 'item_master', 'price_list', 'price_list_detail', 'warehouse_stock'],
+            ['tax_group', 'warehouse', 'item_category', 'manufacturer', 'unit', 'customer_group', 'customer', 'item_master', 'price_list', 'price_list_detail', 'stock_mutation', 'warehouse_stock'],
             array_keys($run->summary)
         );
         foreach ($run->summary as $progress) {

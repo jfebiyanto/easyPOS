@@ -30,7 +30,15 @@
         <strong>{{ $company->sap_initial_imported_at ? $company->sap_initial_imported_at->timezone(company_timezone())->format('d M Y H:i') : 'Belum pernah' }}</strong>
         · Sinkronisasi terakhir:
         <strong>{{ $company->sap_last_synced_at ? $company->sap_last_synced_at->timezone(company_timezone())->format('d M Y H:i') : '-' }}</strong>
+        · Mutasi stok terakhir:
+        <strong>{{ $company->sap_stock_synced_at ? $company->sap_stock_synced_at->timezone(company_timezone())->format('d M Y H:i') : '-' }}</strong>
     </p>
+
+    @if ($company->sap_stock_sync_error)
+        <div class="md-snackbar error">
+            <span class="material-symbols-rounded">warning</span> {{ $company->sap_stock_sync_error }}
+        </div>
+    @endif
 
     @if ($canManage)
         <div class="form-actions" style="margin-top: 8px;">
@@ -180,7 +188,7 @@
                     <tr>
                         <td>{{ $run->created_at->timezone(company_timezone())->format('d M Y H:i') }}</td>
                         <td>{{ $run->mode === 'initial' ? 'Awal' : 'Perubahan' }}</td>
-                        <td>{{ $run->trigger === 'schedule' ? 'Terjadwal' : 'Manual' }}</td>
+                        <td>{{ ['schedule' => 'Terjadwal', 'stock' => 'Mutasi stok'][$run->trigger] ?? 'Manual' }}</td>
                         <td>
                             {{ $statusLabels[$run->status] ?? $run->status }}
                             @if ($run->error)

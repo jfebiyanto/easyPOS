@@ -123,6 +123,66 @@ class SapServiceLayer
         }
     }
 
+    /**
+     * Pastikan SQL Query tersimpan (entitas SQLQueries) ada dengan teks yang diharapkan.
+     * Tabel yang dibaca harus diizinkan oleh b1s_sqltable.conf di server Service Layer.
+     */
+    public function ensureSqlQuery(string $code, string $name, string $sql): void
+    {
+        $url = $this->baseUrl."/SQLQueries('{$code}')";
+        $existing = $this->http->get($url);
+
+        if ($existing->status() === 404) {
+            $response = $this->http->post($this->baseUrl.'/SQLQueries', ['SqlCode' => $code, 'SqlName' => $name, 'SqlText' => $sql]);
+        } elseif (! $existing->successful()) {
+            $response = $existing;
+        } elseif (self::normalizeSql((string) $existing->json('SqlText')) !== self::normalizeSql($sql)) {
+            $response = $this->http->patch($url, ['SqlText' => $sql]);
+        } else {
+            return;
+        }
+
+        if (! $response->successful()) {
+            throw new RuntimeException("Gagal menyiapkan SQL Query {$code} di SAP B1 (HTTP {$response->status()}): ".$this->errorMessage($response->json()));
+        }
+    }
+
+    /**
+     * SAP menyimpan ulang teks query dengan format sendiri (mis. nama tabel diberi tanda kutip),
+     * jadi pembandingan mengabaikan tanda kutip, spasi, dan huruf besar/kecil. Tanpa ini query
+     * di-PATCH setiap sinkronisasi, dan eksekusi pertama sesudah PATCH bisa macet hingga timeout.
+     */
+    private static function normalizeSql(string $sql): string
+    {
+        return strtolower((string) preg_replace('/\s+/', ' ', str_replace('"', '', trim($sql))));
+    }
+
+    /**
+     * Jalankan SQL Query tersimpan. Hanya halaman pertama yang diambil; `hasMore` menandakan
+     * masih ada baris berikutnya sehingga pemanggil mengulang dengan parameter (cursor) baru.
+     *
+     * @param  array<string, int|string>  $params
+     * @return array{rows: array<int, array<string, mixed>>, hasMore: bool}
+     */
+    public function runSqlQuery(string $code, array $params = []): array
+    {
+        $paramList = collect($params)->map(fn ($value, $key) => "{$key}={$value}")->implode('&');
+
+        // Kompilasi query pertama kali di sisi SAP bisa lambat; beri batas waktu lebih longgar.
+        $response = (clone $this->http)->timeout(180)->post($this->baseUrl."/SQLQueries('{$code}')/List", ['ParamList' => $paramList]);
+
+        if (! $response->successful()) {
+            throw new RuntimeException("Gagal menjalankan SQL Query {$code} di SAP B1 (HTTP {$response->status()}): ".$this->errorMessage($response->json()));
+        }
+
+        $json = $response->json() ?? [];
+
+        return [
+            'rows' => $json['value'] ?? [],
+            'hasMore' => isset($json['odata.nextLink']) || isset($json['@odata.nextLink']),
+        ];
+    }
+
     private function resolveNextLink(string $next): string
     {
         if (Str::startsWith($next, ['http://', 'https://'])) {

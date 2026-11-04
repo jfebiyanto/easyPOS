@@ -180,7 +180,6 @@ class ProductController extends Controller
             'remove_image' => ['sometimes', 'boolean'],
             'description' => ['nullable', 'string', 'max:500'],
             'base_price' => ['required', 'numeric', 'min:0'],
-            'cost_price' => ['nullable', 'numeric', 'min:0'],
             'track_stock' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
         ]);

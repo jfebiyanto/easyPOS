@@ -12,5 +12,8 @@ Artisan::command('inspire', function () {
 // Tarik data baru/berubah dari SAP B1; interval sebenarnya diatur di konfigurasi (menit).
 Schedule::command('sap:sync')->everyMinute()->withoutOverlapping();
 
+// Mutasi stok SAP B1 (OIVL) disalin tiap menit agar saldo dan riwayat stok identik dengan SAP.
+Schedule::command('sap:sync-stock')->everyMinute()->withoutOverlapping(10)->runInBackground();
+
 // Jalankan scheduler ikut `composer run dev` (di produksi pakai cron: schedule:run tiap menit).
 DevCommands::artisan('schedule:work', 'scheduler');

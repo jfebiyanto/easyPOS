@@ -94,7 +94,6 @@ class ProductApiController extends ApiController
             'name' => ['required', 'string', 'max:150'],
             'description' => ['nullable', 'string', 'max:500'],
             'base_price' => ['required', 'numeric', 'min:0'],
-            'cost_price' => ['nullable', 'numeric', 'min:0'],
             'track_stock' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
         ]);

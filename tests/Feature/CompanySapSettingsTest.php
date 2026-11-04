@@ -247,7 +247,7 @@ class CompanySapSettingsTest extends TestCase
 
         $this->actingAs($this->owner)
             ->put(route('admin.company.update-sap'), $this->sapPayload(['current_password' => 'rahasia-owner']))
-            ->assertSessionHas('success', 'Integrasi SAP B1 diaktifkan kembali. Stok akan ditimpa saldo SAP B1 pada sinkronisasi berikutnya.');
+            ->assertSessionHas('success', 'Integrasi SAP B1 diaktifkan kembali. Mutasi stok SAP B1 selama integrasi mati akan disalin pada sinkronisasi berikutnya.');
 
         $this->assertTrue($this->company->fresh()->sap_enabled);
         Http::assertSentCount(1);

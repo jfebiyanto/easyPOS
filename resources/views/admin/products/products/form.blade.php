@@ -76,11 +76,6 @@
                 @error('unit_id') <div class="error">{{ $message }}</div> @enderror
                 <div class="hint">Kelola pilihan di <a href="{{ route('admin.units.index') }}">modul Satuan</a>.</div>
             </div>
-            <div class="field @error('cost_price') has-error @enderror">
-                <label for="cost_price">Harga Beli (Rp)</label>
-                <input type="number" id="cost_price" name="cost_price" step="0.01" min="0" value="{{ old('cost_price', $product->cost_price ?? 0) }}">
-                @error('cost_price') <div class="error">{{ $message }}</div> @enderror
-            </div>
             <div class="field @error('base_price') has-error @enderror">
                 <label for="base_price">Harga Dasar / Jual (Rp) *</label>
                 <input type="number" id="base_price" name="base_price" step="0.01" min="0" required value="{{ old('base_price', $product->base_price ?? 0) }}">

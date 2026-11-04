@@ -6,8 +6,13 @@ class Product extends MasterModel
 {
     protected $fillable = [
         'company_id', 'product_group_id', 'brand_id', 'unit_id', 'sku', 'barcode', 'name', 'image_path',
-        'description', 'base_price', 'cost_price', 'track_stock', 'is_active',
+        'description', 'base_price', 'track_stock', 'is_active',
     ];
+
+    /**
+     * Cost item hanya dilihat di SAP B1; kolom lama tidak ditampilkan maupun dikirim lewat API.
+     */
+    protected $hidden = ['cost_price'];
 
     protected function casts(): array
     {

@@ -129,6 +129,7 @@ Route::prefix('admin')
         // Stock: saldo, ledger, adjustment, transfer
         Route::get('/stock', [Admin\StockController::class, 'index'])->name('stock.index');
         Route::get('/stock/{product}/ledger', [Admin\StockController::class, 'ledger'])->name('stock.ledger');
+        Route::get('/stock/{product}/mutations', [Admin\StockController::class, 'mutations'])->name('stock.mutations');
 
         Route::get('/stock-adjustments', [Admin\StockAdjustmentController::class, 'index'])->name('stock-adjustments.index');
         Route::get('/stock-adjustments/create', [Admin\StockAdjustmentController::class, 'create'])->name('stock-adjustments.create');

@@ -8,9 +8,9 @@ use App\Models\WarehouseStockLedger;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Saldo dan pergerakan stok per warehouse. Saat ini baru kerangka: belum dipakai oleh
- * penjualan, retur, transfer, atau penyesuaian. Impor SAP mengisi saldo langsung ke
- * warehouse_stocks tanpa melewati buku besar ini.
+ * Saldo dan pergerakan stok per warehouse. Mutasi stok SAP B1 (OIVL) masuk lewat record()
+ * sehingga on_hand = jumlah buku besar. Penjualan, retur, transfer, dan penyesuaian easyPOS
+ * belum memakai buku besar ini.
  */
 class WarehouseStockService
 {
@@ -35,7 +35,7 @@ class WarehouseStockService
     /**
      * Catat satu pergerakan: tambah baris buku besar dan perbarui saldo on_hand secara atomik.
      *
-     * @param  array{company_id?: string, unit_cost?: float, ref_type?: string, ref_id?: string, note?: string, created_by?: string}  $options
+     * @param  array{unit_cost?: float, ref_type?: string, ref_id?: string, note?: string, created_by?: ?string, attributes?: array<string, mixed>}  $options  attributes: kolom tambahan buku besar (referensi SAP)
      */
     public static function record(
         Warehouse $warehouse,
@@ -59,7 +59,7 @@ class WarehouseStockService
             $stock->on_hand = round((float) $stock->on_hand + $qty, 3);
             $stock->save();
 
-            return WarehouseStockLedger::create([
+            return WarehouseStockLedger::create(($options['attributes'] ?? []) + [
                 'company_id' => $warehouse->company_id,
                 'warehouse_id' => $warehouse->id,
                 'product_id' => $productId,
@@ -70,7 +70,7 @@ class WarehouseStockService
                 'ref_type' => $options['ref_type'] ?? null,
                 'ref_id' => $options['ref_id'] ?? null,
                 'note' => $options['note'] ?? null,
-                'created_by' => $options['created_by'] ?? auth()->id(),
+                'created_by' => array_key_exists('created_by', $options) ? $options['created_by'] : auth()->id(),
             ]);
         });
     }

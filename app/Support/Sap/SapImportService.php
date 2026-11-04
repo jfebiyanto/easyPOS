@@ -54,7 +54,8 @@ class SapImportService
         'item_master' => ['Produk (Item Master Data)', 'OITM'],
         'price_list' => ['Price List', 'OPLN'],
         'price_list_detail' => ['Price List Details', 'ITM1'],
-        'warehouse_stock' => ['Saldo Stok per Warehouse', 'OITW'],
+        'stock_mutation' => ['Mutasi Stok', 'OIVL'],
+        'warehouse_stock' => ['Saldo Stok SAP (rekonsiliasi)', 'OITW'],
     ];
 
     /** @var array<string, array<string, int|string>> */
@@ -130,7 +131,8 @@ class SapImportService
             $this->importItems($client, $since);    // OITM
             $this->importPriceLists($client);       // OPLN
             $this->importPriceListDetails($client, $since); // ITM1
-            $this->importWarehouseStocks($client);  // OITW
+            $this->importStockMutations($client);   // OIVL → buku besar & on_hand
+            $this->importWarehouseStocks($client);  // OITW → sap_on_hand (rekonsiliasi)
 
             $this->abortIfCancelled();
 
@@ -351,7 +353,7 @@ class SapImportService
     private function importItems(SapServiceLayer $client, ?string $since): void
     {
         $query = [
-            '$select' => 'ItemCode,ItemName,ItemsGroupCode,Manufacturer,InventoryUOM,SalesUnit,BarCode,Valid,Frozen,InventoryItem,AvgStdPrice',
+            '$select' => 'ItemCode,ItemName,ItemsGroupCode,Manufacturer,InventoryUOM,SalesUnit,BarCode,Valid,Frozen,InventoryItem',
         ];
         if ($since !== null) {
             $query['$filter'] = "UpdateDate ge '{$since}'";
@@ -373,7 +375,6 @@ class SapImportService
                 'name' => $row['ItemName'] ?: $sku,
                 'track_stock' => ($row['InventoryItem'] ?? 'tYES') === 'tYES',
                 'is_active' => $this->isActive($row),
-                'cost_price' => (float) ($row['AvgStdPrice'] ?? 0),
             ];
 
             $barcode = $this->cut($row['BarCode'] ?? '', 60);
@@ -461,11 +462,48 @@ class SapImportService
      * Saldo inventory (OITW) hanya untuk warehouse retail di easyPOS dan produk yang sudah
      * terimpor. Selalu diambil penuh: perubahan saldo tidak mengubah UpdateDate item di SAP.
      */
+    /**
+     * Salin mutasi stok OIVL. Bila tertahan karena master belum ada, objek ditandai gagal
+     * tanpa menggagalkan run; sinkronisasi mutasi per menit melanjutkannya.
+     */
+    private function importStockMutations(SapServiceLayer $client): void
+    {
+        $this->abortIfCancelled();
+
+        $entity = 'stock_mutation';
+        $this->summary[$entity] = ['status' => self::STATUS_RUNNING] + $this->emptyProgress();
+        $this->run->update(['summary' => $this->summary]);
+
+        try {
+            $result = (new SapStockMutationService($this->company))->sync($client, wait: true);
+        } catch (Throwable $e) {
+            $this->summary[$entity]['status'] = self::STATUS_FAILED;
+            $this->run->update(['summary' => $this->summary]);
+
+            throw $e;
+        }
+
+        $this->summary[$entity] = [
+            'status' => $result['busy'] || $result['halted'] ? self::STATUS_FAILED : self::STATUS_DONE,
+            'fetched' => $result['fetched'],
+            'created' => $result['created'],
+            'updated' => 0,
+            'unchanged' => 0,
+            'skipped' => $result['skipped'],
+        ];
+        $this->run->update(['summary' => $this->summary]);
+    }
+
+    /**
+     * Saldo OITW semua warehouse disimpan sebagai sap_on_hand untuk rekonsiliasi; on_hand
+     * easyPOS berasal dari buku besar mutasi dan tidak ditimpa.
+     */
     private function importWarehouseStocks(SapServiceLayer $client): void
     {
-        $warehouses = Warehouse::where('company_id', $this->companyId)->where('is_retail', true)->pluck('id', 'code')->all();
+        $warehouses = Warehouse::where('company_id', $this->companyId)->pluck('id', 'code')->all();
+        $checkedAt = now();
 
-        $this->each('warehouse_stock', $client, 'Items', ['$select' => 'ItemCode,ItemWarehouseInfoCollection'], function (array $row) use ($warehouses) {
+        $this->each('warehouse_stock', $client, 'Items', ['$select' => 'ItemCode,ItemWarehouseInfoCollection'], function (array $row) use ($warehouses, $checkedAt) {
             $sku = $this->cut($row['ItemCode'] ?? '', 40);
             $productId = $sku === '' ? null : ($this->products[$sku]
                 ?? Product::where('company_id', $this->companyId)->where('sku', $sku)->value('id'));
@@ -480,12 +518,15 @@ class SapImportService
                     continue;
                 }
 
-                [, $outcomes[]] = $this->store(WarehouseStock::class, ['warehouse_id' => $warehouseId, 'product_id' => $productId], [
-                    'on_hand' => (float) ($info['InStock'] ?? 0),
+                // Selalu dicocokkan (juga saat impor awal): baris bisa sudah dibuat oleh mutasi stok.
+                $stock = WarehouseStock::firstOrNew(['company_id' => $this->companyId, 'warehouse_id' => $warehouseId, 'product_id' => $productId]);
+                $stock->forceFill([
                     'committed' => (float) ($info['Committed'] ?? 0),
                     'on_order' => (float) ($info['Ordered'] ?? 0),
-                    'avg_price' => (float) ($info['StandardAveragePrice'] ?? 0),
+                    'sap_on_hand' => (float) ($info['InStock'] ?? 0),
                 ]);
+                $outcomes[] = ! $stock->exists ? 'created' : ($stock->isDirty() ? 'updated' : 'unchanged');
+                $stock->forceFill(['sap_checked_at' => $checkedAt])->save();
             }
 
             if ($outcomes === []) {

@@ -83,6 +83,43 @@ class WarehouseStockTest extends TestCase
             ->assertSeeInOrder(['SKU-1', '21', '2', '5']);
     }
 
+    public function test_saldo_stok_menampilkan_selisih_terhadap_saldo_sap(): void
+    {
+        $warehouse = Warehouse::factory()->create(['company_id' => $this->company->id]);
+        $this->store->update(['warehouse_id' => $warehouse->id]);
+        WarehouseStock::create([
+            'company_id' => $this->company->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $this->product->id,
+            'on_hand' => 158,
+            'sap_on_hand' => 160,
+        ]);
+
+        $this->actingAs($this->owner)
+            ->get(route('admin.stock.index', ['store' => $this->store->id]))
+            ->assertOk()
+            ->assertSeeInOrder(['SKU-1', '158', '160', '-2']);
+    }
+
+    public function test_riwayat_mutasi_menampilkan_dokumen_sap_warehouse_gerai(): void
+    {
+        $warehouse = Warehouse::factory()->create(['company_id' => $this->company->id]);
+        $otherWarehouse = Warehouse::factory()->create(['company_id' => $this->company->id]);
+        $this->store->update(['warehouse_id' => $warehouse->id]);
+        WarehouseStockService::record($warehouse, $this->product->id, WarehouseStockLedger::TYPE_GOODS_ISSUE, -2, [
+            'attributes' => ['sap_trans_seq' => 7, 'sap_doc_num' => '2600002', 'sap_doc_line' => 0],
+        ]);
+        WarehouseStockService::record($otherWarehouse, $this->product->id, WarehouseStockLedger::TYPE_PURCHASE, 5, [
+            'attributes' => ['sap_trans_seq' => 8, 'sap_doc_num' => '2609999'],
+        ]);
+
+        $this->actingAs($this->owner)
+            ->get(route('admin.stock.mutations', ['product' => $this->product, 'store' => $this->store->id]))
+            ->assertOk()
+            ->assertSeeInOrder(['Goods Issue', '2600002 / baris 1', '-2'])
+            ->assertDontSee('2609999');
+    }
+
     public function test_gerai_tanpa_warehouse_menampilkan_peringatan(): void
     {
         $this->actingAs($this->owner)

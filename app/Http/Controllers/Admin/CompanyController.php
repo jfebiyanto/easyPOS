@@ -167,7 +167,7 @@ class CompanyController extends Controller
 
         $message = match (true) {
             $wasEnabled && ! $company->sap_enabled => 'Integrasi SAP B1 dinonaktifkan.',
-            ! $wasEnabled && $company->sap_enabled => 'Integrasi SAP B1 diaktifkan kembali. Stok akan ditimpa saldo SAP B1 pada sinkronisasi berikutnya.',
+            ! $wasEnabled && $company->sap_enabled => 'Integrasi SAP B1 diaktifkan kembali. Mutasi stok SAP B1 selama integrasi mati akan disalin pada sinkronisasi berikutnya.',
             default => 'Konfigurasi SAP B1 berhasil disimpan.',
         };
 

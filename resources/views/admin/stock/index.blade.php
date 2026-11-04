@@ -44,21 +44,34 @@
                 <th style="text-align:right;">Saldo</th>
                 <th style="text-align:right;">Komitmen</th>
                 <th style="text-align:right;">Dipesan</th>
+                <th style="text-align:right;">Saldo SAP</th>
+                <th style="text-align:right;">Selisih</th>
             </tr>
         </thead>
         <tbody>
             @forelse ($products as $product)
-                @php $stock = $balances[$product->id] ?? null; @endphp
+                @php
+                    $stock = $balances[$product->id] ?? null;
+                    $difference = $stock?->sap_on_hand !== null ? round((float) $stock->on_hand - (float) $stock->sap_on_hand, 3) : null;
+                @endphp
                 <tr>
-                    <td><strong class="sku">{{ $product->sku }}</strong></td>
+                    <td><a href="{{ route('admin.stock.mutations', ['product' => $product, 'store' => $storeId]) }}"><strong class="sku">{{ $product->sku }}</strong></a></td>
                     <td>{{ $product->name }}</td>
                     <td>{{ $product->unit?->code ?? '-' }}</td>
                     <td style="text-align:right;" class="money {{ (float) $stock?->on_hand < 0 ? 'neg' : '' }}">{{ $fmt($stock?->on_hand ?? 0) }}</td>
                     <td style="text-align:right;" class="money">{{ $fmt($stock?->committed ?? 0) }}</td>
                     <td style="text-align:right;" class="money">{{ $fmt($stock?->on_order ?? 0) }}</td>
+                    <td style="text-align:right;" class="money">{{ $stock?->sap_on_hand !== null ? $fmt($stock->sap_on_hand) : '-' }}</td>
+                    <td style="text-align:right;" class="money {{ $difference ? 'neg' : '' }}">
+                        @if ($difference)
+                            <span title="Saldo easyPOS berbeda dengan saldo SAP B1 saat pengecekan terakhir">{{ $difference > 0 ? '+' : '' }}{{ $fmt($difference) }}</span>
+                        @else
+                            -
+                        @endif
+                    </td>
                 </tr>
             @empty
-                <tr><td colspan="6"><div class="empty-state"><span class="material-symbols-rounded">warehouse</span><p>Belum ada produk yang dilacak stoknya.</p></div></td></tr>
+                <tr><td colspan="8"><div class="empty-state"><span class="material-symbols-rounded">warehouse</span><p>Belum ada produk yang dilacak stoknya.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>

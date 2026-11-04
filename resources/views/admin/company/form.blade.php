@@ -100,7 +100,7 @@
                     <input type="checkbox" id="ppn_inclusive" name="ppn_inclusive" value="1" @checked(old('ppn_inclusive', $company->ppn_inclusive)) @disabled(! $canManage)>
                     <label for="ppn_inclusive">Harga jual sudah termasuk PPN (inclusive)</label>
                 </div>
-                <div class="hint">Jika tidak dicentang, PPN ditambahkan di atas harga (exclusive).</div>
+                <div class="hint">Jika tidak dicentang, PPN ditambahkan di atas harga jual (exclusive).</div>
             </div>
             <div class="field">
                 <div class="checkbox-row">
@@ -203,7 +203,7 @@
                     <input type="text" id="sap_db_name" name="sap_db_name" value="{{ old('sap_db_name', $company->sap_db_name) }}" maxlength="60"
                            @disabled(! $canManage) @readonly($sapLocked)>
                     @if ($sapLocked)
-                        <div class="hint">Terkunci permanen. Pindah database SAP memerlukan reimplementasi easyPOS.</div>
+                        <div class="hint"></div>
                     @endif
                     @error('sap_db_name') <div class="error">{{ $message }}</div> @enderror
                 </div>
@@ -215,11 +215,12 @@
                     @error('sap_username') <div class="error">{{ $message }}</div> @enderror
                 </div>
                 <div class="field @error('sap_password') has-error @enderror">
-                    <label for="sap_password">Password @if ($company->sap_password)(biarkan kosong jika tidak diubah)@endif</label>
+                    <label for="sap_password">Password</label>
                     <input type="password" id="sap_password" name="sap_password" autocomplete="new-password"
                            data-sap-field data-sap-unlockable data-sap-secret data-label="Password SAP B1" data-original=""
                            @disabled(! $canManage) @readonly($sapLocked)>
                     @error('sap_password') <div class="error">{{ $message }}</div> @enderror
+                    @if ($company->sap_password)<div class="hint">(biarkan kosong jika tidak diubah)</div>@endif
                 </div>
             </div>
 
@@ -273,7 +274,7 @@
             </div>
             <div class="md-snackbar warning" id="sap-warning-on" hidden>
                 <span class="material-symbols-rounded">warning</span>
-                <span>Stok easyPOS akan ditimpa saldo SAP B1 pada sinkronisasi berikutnya. Transaksi selama integrasi mati tidak dikirim ke SAP B1.</span>
+                <span>Mutasi stok SAP B1 selama integrasi mati akan disalin pada sinkronisasi berikutnya. Transaksi easyPOS selama integrasi mati tidak dikirim ke SAP B1, sehingga stok dapat berselisih dengan SAP B1.</span>
             </div>
             <div class="md-snackbar success" id="sap-test-ok" hidden>
                 <span class="material-symbols-rounded">check_circle</span> <span id="sap-test-ok-text"></span>

@@ -7,6 +7,8 @@ use App\Http\Controllers\Concerns\AuthorizesCompany;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\Store;
+use App\Models\WarehouseStock;
+use App\Models\WarehouseStockLedger;
 use App\Support\StockService;
 use App\Support\WarehouseStockService;
 use Illuminate\Http\Request;
@@ -38,6 +40,34 @@ class StockController extends Controller
             'stores' => $request->user()->isOwner()
                 ? Store::where('company_id', current_company_id())->orderBy('code')->get()
                 : collect(),
+        ]);
+    }
+
+    /**
+     * Riwayat mutasi buku besar warehouse gerai (termasuk mutasi yang disalin dari SAP B1).
+     */
+    public function mutations(Request $request, Product $product): View
+    {
+        $this->ensureCompany($product->company_id);
+
+        $storeId = $this->resolveStoreId($request, $request->query('store'));
+        $store = $storeId ? Store::with('warehouse')->find($storeId) : null;
+        $warehouse = $store?->warehouse;
+
+        return view('admin.stock.mutations', [
+            'product' => $product,
+            'store' => $store,
+            'storeId' => $storeId,
+            'warehouse' => $warehouse,
+            'stock' => $warehouse ? WarehouseStock::where('warehouse_id', $warehouse->id)->where('product_id', $product->id)->first() : null,
+            'entries' => $warehouse
+                ? WarehouseStockLedger::where('warehouse_id', $warehouse->id)
+                    ->where('product_id', $product->id)
+                    ->orderByDesc('sap_trans_seq')
+                    ->orderByDesc('created_at')
+                    ->paginate(50)
+                    ->withQueryString()
+                : null,
         ]);
     }
 
