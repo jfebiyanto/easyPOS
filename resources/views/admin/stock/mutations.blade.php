@@ -56,7 +56,7 @@
     </div>
 
     @if ($entries)
-        {{ $entries->links() }}
+        @include('partials.pagination', ['paginator' => $entries])
     @endif
 
     <div class="form-actions" style="margin-top:16px;">

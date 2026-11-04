@@ -65,7 +65,7 @@ class StockController extends Controller
                     ->where('product_id', $product->id)
                     ->orderByDesc('sap_trans_seq')
                     ->orderByDesc('created_at')
-                    ->paginate(50)
+                    ->paginate(20)
                     ->withQueryString()
                 : null,
         ]);

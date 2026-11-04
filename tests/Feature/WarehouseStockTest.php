@@ -101,6 +101,30 @@ class WarehouseStockTest extends TestCase
             ->assertSeeInOrder(['SKU-1', '158', '160', '-2']);
     }
 
+    public function test_riwayat_mutasi_ditampilkan_20_baris_per_halaman(): void
+    {
+        $warehouse = Warehouse::factory()->create(['company_id' => $this->company->id]);
+        $this->store->update(['warehouse_id' => $warehouse->id]);
+        foreach (range(1, 25) as $seq) {
+            WarehouseStockService::record($warehouse, $this->product->id, WarehouseStockLedger::TYPE_GOODS_RECEIPT, 1, [
+                'attributes' => ['sap_trans_seq' => $seq, 'sap_trans_type' => 59, 'sap_doc_num' => (string) (2700000 + $seq)],
+            ]);
+        }
+
+        $url = route('admin.stock.mutations', ['product' => $this->product, 'store' => $this->store->id]);
+
+        $this->actingAs($this->owner)->get($url)
+            ->assertOk()
+            ->assertSee('Goods Receipt 2700025')
+            ->assertSee('Goods Receipt 2700006')
+            ->assertDontSee('Goods Receipt 2700005');
+
+        $this->actingAs($this->owner)->get($url.'&page=2')
+            ->assertOk()
+            ->assertSee('Goods Receipt 2700005')
+            ->assertDontSee('Goods Receipt 2700006');
+    }
+
     public function test_riwayat_mutasi_menampilkan_dokumen_sap_warehouse_gerai(): void
     {
         $warehouse = Warehouse::factory()->create(['company_id' => $this->company->id]);
