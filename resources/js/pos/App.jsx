@@ -538,9 +538,9 @@ export default function App() {
         return () => window.removeEventListener('keydown', onKeyDown);
     }, []);
 
-    // Notifikasi sukses/info/peringatan hilang sendiri setelah 5 detik; error tetap tampil sampai diklik.
+    // Semua notifikasi (termasuk error) hilang sendiri setelah 5 detik, atau saat diklik.
     useEffect(() => {
-        if (!notice || notice.type === 'error') return undefined;
+        if (!notice) return undefined;
         const timer = setTimeout(() => setNotice(null), 5000);
         return () => clearTimeout(timer);
     }, [notice]);
