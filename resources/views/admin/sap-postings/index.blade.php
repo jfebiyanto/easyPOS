@@ -19,7 +19,7 @@
 </div>
 
 <div class="table-wrap">
-    <table class="md-table">
+    <table class="md-table sap-monitor">
         <thead>
             <tr>
                 <th>No. Penjualan</th>
@@ -36,12 +36,12 @@
         <tbody>
             @forelse ($sales as $sale)
                 <tr>
-                    <td class="mono">{{ $sale->number }}</td>
+                    <td class="mono" style="white-space:nowrap;">{{ $sale->number }}</td>
                     <td class="mono">{{ $sale->business_date?->format('d/m/Y') }}</td>
                     <td>{{ $sale->store?->code ?? '-' }}</td>
-                    <td>{{ $sale->customer ? ($sale->customer->code ?? '-').' · '.$sale->customer->name : '-' }}</td>
+                    <td style="min-width:150px;">{{ $sale->customer ? ($sale->customer->code ?? '-').' · '.$sale->customer->name : '-' }}</td>
                     <td style="text-align:right;" class="money">{{ $money($sale->total) }}</td>
-                    <td>
+                    <td style="min-width:180px; max-width:260px;">
                         <span class="chip {{ $statusChips[$sale->sap_post_status] ?? 'chip-neutral' }}">{{ $statusLabels[$sale->sap_post_status] ?? $sale->sap_post_status }}</span>
                         @if ($sale->sap_post_error)
                             <div class="hint" style="color: var(--color-danger);">{{ $sale->sap_post_error }}</div>
@@ -49,11 +49,11 @@
                     </td>
                     <td class="mono">{{ $sale->sap_invoice_doc_num ?: '-' }}</td>
                     <td class="mono">{{ $sale->sap_payment_doc_num ?: '-' }}</td>
-                    <td style="text-align:right;">
+                    <td style="text-align:right; white-space:nowrap;">
                         @if ($canManage && $sale->sap_post_status === 'failed')
                             <form method="POST" action="{{ route('admin.sap-postings.retry', $sale) }}">
                                 @csrf
-                                <button type="submit" class="btn btn-outline"><span class="material-symbols-rounded">sync</span> Kirim Ulang</button>
+                                <button type="submit" class="btn btn-outline btn-sm"><span class="material-symbols-rounded">sync</span> Kirim Ulang</button>
                             </form>
                         @endif
                     </td>

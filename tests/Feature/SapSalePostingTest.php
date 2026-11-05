@@ -559,6 +559,7 @@ class SapSalePostingTest extends TestCase
             ->get(route('admin.sap-postings.index'))
             ->assertOk()
             ->assertSee('Integration Monitor')
+            ->assertSee('Gagal (1)')
             ->assertSee($sale->number)
             ->assertSeeInOrder(['A/R Invoice SAP', 'Incoming Payment SAP'])
             ->assertSee('2600001')

@@ -40,9 +40,9 @@ class SapPostingController extends Controller
             'status' => $status,
             'counts' => Sale::where('company_id', $company->id)
                 ->whereNotNull('sap_post_status')
-                ->selectRaw('sap_post_status, count(*) as total')
+                ->selectRaw('sap_post_status, count(*) as jumlah')
                 ->groupBy('sap_post_status')
-                ->pluck('total', 'sap_post_status'),
+                ->pluck('jumlah', 'sap_post_status'),
         ]);
     }
 
