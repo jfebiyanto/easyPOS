@@ -350,7 +350,7 @@ class SapSalePostingTest extends TestCase
             && ! array_key_exists('COGSCostingCode', $request['DocumentLines'][0]));
     }
 
-    public function test_ppn_inklusif_mengirim_harga_di_gross_price(): void
+    public function test_ppn_inklusif_mengirim_harga_di_price_after_vat(): void
     {
         $this->fakeSap();
         $this->company->update(['ppn_inclusive' => true]);
@@ -358,8 +358,9 @@ class SapSalePostingTest extends TestCase
         $sale = $this->sell();
 
         Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/Invoices')
-            && $request['DocumentLines'][0]['GrossPrice'] === round((float) $sale->lines[0]->line_total / 2, 6)
+            && $request['DocumentLines'][0]['PriceAfterVAT'] === round((float) $sale->lines[0]->line_total / 2, 6)
             && ! array_key_exists('Price', $request['DocumentLines'][0])
+            && ! array_key_exists('GrossPrice', $request['DocumentLines'][0])
             && ! array_key_exists('LineTotal', $request['DocumentLines'][0]));
     }
 

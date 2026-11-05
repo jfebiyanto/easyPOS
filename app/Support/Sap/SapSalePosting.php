@@ -22,7 +22,7 @@ use Throwable;
  *   dipetakan ke kartu kredit SAP (menu Tipe Pembayaran) dan dicatat sebagai Credit Card
  *   (PaymentCreditCards) dengan nomor kartu default; akun: UDF QRIS/EDC warehouse untuk tipe QRIS/EDC,
  *   selain itu akun GL kartu kredit SAP.
- * - Baris invoice memakai profit center warehouse (CostingCode/COGSCostingCode di Service Layer) bila terisi, dan harga satuan di GrossPrice (PPN inklusif) atau Price (eksklusif).
+ * - Baris invoice memakai profit center warehouse (CostingCode/COGSCostingCode di Service Layer) bila terisi, dan harga satuan di PriceAfterVAT (PPN inklusif) atau Price (eksklusif).
  *
  * - Header dokumen: U_SOL_FRST = 'Y', U_SOL_TRKY = UUID penjualan, U_SOL_STID = UUID gerai.
  * - Idempoten per langkah: sebelum membuat dokumen, cari dokumen dengan U_SOL_TRKY yang sama.
@@ -214,9 +214,10 @@ class SapSalePosting
     }
 
     /**
-     * Harga satuan efektif (setelah diskon promosi) dikirim sebagai `GrossPrice` (harga termasuk PPN)
+     * Harga satuan efektif (setelah diskon promosi) dikirim sebagai `PriceAfterVAT` (harga termasuk PPN)
      * bila setting PPN inklusif aktif, atau `Price` (harga sebelum PPN) bila tidak. SAP menghitung
-     * total baris dari harga x Quantity.
+     * total baris dari harga x Quantity. `GrossPrice` sendirian diabaikan Service Layer (dibaca sebagai
+     * Price, sehingga PPN ditambahkan lagi); diuji lewat Drafts di SAP demo.
      *
      * @return array<string, mixed>
      */
@@ -232,7 +233,7 @@ class SapSalePosting
         $payload = [
             'ItemCode' => $line->sku_snapshot,
             'Quantity' => $qty,
-            $inclusive ? 'GrossPrice' : 'Price' => $qty > 0 ? round($amount / $qty, 6) : 0.0,
+            $inclusive ? 'PriceAfterVAT' : 'Price' => $qty > 0 ? round($amount / $qty, 6) : 0.0,
             'WarehouseCode' => $sale->store->warehouse->code,
         ];
 
