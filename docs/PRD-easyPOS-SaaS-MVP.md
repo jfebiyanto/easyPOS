@@ -10,7 +10,7 @@
 | Terakhir diperbarui | 2026-11-04 |
 | Stack | Backend Laravel, Frontend React JS |
 
-**Perubahan v1.6 (2026-11-03):** integrasi SAP B1 (impor master data & saldo stok, sinkronisasi berkala), modul Warehouse, pricelist jual/beli per gerai, default pelanggan retail per gerai, saldo stok per warehouse, Tax Group (Output Tax) untuk Setting Pajak. Lihat Bagian 6b (C1–C6), model data (Bagian 7), serta penyesuaian FR-A2-02, FR-A7-04, dan FR-A9-02. Tambahan 2026-11-04: penguncian koneksi SAP setelah impor awal (FR-C4-11 s.d. FR-C4-16); semua warehouse SAP diimpor dengan penanda retail (FR-C1-03, FR-C4-04); mutasi stok SAP (OIVL) disalin tiap menit dan menjadi sumber saldo, OITW hanya untuk rekonsiliasi (FR-C4-17 s.d. FR-C4-21, C5); cost item hanya di SAP; akun kas gerai dari warehouse (FR-C1-05); customer manual dikirim ke SAP (C7); posting penjualan POS ke SAP sebagai A/R Invoice + Incoming Payment (C8); konvensi tampilan admin (C9). Tambahan 2026-11-05: Kasir dan Store Manager wajib di tepat satu gerai aktif, pindah gerai hanya oleh Owner, penjualan offline dicatat ke gerai asal (FR-A1-08 s.d. FR-A1-10); layar POS menampilkan kode dan nama pelanggan (default dari master gerai) di atas daftar barang, dan pelanggan serta data pengiriman ikut ditahan lalu direset (FR-A8-09).
+**Perubahan v1.6 (2026-11-03):** integrasi SAP B1 (impor master data & saldo stok, sinkronisasi berkala), modul Warehouse, pricelist jual/beli per gerai, default pelanggan retail per gerai, saldo stok per warehouse, Tax Group (Output Tax) untuk Setting Pajak. Lihat Bagian 6b (C1–C6), model data (Bagian 7), serta penyesuaian FR-A2-02, FR-A7-04, dan FR-A9-02. Tambahan 2026-11-04: penguncian koneksi SAP setelah impor awal (FR-C4-11 s.d. FR-C4-16); semua warehouse SAP diimpor dengan penanda retail (FR-C1-03, FR-C4-04); mutasi stok SAP (OIVL) disalin tiap menit dan menjadi sumber saldo, OITW hanya untuk rekonsiliasi (FR-C4-17 s.d. FR-C4-21, C5); cost item hanya di SAP; akun kas gerai dari warehouse (FR-C1-05); customer manual dikirim ke SAP (C7); posting penjualan POS ke SAP sebagai A/R Invoice + Incoming Payment (C8); konvensi tampilan admin (C9). Tambahan 2026-11-05: Kasir dan Store Manager wajib di tepat satu gerai aktif, pindah gerai hanya oleh Owner, penjualan offline dicatat ke gerai asal (FR-A1-08 s.d. FR-A1-10); layar POS menampilkan kode dan nama pelanggan (default dari master gerai) di atas daftar barang, dan pelanggan serta data pengiriman ikut ditahan lalu direset (FR-A8-09); EOD tertunda tidak lagi memblokir transaksi tetapi mengarahkannya ke tanggal bisnis itu dengan konfirmasi kasir saat login, serta sapaan login dan business date (FR-A8-14 s.d. FR-A8-17, FR-B8-06).
 
 Dokumen ini adalah baseline yang disetujui. Semua keputusan klarifikasi sudah di-fold-in. Satu constraint teknis dikunci pada Bagian 3 dan 8.
 
@@ -289,7 +289,10 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - FR-A8-11: Stok tidak cukup → ditolak, kecuali `allow_negative_stock` aktif.
 - FR-A8-12: Cetak gagal tidak menggagalkan transaksi.
 - FR-A8-13: Checkout idempoten (`client_uuid`).
-- FR-A8-14: Transaksi diblokir jika tanggal bisnis store belum dibuka/ditutup (lihat B8).
+- FR-A8-14: Transaksi online diblokir hanya bila EOD tanggal posting-nya sudah ditutup (lihat B8). EOD tanggal sebelumnya yang tertunda tidak lagi memblokir, melainkan mengarahkan pencatatan ke tanggal itu (FR-A8-15). *(Diubah 2026-11-05.)*
+- FR-A8-15: **Tanggal posting** transaksi = tanggal bisnis tertua milik gerai yang masih punya transaksi tetapi belum di-EOD; bila tidak ada, tanggal kalender perusahaan. Berlaku untuk online maupun offline (dihitung server saat transaksi disimpan/disinkron), dan menjadi `business_date` penjualan serta posting date (`DocDate`/`TaxDate`) dokumen SAP (C8). *(Baru 2026-11-05.)*
+- FR-A8-16: Saat login ke POS dengan EOD tertunda, kasir wajib menjawab peringatan "transaksi hari ini akan dicatat sebagai transaksi tanggal {tanggal EOD tertunda}". **Ya**: semua transaksi sesi itu dicatat ke tanggal tersebut; **Tidak**: login dibatalkan (logout) agar Store Manager menyelesaikan EOD lebih dulu. Konfirmasi disimpan per sesi login dan per tanggal; server menolak transaksi online (409) bila belum dikonfirmasi. Transaksi offline tidak menunggu konfirmasi. Peringatan muncul lagi bila tanggal EOD tertunda berubah selama sesi. *(Baru 2026-11-05.)*
+- FR-A8-17: Setiap kasir login disapa "Selamat pagi/siang/sore/malam" beserta business date (tanggal posting) di POS: 06.00-09.59 pagi, 10.00-14.59 siang, 15.00-17.59 sore, selebihnya malam, menurut jam login dalam zona waktu perusahaan. Sapaan tampil sekali per login dan ditutup bersama konfirmasi. Status bar POS menampilkan tanggal posting, bukan tanggal kalender, selama ada EOD tertunda. *(Baru 2026-11-05.)*
 
 ### A9 — Stock ledger & saldo
 - FR-A9-01: Tipe entri: `opening`, `sale`, `sale_return`, `adjustment`, `transfer_out`, `transfer_in`.
@@ -386,7 +389,7 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - FR-B8-03: Jika `allow_negative_stock=true`, transaksi offline negative-stock otomatis sah dan tidak masuk review queue.
 - FR-B8-04: EOD mencatat: gerai, tanggal bisnis, waktu buka/tutup, total penjualan, kas seharusnya vs kas dihitung, selisih, petugas.
 - FR-B8-05: Kas fisik wajib dihitung per pecahan mata uang (ref. pecahan IDR); total pecahan = kas dihitung.
-- FR-B8-06: EOD mengunci tanggal bisnis berikutnya per store sampai EOD selesai.
+- FR-B8-06: EOD yang tertunda tidak memblokir transaksi hari berikutnya; transaksi dicatat ke tanggal bisnis yang belum di-EOD setelah kasir mengonfirmasi saat login (FR-A8-15, FR-A8-16). EOD tanggal yang sudah ditutup tetap mengunci transaksi online ke tanggal itu sampai dibuka ulang. *(Diubah 2026-11-05.)*
 - FR-B8-07: EOD tidak dapat diselesaikan selama ada review pending (kecuali override Owner, tercatat).
 - FR-B8-08: Setelah EOD, laporan harian final tersedia.
 
