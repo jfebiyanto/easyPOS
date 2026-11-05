@@ -13,6 +13,7 @@ use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class FoundationTest extends TestCase
@@ -176,9 +177,107 @@ class FoundationTest extends TestCase
                 'name' => 'Owner',
                 'username' => 'owner1',
                 'role' => User::ROLE_CASHIER,
+                'store_id' => $this->store->id,
                 'is_active' => '1',
             ])
             ->assertStatus(422);
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function storeBoundRoles(): array
+    {
+        return [
+            'kasir' => [User::ROLE_CASHIER],
+            'store manager' => [User::ROLE_STORE_MANAGER],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function userFormInput(string $role, ?string $storeId): array
+    {
+        return [
+            'name' => 'Staf',
+            'username' => 'staf1',
+            'role' => $role,
+            'store_id' => $storeId,
+            'is_active' => '1',
+            'password' => 'password12345',
+        ];
+    }
+
+    #[DataProvider('storeBoundRoles')]
+    public function test_kasir_dan_manager_wajib_punya_gerai(string $role): void
+    {
+        $this->actingAs($this->owner)
+            ->post(route('admin.users.store'), $this->userFormInput($role, null))
+            ->assertSessionHasErrors(['store_id' => 'Kasir dan Store Manager wajib ditugaskan ke satu gerai aktif.']);
+
+        $this->assertDatabaseMissing('users', ['username' => 'staf1']);
+    }
+
+    public function test_kasir_ditolak_bila_ditugaskan_ke_gerai_nonaktif(): void
+    {
+        $inactive = Store::create(['company_id' => $this->company->id, 'code' => 'STR009', 'name' => 'Store Tutup', 'pic_name' => 'PIC', 'currency' => 'IDR', 'is_active' => false]);
+
+        $this->actingAs($this->owner)
+            ->post(route('admin.users.store'), $this->userFormInput(User::ROLE_CASHIER, $inactive->id))
+            ->assertSessionHasErrors(['store_id' => 'Gerai yang dipilih tidak aktif atau tidak tersedia.']);
+
+        $this->assertDatabaseMissing('users', ['username' => 'staf1']);
+    }
+
+    public function test_owner_boleh_tanpa_gerai(): void
+    {
+        $this->actingAs($this->owner)
+            ->post(route('admin.users.store'), $this->userFormInput(User::ROLE_OWNER, null))
+            ->assertRedirect(route('admin.users.index'));
+
+        $this->assertDatabaseHas('users', ['username' => 'staf1', 'store_id' => null]);
+    }
+
+    public function test_form_user_hanya_menawarkan_gerai_aktif_dan_gerai_saat_ini(): void
+    {
+        $inactiveCurrent = Store::create(['company_id' => $this->company->id, 'code' => 'STR008', 'name' => 'Store Lama', 'pic_name' => 'PIC', 'currency' => 'IDR', 'is_active' => false]);
+        Store::create(['company_id' => $this->company->id, 'code' => 'STR009', 'name' => 'Store Tutup', 'pic_name' => 'PIC', 'currency' => 'IDR', 'is_active' => false]);
+        $cashier = User::create(['company_id' => $this->company->id, 'store_id' => $inactiveCurrent->id, 'name' => 'Kasir', 'username' => 'kasir1', 'role' => User::ROLE_CASHIER, 'is_active' => true, 'password' => 'password']);
+
+        $this->actingAs($this->owner)->get(route('admin.users.edit', $cashier))
+            ->assertOk()
+            ->assertSee('Store Lama (nonaktif)')
+            ->assertViewHas('stores', fn ($stores) => $stores->pluck('code')->sort()->values()->all() === ['STR001', 'STR008']);
+    }
+
+    public function test_memindahkan_kasir_mengubah_gerai_dan_tercatat_di_log(): void
+    {
+        $target = Store::create(['company_id' => $this->company->id, 'code' => 'STR002', 'name' => 'Store Dua', 'pic_name' => 'PIC', 'currency' => 'IDR']);
+        $cashier = User::create(['company_id' => $this->company->id, 'store_id' => $this->store->id, 'name' => 'Staf', 'username' => 'staf1', 'role' => User::ROLE_CASHIER, 'is_active' => true, 'password' => 'password']);
+
+        $this->actingAs($this->owner)
+            ->put(route('admin.users.update', $cashier), $this->userFormInput(User::ROLE_CASHIER, $target->id))
+            ->assertRedirect(route('admin.users.index'));
+
+        $this->assertSame($target->id, $cashier->fresh()->store_id);
+        $this->assertDatabaseHas('activity_logs', [
+            'action' => 'user.store_changed',
+            'description' => 'Memindahkan staf1 dari gerai STR001 ke STR002',
+        ]);
+    }
+
+    public function test_store_manager_tidak_bisa_memindahkan_kasir(): void
+    {
+        $target = Store::create(['company_id' => $this->company->id, 'code' => 'STR002', 'name' => 'Store Dua', 'pic_name' => 'PIC', 'currency' => 'IDR']);
+        $cashier = User::create(['company_id' => $this->company->id, 'store_id' => $this->store->id, 'name' => 'Staf', 'username' => 'staf1', 'role' => User::ROLE_CASHIER, 'is_active' => true, 'password' => 'password']);
+        $manager = User::create(['company_id' => $this->company->id, 'store_id' => $this->store->id, 'name' => 'Manager', 'username' => 'manager1', 'role' => User::ROLE_STORE_MANAGER, 'is_active' => true, 'password' => 'password']);
+
+        $this->actingAs($manager)
+            ->put(route('admin.users.update', $cashier), $this->userFormInput(User::ROLE_CASHIER, $target->id))
+            ->assertForbidden();
+
+        $this->assertSame($this->store->id, $cashier->fresh()->store_id);
     }
 
     public function test_semua_halaman_admin_utama_dapat_dirender(): void

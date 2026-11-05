@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\CompanyDetail;
+use App\Models\Customer;
 use App\Models\PaymentType;
 use App\Models\PriceList;
 use App\Models\Product;
@@ -18,6 +19,7 @@ use App\Models\User;
 use App\Support\StockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class PosTest extends TestCase
@@ -152,6 +154,140 @@ class PosTest extends TestCase
             ->assertJsonPath('business.business_date', company_today())
             ->assertJsonPath('business.timezone', 'Asia/Jakarta')
             ->assertJsonPath('business.locked_date', $yesterday);
+    }
+
+    public function test_bootstrap_mengirim_pelanggan_default_dari_master_gerai(): void
+    {
+        $retail = Customer::create(['company_id' => $this->company->id, 'code' => 'C-RTL', 'name' => 'Pelanggan Retail', 'is_member' => false, 'is_active' => true]);
+        $this->store->update(['default_customer_id' => $retail->id]);
+
+        $this->actingAs($this->cashier)->getJson('/pos/bootstrap')
+            ->assertOk()
+            ->assertJsonPath('default_customer', ['id' => $retail->id, 'code' => 'C-RTL', 'name' => 'Pelanggan Retail']);
+    }
+
+    public function test_bootstrap_tanpa_pelanggan_default_bila_gerai_belum_mengaturnya(): void
+    {
+        $this->actingAs($this->cashier)->getJson('/pos/bootstrap')
+            ->assertOk()
+            ->assertJsonPath('default_customer', null);
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function storeBoundRoles(): array
+    {
+        return [
+            'kasir' => [User::ROLE_CASHIER],
+            'store manager' => [User::ROLE_STORE_MANAGER],
+        ];
+    }
+
+    #[DataProvider('storeBoundRoles')]
+    public function test_user_tanpa_gerai_ditolak_422_dan_tidak_memakai_gerai_pertama(string $role): void
+    {
+        $user = User::create(['company_id' => $this->company->id, 'store_id' => null, 'name' => 'Staf', 'username' => 'staf1', 'role' => $role, 'is_active' => true, 'password' => 'password']);
+
+        $this->actingAs($user)->getJson('/pos/bootstrap')
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Akun Anda belum ditugaskan ke gerai. Hubungi Owner.');
+
+        $this->actingAs($user)->postJson('/pos/sales', $this->salePayload())->assertStatus(422);
+        $this->assertSame(0, Sale::count());
+    }
+
+    #[DataProvider('storeBoundRoles')]
+    public function test_user_di_gerai_nonaktif_ditolak_422(string $role): void
+    {
+        $this->store->update(['is_active' => false]);
+        $user = User::create(['company_id' => $this->company->id, 'store_id' => $this->store->id, 'name' => 'Staf', 'username' => 'staf1', 'role' => $role, 'is_active' => true, 'password' => 'password']);
+
+        $this->actingAs($user)->getJson('/pos/customers')
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Gerai Anda sedang nonaktif. Hubungi Owner.');
+    }
+
+    public function test_owner_tanpa_gerai_tetap_memakai_gerai_pertama(): void
+    {
+        $owner = User::create(['company_id' => $this->company->id, 'store_id' => null, 'name' => 'Owner', 'username' => 'owner1', 'role' => User::ROLE_OWNER, 'is_active' => true, 'password' => 'password']);
+
+        $this->actingAs($owner)->getJson('/pos/bootstrap')
+            ->assertOk()
+            ->assertJsonPath('store.code', 'STR001');
+    }
+
+    private function moveCashierToNewStore(): Store
+    {
+        $newStore = Store::create(['company_id' => $this->company->id, 'code' => 'STR002', 'name' => 'Gerai B', 'pic_name' => 'PIC', 'currency' => 'IDR']);
+        $this->cashier->update(['store_id' => $newStore->id]);
+
+        return $newStore;
+    }
+
+    public function test_penjualan_offline_dicatat_ke_gerai_asal_setelah_kasir_dipindah(): void
+    {
+        $newStore = $this->moveCashierToNewStore();
+
+        $this->actingAs($this->cashier)
+            ->postJson('/pos/sales', $this->salePayload(['origin' => 'offline', 'store_id' => $this->store->id]))
+            ->assertCreated();
+
+        $this->assertSame($this->store->id, Sale::first()->store_id);
+        $this->assertSame(8.0, StockService::balance($this->store->id, $this->product->id));
+        $this->assertSame(0.0, StockService::balance($newStore->id, $this->product->id));
+        $this->assertDatabaseHas('activity_logs', ['action' => 'pos.sale_origin_store']);
+    }
+
+    public function test_penjualan_offline_ke_gerai_asal_diterima_walau_gerai_kasir_nonaktif(): void
+    {
+        $this->store->update(['is_active' => false]);
+
+        $this->actingAs($this->cashier)
+            ->postJson('/pos/sales', $this->salePayload(['origin' => 'offline', 'store_id' => $this->store->id]))
+            ->assertCreated();
+
+        $this->assertSame($this->store->id, Sale::first()->store_id);
+    }
+
+    public function test_penjualan_offline_ditolak_bila_gerai_asal_milik_perusahaan_lain(): void
+    {
+        $otherCompany = CompanyDetail::create(['name' => 'Lain Co']);
+        $foreignStore = Store::create(['company_id' => $otherCompany->id, 'code' => 'LAIN', 'name' => 'Gerai Lain', 'pic_name' => 'PIC', 'currency' => 'IDR']);
+
+        $this->actingAs($this->cashier)
+            ->postJson('/pos/sales', $this->salePayload(['origin' => 'offline', 'store_id' => $foreignStore->id]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('store_id');
+
+        $this->assertSame(0, Sale::count());
+    }
+
+    public function test_penjualan_online_dari_layar_gerai_lama_ditolak_409(): void
+    {
+        $this->moveCashierToNewStore();
+
+        $this->actingAs($this->cashier)
+            ->postJson('/pos/sales', $this->salePayload(['store_id' => $this->store->id]))
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Penugasan gerai Anda berubah. Muat ulang POS sebelum melanjutkan.');
+
+        $this->assertSame(0, Sale::count());
+    }
+
+    public function test_hold_gerai_lama_tidak_tampil_dan_tidak_bisa_dilanjutkan_setelah_pindah(): void
+    {
+        $this->actingAs($this->cashier)->postJson('/pos/holds', [
+            'client_uuid' => (string) Str::uuid(),
+            'payload' => ['cart' => []],
+        ])->assertCreated();
+        $draft = SaleDraft::first();
+
+        $this->moveCashierToNewStore();
+
+        $this->actingAs($this->cashier)->getJson('/pos/holds')->assertOk()->assertJsonCount(0, 'data');
+        $this->actingAs($this->cashier)->postJson("/pos/holds/{$draft->id}/consume")->assertStatus(409);
+        $this->assertSame('held', $draft->fresh()->status);
     }
 
     public function test_pencarian_produk_tidak_membedakan_huruf_besar_kecil(): void

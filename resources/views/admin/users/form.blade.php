@@ -53,9 +53,10 @@
                 <select id="store_id" name="store_id">
                     <option value="">- Pilih Store -</option>
                     @foreach ($stores as $store)
-                        <option value="{{ $store->id }}" @selected(old('store_id', $user->store_id) == $store->id)>{{ $store->code }} · {{ $store->name }}</option>
+                        <option value="{{ $store->id }}" @selected(old('store_id', $user->store_id) == $store->id)>{{ $store->code }} · {{ $store->name }}{{ $store->is_active ? '' : ' (nonaktif)' }}</option>
                     @endforeach
                 </select>
+                <div class="hint">Wajib untuk Kasir dan Store Manager: satu gerai aktif. Pindah gerai dilakukan Owner di halaman ini.</div>
                 @error('store_id') <div class="error">{{ $message }}</div> @enderror
             </div>
             <div class="field @error('password') has-error @enderror">

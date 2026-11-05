@@ -10,7 +10,7 @@
 | Terakhir diperbarui | 2026-11-04 |
 | Stack | Backend Laravel, Frontend React JS |
 
-**Perubahan v1.6 (2026-11-03):** integrasi SAP B1 (impor master data & saldo stok, sinkronisasi berkala), modul Warehouse, pricelist jual/beli per gerai, default pelanggan retail per gerai, saldo stok per warehouse, Tax Group (Output Tax) untuk Setting Pajak. Lihat Bagian 6b (C1–C6), model data (Bagian 7), serta penyesuaian FR-A2-02, FR-A7-04, dan FR-A9-02. Tambahan 2026-11-04: penguncian koneksi SAP setelah impor awal (FR-C4-11 s.d. FR-C4-16); semua warehouse SAP diimpor dengan penanda retail (FR-C1-03, FR-C4-04); mutasi stok SAP (OIVL) disalin tiap menit dan menjadi sumber saldo, OITW hanya untuk rekonsiliasi (FR-C4-17 s.d. FR-C4-21, C5); cost item hanya di SAP; akun kas gerai dari warehouse (FR-C1-05); customer manual dikirim ke SAP (C7); posting penjualan POS ke SAP sebagai A/R Invoice + Incoming Payment (C8); konvensi tampilan admin (C9).
+**Perubahan v1.6 (2026-11-03):** integrasi SAP B1 (impor master data & saldo stok, sinkronisasi berkala), modul Warehouse, pricelist jual/beli per gerai, default pelanggan retail per gerai, saldo stok per warehouse, Tax Group (Output Tax) untuk Setting Pajak. Lihat Bagian 6b (C1–C6), model data (Bagian 7), serta penyesuaian FR-A2-02, FR-A7-04, dan FR-A9-02. Tambahan 2026-11-04: penguncian koneksi SAP setelah impor awal (FR-C4-11 s.d. FR-C4-16); semua warehouse SAP diimpor dengan penanda retail (FR-C1-03, FR-C4-04); mutasi stok SAP (OIVL) disalin tiap menit dan menjadi sumber saldo, OITW hanya untuk rekonsiliasi (FR-C4-17 s.d. FR-C4-21, C5); cost item hanya di SAP; akun kas gerai dari warehouse (FR-C1-05); customer manual dikirim ke SAP (C7); posting penjualan POS ke SAP sebagai A/R Invoice + Incoming Payment (C8); konvensi tampilan admin (C9). Tambahan 2026-11-05: Kasir dan Store Manager wajib di tepat satu gerai aktif, pindah gerai hanya oleh Owner, penjualan offline dicatat ke gerai asal (FR-A1-08 s.d. FR-A1-10); layar POS menampilkan kode dan nama pelanggan (default dari master gerai) di atas daftar barang, dan pelanggan serta data pengiriman ikut ditahan lalu direset (FR-A8-09).
 
 Dokumen ini adalah baseline yang disetujui. Semua keputusan klarifikasi sudah di-fold-in. Satu constraint teknis dikunci pada Bagian 3 dan 8.
 
@@ -222,6 +222,9 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - FR-A1-05: Rate limit login 5/menit/IP; akun nonaktif ditolak.
 - FR-A1-06: Minimal 1 Owner aktif; sistem menolak aksi yang menyisakan 0 Owner.
 - FR-A1-07: Semua mutasi tercatat di audit log (waktu Asia/Jakarta).
+- FR-A1-08: Kasir dan Store Manager wajib ditugaskan ke tepat satu gerai aktif (ditegakkan di server). Pindah gerai hanya oleh Owner lewat halaman user dan tercatat di audit log. Owner boleh tanpa gerai. *(Baru 2026-11-05.)*
+- FR-A1-09: Kasir atau Store Manager tanpa gerai aktif ditolak di semua endpoint POS. Pengecualian: penjualan offline yang membawa gerai asalnya tetap diterima. *(Baru 2026-11-05.)*
+- FR-A1-10: Penjualan offline dicatat ke gerai asal (`store_id` di antrean), walau kasir sudah dipindahkan sebelum sinkron; perbedaan dengan gerai kasir tercatat di audit log. Daftar tahan hanya menampilkan transaksi gerai saat ini. Kasir yang sedang login wajib memuat ulang POS setelah dipindahkan. *(Baru 2026-11-05.)*
 
 ### A2 — Setting perusahaan
 - FR-A2-01: Nama badan usaha, alamat, logo, NPWP, telepon, email.
@@ -281,7 +284,7 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - FR-A8-06: Nomor transaksi dari konfigurasi penomoran; `business_date` store.
 - FR-A8-07: Cetak struk thermal; tombol cetak ulang.
 - FR-A8-08: Cash drawer terbuka otomatis saat pembayaran tunai (WebUSB kick; fallback bila gagal).
-- FR-A8-09: Input nomor HP/kode customer opsional; member dapat poin sesuai level.
+- FR-A8-09: Input nomor HP/kode customer opsional; member dapat poin sesuai level. Layar transaksi menampilkan kode dan nama pelanggan di atas daftar barang; tanpa pilihan kasir, tampil pelanggan retail default dari master gerai (FR-C2-02). Kasir dapat mengganti atau menghapus pilihan, dan pelanggan ikut tersimpan saat transaksi ditahan. *(Diubah 2026-11-05.)*
 - FR-A8-10: Void dibatasi Store Manager/Owner + alasan; mengembalikan stok; tercatat.
 - FR-A8-11: Stok tidak cukup → ditolak, kecuali `allow_negative_stock` aktif.
 - FR-A8-12: Cetak gagal tidak menggagalkan transaksi.

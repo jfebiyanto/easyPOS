@@ -236,6 +236,7 @@ class CustomerLoyaltyTest extends TestCase
             'name' => $this->store->name,
             'pic_name' => 'PIC',
             'currency' => 'IDR',
+            'is_active' => '1',
             'default_customer_id' => $retail->id,
         ])->assertRedirect(route('admin.stores.index'));
 

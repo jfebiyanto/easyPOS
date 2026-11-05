@@ -65,6 +65,7 @@ class PosController extends Controller
                 'return_window_days' => $company->return_window_days,
             ],
             'store' => ['id' => $store->id, 'code' => $store->code, 'name' => $store->name],
+            'default_customer' => $store->defaultCustomer?->only(['id', 'code', 'name']),
             'cashier' => $request->user()->only(['id', 'name', 'role']),
             'payment_types' => $paymentTypes,
             'business' => store_business_status($store->id),
@@ -150,11 +151,9 @@ class PosController extends Controller
 
     public function storeSale(Request $request): JsonResponse
     {
-        $store = $this->store($request);
-        abort_unless($store, 422, 'Kasir belum ditugaskan ke gerai.');
-
         $data = $request->validate([
             'client_uuid' => ['nullable', 'uuid'],
+            'store_id' => ['nullable', Rule::exists('stores', 'id')->where('company_id', current_company_id())],
             'origin' => ['nullable', Rule::in(['online', 'offline'])],
             'sold_at' => ['nullable', 'date'],
             'customer_id' => ['nullable', Rule::exists('customers', 'id')->where('company_id', current_company_id())],
@@ -179,6 +178,22 @@ class PosController extends Controller
 
         $holdClientUuid = $data['hold_client_uuid'] ?? null;
         unset($data['hold_client_uuid']);
+
+        $assignedStore = $this->store($request);
+        $originStoreId = $data['store_id'] ?? null;
+
+        // Penjualan offline dicatat ke gerai tempatnya terjadi, walau kasir sudah dipindahkan sebelum sinkron.
+        $store = ($data['origin'] ?? 'online') === 'offline' && $originStoreId
+            ? Store::find($originStoreId)
+            : $assignedStore;
+
+        abort_unless($store, 422, 'Kasir belum ditugaskan ke gerai.');
+
+        abort_if(
+            ($data['origin'] ?? 'online') !== 'offline' && $originStoreId && $originStoreId !== $store->id,
+            409,
+            'Penugasan gerai Anda berubah. Muat ulang POS sebelum melanjutkan.'
+        );
 
         $data['store_id'] = $store->id;
 
@@ -205,6 +220,15 @@ class PosController extends Controller
         }
 
         ActivityLogger::log('pos.sale_created', "Transaksi POS {$sale->number} sebesar {$sale->total}", $sale);
+
+        if ($store->id !== $assignedStore?->id) {
+            ActivityLogger::log(
+                'pos.sale_origin_store',
+                "Transaksi offline {$sale->number} dicatat ke gerai asal {$store->code}, bukan gerai kasir saat ini",
+                $sale,
+                ['origin_store_id' => $store->id, 'assigned_store_id' => $assignedStore?->id],
+            );
+        }
 
         return response()->json(['data' => $this->salePayload($sale)], 201);
     }
@@ -369,6 +393,7 @@ class PosController extends Controller
     public function holds(Request $request): JsonResponse
     {
         $drafts = SaleDraft::where('company_id', current_company_id())
+            ->where('store_id', $this->store($request)?->id)
             ->where('cashier_id', $request->user()->id)
             ->where('status', 'held')
             ->latest('updated_at')
@@ -428,6 +453,7 @@ class PosController extends Controller
     {
         abort_unless($draft->company_id === current_company_id(), 404);
         abort_unless($draft->cashier_id === $request->user()->id, 403);
+        abort_unless($draft->store_id === $this->store($request)?->id, 409, 'Transaksi ditahan ini milik gerai lain.');
 
         $consumed = SaleDraft::whereKey($draft->id)->where('status', 'held')->update(['status' => 'resumed']);
         abort_if($consumed === 0, 409, 'Transaksi ditahan sudah dilanjutkan atau dibatalkan.');
@@ -551,11 +577,18 @@ class PosController extends Controller
         ];
     }
 
+    /**
+     * Gerai yang dipakai user di POS. Hanya Owner yang boleh tanpa gerai dan memakai gerai pertama.
+     */
     private function store(Request $request): ?Store
     {
         $user = $request->user();
 
-        return $user->store_id ? Store::find($user->store_id) : Store::orderBy('code')->first();
+        if ($user->store_id) {
+            return Store::find($user->store_id);
+        }
+
+        return $user->isOwner() ? Store::orderBy('code')->first() : null;
     }
 
     private function salePayload(Sale $sale): array

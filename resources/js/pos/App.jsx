@@ -5,6 +5,7 @@ import { enqueue, readQueue, removeFromQueue, writeQueue } from './offline.js';
 import { activePromotions, applyPromotions, readCachedPromotions, writeCachedPromotions } from './promotions.js';
 import { formatBusinessClock, formatIsoDate, serverOffset } from './businessClock.js';
 import { fitCartToStock, isOutOfStock, maxQty } from './stock.js';
+import { customerPanel } from './customer.js';
 
 const fmt = (n, currency = 'IDR') =>
     (currency === 'IDR' ? 'Rp ' : currency + ' ') +
@@ -78,6 +79,8 @@ async function syncLocalHolds() {
 
 export default function App() {
     const [boot, setBoot] = useState(null);
+    const [bootError, setBootError] = useState(null);
+    const [storeChangeMessage, setStoreChangeMessage] = useState(null);
     const [products, setProducts] = useState([]);
     const [query, setQuery] = useState('');
     const [cart, setCart] = useState([]);
@@ -159,6 +162,7 @@ export default function App() {
     useEffect(() => {
         if (activeHold && cart.length === 0) {
             releaseActiveHold(activeHold);
+            setCustomer(null);
         }
     }, [activeHold, cart.length, online, releaseActiveHold]);
 
@@ -171,19 +175,28 @@ export default function App() {
                 await syncLocalHolds();
                 refreshHeldCount();
             } catch (e) {
+                setBootError(e.message);
                 setNotice({ type: 'error', text: e.message });
             }
         })();
     }, [loadProducts, loadPromotions, refreshHeldCount]);
 
-    // Status kunci EOD bisa berubah dari Management Console; segarkan berkala selama online.
+    // Status kunci EOD, pelanggan default, dan penugasan gerai bisa berubah dari admin; segarkan berkala selama online.
     useEffect(() => {
         if (!boot || !online) return undefined;
         const timer = setInterval(async () => {
             try {
                 const res = await api.bootstrap();
-                setBoot((prev) => ({ ...prev, business: res.business }));
-            } catch { /* tetap pakai status terakhir */ }
+                setBoot((prev) => ({ ...prev, business: res.business, default_customer: res.default_customer }));
+                if (res.store.id !== boot.store.id) {
+                    setStoreChangeMessage(`Anda dipindahkan ke gerai ${res.store.code} · ${res.store.name}.`);
+                }
+            } catch (e) {
+                // 422 = gerai tidak lagi bisa dipakai; kegagalan lain tetap memakai status terakhir.
+                if (e.status === 422) {
+                    setStoreChangeMessage(e.message);
+                }
+            }
         }, 60000);
         return () => clearInterval(timer);
     }, [boot !== null, online]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -213,6 +226,11 @@ export default function App() {
         }
         setQueue(readQueue());
     }, []);
+
+    // Antrean tersisa dari sesi sebelumnya tetap dikirim saat dibuka, termasuk bila gerai kasir sudah berubah.
+    useEffect(() => {
+        if (navigator.onLine) flushQueue();
+    }, [flushQueue]);
 
     const addProduct = (product, qty = 1) => {
         if (isOutOfStock(product, allowNegativeStock)) {
@@ -282,6 +300,7 @@ export default function App() {
         const soldAt = new Date();
         return {
             client_uuid: uuid(),
+            store_id: boot.store.id,
             origin,
             sold_at: soldAt.toISOString(),
             customer_id: customer?.id || null,
@@ -354,12 +373,14 @@ export default function App() {
         const clientUuid = activeHold?.client_uuid || uuid();
         try {
             if (online) {
-                await api.saveHold({ client_uuid: clientUuid, device_label: navigator.platform, payload: { cart, delivery } });
+                await api.saveHold({ client_uuid: clientUuid, device_label: navigator.platform, payload: { cart, delivery, customer } });
             } else {
-                writeLocalHolds([...withoutHold(readLocalHolds(), clientUuid), { id: clientUuid, client_uuid: clientUuid, payload: { cart, delivery }, updated_at: new Date().toISOString() }]);
+                writeLocalHolds([...withoutHold(readLocalHolds(), clientUuid), { id: clientUuid, client_uuid: clientUuid, payload: { cart, delivery, customer }, updated_at: new Date().toISOString() }]);
             }
             setActiveHold(null);
             setCart([]);
+            setCustomer(null);
+            setDelivery({ enabled: false, recipient_name: '', phone: '', address: '', note: '', cost: 0 });
             refreshHeldCount();
             setNotice({ type: 'success', text: 'Transaksi ditahan. Buka "Daftar Tahan" untuk melanjutkan.' });
         } catch (e) {
@@ -368,8 +389,19 @@ export default function App() {
     };
 
     if (!boot) {
-        return <div className="pos-loading">Memuat POS…</div>;
+        return (
+            <div className="pos-loading">
+                {bootError ? (
+                    <div className="pos-boot-error">
+                        <p>{bootError}</p>
+                        <LogoutForm />
+                    </div>
+                ) : 'Memuat POS…'}
+            </div>
+        );
     }
+
+    const customerInfo = customerPanel(customer, boot.default_customer);
 
     return (
         <div className="pos">
@@ -386,19 +418,14 @@ export default function App() {
                     {queue.length > 0 && <span className="chip chip-pending">{queue.length} tertunda</span>}
                 </div>
                 <div className="pos-actions">
-                    <button className="btn btn-tonal btn-sm" onClick={() => setShowCustomer(true)}>
-                        {customer ? customer.name : 'Pelanggan'}
-                    </button>
+                    <button className="btn btn-tonal btn-sm" onClick={() => setShowCustomer(true)}>Pelanggan</button>
                     <button className="btn btn-tonal btn-sm" onClick={() => setShowHolds(true)}>
                         Daftar Tahan{heldCount > 0 ? ` (${heldCount})` : ''}
                     </button>
                     <button className="btn btn-tonal btn-sm" onClick={() => setShowReturn(true)}>Retur</button>
                     <button className="btn btn-outline btn-sm" onClick={() => setShowDevice(true)}>Perangkat</button>
                     <span className="pos-cashier">{boot.cashier?.name}</span>
-                    <form method="POST" action="/logout">
-                        <input type="hidden" name="_token" value={document.querySelector('meta[name="csrf-token"]')?.content} />
-                        <button className="btn btn-outline btn-sm" type="submit">Keluar</button>
-                    </form>
+                    <LogoutForm />
                 </div>
             </header>
 
@@ -437,6 +464,22 @@ export default function App() {
                 </section>
 
                 <aside className="pos-cart">
+                    <div className="pos-customer">
+                        <span className="material-symbols-rounded">person</span>
+                        <div className="pos-customer-info">
+                            {customerInfo.code && <span className="pos-customer-code sku">{customerInfo.code}</span>}
+                            <strong title={customerInfo.name}>{customerInfo.name}</strong>
+                            {customerInfo.isDefault && <span className="chip">Default</span>}
+                        </div>
+                        <button className="btn btn-tonal btn-sm" onClick={() => setShowCustomer(true)}>
+                            {customerInfo.isSelected ? 'Ganti' : 'Pilih'}
+                        </button>
+                        {customerInfo.isSelected && (
+                            <button className="pos-line-remove" onClick={() => setCustomer(null)} title="Hapus pelanggan">
+                                <span className="material-symbols-rounded">close</span>
+                            </button>
+                        )}
+                    </div>
                     <div className="pos-cart-lines">
                         {cart.length === 0 && <div className="empty-state">Keranjang kosong. Scan atau pilih produk.</div>}
                         {priced.lines.map((l) => (
@@ -532,6 +575,7 @@ export default function App() {
                             });
                         }
                         setDelivery(item.payload.delivery || delivery);
+                        setCustomer(item.payload.customer || null);
                         setShowHolds(false);
                         refreshHeldCount();
                     }}
@@ -541,6 +585,18 @@ export default function App() {
             {showReturn && <ReturnModal onClose={() => setShowReturn(false)} onDone={(msg) => { setNotice({ type: 'success', text: msg }); setShowReturn(false); }} onError={(msg) => setNotice({ type: 'error', text: msg })} />}
 
             {showDevice && <DeviceModal onClose={() => setShowDevice(false)} />}
+
+            {storeChangeMessage && (
+                <div className="pos-modal">
+                    <div className="pos-modal-card">
+                        <h2>Penugasan gerai berubah</h2>
+                        <p>{storeChangeMessage} Muat ulang POS untuk melanjutkan. Keranjang yang belum selesai tidak disimpan, sedangkan transaksi offline yang tertunda tetap tercatat di gerai asalnya.</p>
+                        <div className="pos-modal-actions">
+                            <button className="btn btn-filled" onClick={() => window.location.reload()}>Muat Ulang</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {showCustomer && (
                 <CustomerModal
@@ -888,6 +944,15 @@ function DeviceModal({ onClose }) {
                 </div>
             </div>
         </div>
+    );
+}
+
+function LogoutForm() {
+    return (
+        <form method="POST" action="/logout">
+            <input type="hidden" name="_token" value={document.querySelector('meta[name="csrf-token"]')?.content} />
+            <button className="btn btn-outline btn-sm" type="submit">Keluar</button>
+        </form>
     );
 }
 

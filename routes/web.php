@@ -19,21 +19,23 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 // Modul POS (React) — sesi web + CSRF.
 Route::middleware('auth')->prefix('pos')->name('pos.')->group(function () {
     Route::get('/', [PosController::class, 'shell'])->name('index');
-    Route::get('/bootstrap', [PosController::class, 'bootstrap'])->name('bootstrap');
-    Route::get('/products', [PosController::class, 'products'])->name('products');
-    Route::get('/promotions', [PosController::class, 'promotions'])->name('promotions');
-    Route::get('/sales-lookup', [PosController::class, 'lookupSale'])->name('sales.lookup');
-    Route::post('/sales', [PosController::class, 'storeSale'])->name('sales.store');
-    Route::get('/sales/{sale}', [PosController::class, 'showSale'])->name('sales.show');
-    Route::post('/sales/{sale}/void', [PosController::class, 'voidSale'])->name('sales.void');
-    Route::post('/returns', [PosController::class, 'storeReturn'])->name('returns.store');
-    Route::get('/customers', [PosController::class, 'customers'])->name('customers.index');
-    Route::post('/customers', [PosController::class, 'storeCustomer'])->name('customers.store');
-    Route::get('/holds', [PosController::class, 'holds'])->name('holds.index');
-    Route::post('/holds', [PosController::class, 'storeHold'])->name('holds.store');
-    Route::delete('/holds/{draft}', [PosController::class, 'destroyHold'])->name('holds.destroy');
-    Route::post('/holds/{draft}/consume', [PosController::class, 'consumeHold'])->name('holds.consume');
-    Route::post('/holds/{draft}/release', [PosController::class, 'releaseHold'])->name('holds.release');
+    Route::middleware('pos.store')->group(function () {
+        Route::get('/bootstrap', [PosController::class, 'bootstrap'])->name('bootstrap');
+        Route::get('/products', [PosController::class, 'products'])->name('products');
+        Route::get('/promotions', [PosController::class, 'promotions'])->name('promotions');
+        Route::get('/sales-lookup', [PosController::class, 'lookupSale'])->name('sales.lookup');
+        Route::post('/sales', [PosController::class, 'storeSale'])->name('sales.store');
+        Route::get('/sales/{sale}', [PosController::class, 'showSale'])->name('sales.show');
+        Route::post('/sales/{sale}/void', [PosController::class, 'voidSale'])->name('sales.void');
+        Route::post('/returns', [PosController::class, 'storeReturn'])->name('returns.store');
+        Route::get('/customers', [PosController::class, 'customers'])->name('customers.index');
+        Route::post('/customers', [PosController::class, 'storeCustomer'])->name('customers.store');
+        Route::get('/holds', [PosController::class, 'holds'])->name('holds.index');
+        Route::post('/holds', [PosController::class, 'storeHold'])->name('holds.store');
+        Route::delete('/holds/{draft}', [PosController::class, 'destroyHold'])->name('holds.destroy');
+        Route::post('/holds/{draft}/consume', [PosController::class, 'consumeHold'])->name('holds.consume');
+        Route::post('/holds/{draft}/release', [PosController::class, 'releaseHold'])->name('holds.release');
+    });
 });
 
 Route::prefix('admin')

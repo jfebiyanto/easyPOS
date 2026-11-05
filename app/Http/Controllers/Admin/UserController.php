@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Store;
 use App\Models\User;
 use App\Support\ActivityLogger;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -15,7 +16,7 @@ use Illuminate\View\View;
 
 class UserController extends Controller
 {
-    use AuthorizesSuperuser, AuthorizesCompany;
+    use AuthorizesCompany, AuthorizesSuperuser;
 
     public function index(Request $request): View
     {
@@ -49,8 +50,8 @@ class UserController extends Controller
         $this->ensureSuperuser($request);
 
         return view('admin.users.form', [
-            'user' => new User(),
-            'stores' => Store::orderBy('name')->get(),
+            'user' => new User,
+            'stores' => $this->assignableStores(),
             'roles' => User::ROLES,
         ]);
     }
@@ -80,7 +81,7 @@ class UserController extends Controller
 
         return view('admin.users.form', [
             'user' => $user,
-            'stores' => Store::orderBy('name')->get(),
+            'stores' => $this->assignableStores($user),
             'roles' => User::ROLES,
         ]);
     }
@@ -102,12 +103,24 @@ class UserController extends Controller
         // Cegah lockout: minimal 1 Owner aktif.
         $this->guardLastOwner($user, $data);
 
+        $previousStoreId = $user->store_id;
+
         $user->update($data);
 
         ActivityLogger::log('user.updated', "Mengubah user: {$user->username}", $user, [
             'role' => $user->role,
             'password_changed' => ! empty($data['password']),
         ]);
+
+        if ($user->store_id !== $previousStoreId) {
+            $previousStoreCode = Store::whereKey($previousStoreId)->value('code') ?? '-';
+            $newStoreCode = Store::whereKey($user->store_id)->value('code') ?? '-';
+
+            ActivityLogger::log('user.store_changed', "Memindahkan {$user->username} dari gerai {$previousStoreCode} ke {$newStoreCode}", $user, [
+                'from_store_id' => $previousStoreId,
+                'to_store_id' => $user->store_id,
+            ]);
+        }
 
         return redirect()->route('admin.users.index')->with('success', 'User berhasil diperbarui.');
     }
@@ -163,10 +176,27 @@ class UserController extends Controller
         return User::where('role', User::ROLE_OWNER)->where('is_active', true)->count();
     }
 
+    /**
+     * Gerai aktif, ditambah gerai user saat ini (walau nonaktif) agar penugasannya tetap terlihat di form.
+     */
+    private function assignableStores(?User $user = null): Collection
+    {
+        return Store::where(fn ($query) => $query->where('is_active', true)->orWhere('id', $user?->store_id))
+            ->orderBy('name')
+            ->get();
+    }
+
     private function validated(Request $request, ?string $id = null): array
     {
+        $requiresActiveStore = $request->input('role') !== User::ROLE_OWNER;
+
+        $storeExists = Rule::exists('stores', 'id')->where('company_id', current_company_id());
+        if ($requiresActiveStore) {
+            $storeExists->where('is_active', true);
+        }
+
         return $request->validate([
-            'store_id' => ['nullable', Rule::exists('stores', 'id')->where('company_id', current_company_id())],
+            'store_id' => [Rule::requiredIf($requiresActiveStore), 'nullable', $storeExists],
             'name' => ['required', 'string', 'max:150'],
             'username' => ['required', 'string', 'max:60', 'alpha_dash', Rule::unique('users', 'username')->ignore($id)],
             'email' => ['nullable', 'email', 'max:150', Rule::unique('users', 'email')->ignore($id)],
@@ -174,6 +204,9 @@ class UserController extends Controller
             'role' => ['required', Rule::in(User::ROLES)],
             'is_active' => ['sometimes', 'boolean'],
             'password' => [$id ? 'nullable' : 'required', 'string', Password::min(10)->letters()->numbers()],
+        ], [
+            'store_id.required' => 'Kasir dan Store Manager wajib ditugaskan ke satu gerai aktif.',
+            'store_id.exists' => 'Gerai yang dipilih tidak aktif atau tidak tersedia.',
         ]);
     }
 }
