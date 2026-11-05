@@ -72,6 +72,7 @@
                     'laporan' => ['Laporan', [
                         ['admin.reports.index', 'bar_chart', 'Laporan Penjualan', true],
                         ['admin.logs.index', 'history', 'Log Aktivitas', $isSuperuser],
+                        ['admin.pos-sessions.index', 'devices', 'Sesi Kasir', $isSuperuser],
                     ]],
                 ];
             @endphp

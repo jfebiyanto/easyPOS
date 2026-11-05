@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\PosSession;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -70,6 +71,14 @@ class LoginController extends Controller
 
     public function logout(Request $request)
     {
+        // Sesi POS yang aktif di browser ini berakhir bersama login-nya (sesi di perangkat lain tidak disentuh).
+        if ($user = $request->user()) {
+            $active = PosSession::activeFor($user);
+            if ($active && $active->session_hash === PosSession::hashFor($request)) {
+                $active->end(PosSession::ENDED_LOGOUT);
+            }
+        }
+
         Auth::guard('web')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsurePosSessionIsActive;
 use App\Http\Middleware\EnsurePosStoreIsActive;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\SecurityHeaders;
@@ -19,7 +20,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin' => EnsureUserIsAdmin::class,
             'pos.store' => EnsurePosStoreIsActive::class,
+            'pos.session' => EnsurePosSessionIsActive::class,
         ]);
+
+        // Cookie identitas perangkat POS berisi token acak, bukan data sensitif; dibaca apa adanya.
+        $middleware->encryptCookies(except: ['pos_device']);
 
         $middleware->append(SecurityHeaders::class);
         $middleware->throttleApi();

@@ -11,6 +11,11 @@
     grid-template-areas: 'header' 'ribbons' 'main' 'bottom' 'fkeys';
     height: 100vh; background: var(--color-bg); color: var(--color-text); font-family: var(--font-ui);
 }
+.pos-session-info { display: grid; gap: 4px; margin: 4px 0; padding: 12px 16px; border: 1px solid var(--color-outline); border-radius: var(--radius-sm); text-align: left; font-size: 14px; }
+.pos-session-info div { display: flex; gap: 16px; justify-content: space-between; }
+.pos-session-info dt { color: var(--color-text-muted, #5b6672); }
+.pos-session-info dd { margin: 0; font-weight: 600; }
+.pos-session-error { color: var(--color-danger); }
 .pos-loading { display: grid; place-items: center; height: 100vh; font-family: var(--font-ui); }
 .pos-boot-error { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding: 16px; }
 .pos-unsupported { display: none; }

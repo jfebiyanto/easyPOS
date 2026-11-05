@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Pos\PosController;
+use App\Http\Controllers\Pos\PosSessionController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/login');
@@ -19,7 +20,10 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 // Modul POS (React) — sesi web + CSRF.
 Route::middleware('auth')->prefix('pos')->name('pos.')->group(function () {
     Route::get('/', [PosController::class, 'shell'])->name('index');
-    Route::middleware('pos.store')->group(function () {
+    // Mengambil alih sesi POS tidak melewati pemeriksaan sesi aktif (justru dipakai saat sesi sedang di perangkat lain).
+    Route::post('/session/takeover', [PosSessionController::class, 'takeover'])->middleware('pos.store')->name('session.takeover');
+    Route::middleware(['pos.store', 'pos.session'])->group(function () {
+        Route::post('/session/heartbeat', [PosSessionController::class, 'heartbeat'])->name('session.heartbeat');
         Route::get('/bootstrap', [PosController::class, 'bootstrap'])->name('bootstrap');
         Route::post('/session/acknowledge', [PosController::class, 'acknowledgeSession'])->name('session.acknowledge');
         Route::get('/products', [PosController::class, 'products'])->name('products');
@@ -79,6 +83,7 @@ Route::prefix('admin')
 
         // Activity log
         Route::get('/activity-logs', [Admin\ActivityLogController::class, 'index'])->name('logs.index');
+        Route::get('/pos-sessions', [Admin\PosSessionController::class, 'index'])->name('pos-sessions.index');
 
         // Tipe pembayaran — global, bisa dipakai di beberapa gerai
         Route::resource('payment-types', Admin\PaymentTypeController::class)->except('show');

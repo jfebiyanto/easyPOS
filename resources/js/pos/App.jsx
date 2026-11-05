@@ -193,6 +193,8 @@ export default function App() {
                 await syncLocalHolds();
                 refreshHeldCount();
             } catch (e) {
+                // Sesi aktif di perangkat lain ditangani layar konflik (lewat peristiwa dari api.js).
+                if (e.data?.code === 'pos_session_active') return;
                 setBootError(e.message);
                 setNotice({ type: 'error', text: e.message });
             }
@@ -322,6 +324,7 @@ export default function App() {
     // Keranjang yang sedang berjalan disimpan otomatis ke server (dan cadangan di browser) dan dipulihkan saat POS
     // dibuka lagi (refresh, tab tertutup, login ulang), supaya transaksi tidak bisa hilang tanpa jejak.
     const [cartReady, setCartReady] = useState(false);
+    const allowUnloadRef = useRef(false);
     const cartSnapshot = useRef(null);
     cartSnapshot.current = { cart, delivery, customer, activeHold };
 
@@ -660,14 +663,51 @@ export default function App() {
     // mengizinkan pemblokiran penuh; yang lolos tetap tercatat (pos.cart_left_open) dan keranjangnya dipulihkan.
     useEffect(() => {
         if (cart.length === 0) return undefined;
-        const guard = (e) => { e.preventDefault(); e.returnValue = ''; };
+        const guard = (e) => {
+            if (allowUnloadRef.current) return;
+            e.preventDefault();
+            e.returnValue = '';
+        };
         window.addEventListener('beforeunload', guard);
         return () => window.removeEventListener('beforeunload', guard);
     }, [cart.length]);
 
+    // Satu sesi POS aktif per kasir: detak tiap 30 detik menjaga sesi tetap aktif, dan perangkat yang tergeser
+    // (atau ditolak saat membuka POS) melihat layar konflik dengan pilihan mengambil alih.
+    const [sessionConflict, setSessionConflict] = useState(null);
+    useEffect(() => {
+        const onConflict = (event) => setSessionConflict(event.detail);
+        window.addEventListener('pos-session-conflict', onConflict);
+        return () => window.removeEventListener('pos-session-conflict', onConflict);
+    }, []);
+
+    useEffect(() => {
+        if (!boot || !online || sessionConflict) return undefined;
+        const timer = setInterval(() => { api.heartbeat().catch(() => {}); }, 30000);
+        return () => clearInterval(timer);
+    }, [boot, online, sessionConflict]);
+
     useEffect(() => {
         document.querySelector('.pos-row.is-selected')?.scrollIntoView({ block: 'nearest' });
     }, [selectedLine?.id, cart.length]);
+
+    if (sessionConflict) {
+        return (
+            <SessionConflict
+                info={sessionConflict.active_session}
+                onTakeover={async () => {
+                    allowUnloadRef.current = true;
+                    try {
+                        await api.takeoverSession();
+                        window.location.reload();
+                    } catch (e) {
+                        allowUnloadRef.current = false;
+                        throw e;
+                    }
+                }}
+            />
+        );
+    }
 
     if (!boot) {
         return (
@@ -1166,6 +1206,51 @@ function QtyCell({ line, onSelect, onCommit, onDone }) {
                 }
             }}
         />
+    );
+}
+
+const formatSessionTime = (iso) => (iso ? new Date(iso).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'medium' }) : '-');
+
+/**
+ * Akun ini sedang memakai POS di perangkat/browser lain. Kasir dapat mengambil alih (perangkat lain terputus dan
+ * kejadiannya tercatat) atau keluar. Browser dan IP perangkat aktif ditampilkan agar jelas siapa yang memakainya.
+ */
+function SessionConflict({ info, onTakeover }) {
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+
+    const takeover = async () => {
+        setBusy(true);
+        setError('');
+        try {
+            await onTakeover();
+        } catch (e) {
+            setError(e.message);
+            setBusy(false);
+        }
+    };
+
+    return (
+        <div className="pos-loading">
+            <div className="pos-boot-error" role="alertdialog" aria-labelledby="pos-session-title">
+                <h2 id="pos-session-title">POS sedang aktif di perangkat lain</h2>
+                <p>Satu akun hanya boleh memakai POS di satu perangkat atau browser pada satu waktu.</p>
+                {info && (
+                    <dl className="pos-session-info">
+                        <div><dt>Browser</dt><dd>{info.browser || '-'}</dd></div>
+                        <div><dt>IP</dt><dd className="mono">{info.ip || '-'}</dd></div>
+                        <div><dt>Aktif sejak</dt><dd>{formatSessionTime(info.started_at)}</dd></div>
+                        <div><dt>Terakhir aktif</dt><dd>{formatSessionTime(info.last_seen_at)}</dd></div>
+                    </dl>
+                )}
+                <p>Jika Anda mengambil alih, perangkat tersebut terputus dan kejadian ini dicatat di Log Aktivitas. Keranjang yang sedang berjalan tidak hilang.</p>
+                {error && <p className="pos-session-error">{error}</p>}
+                <div className="pos-modal-actions">
+                    <LogoutForm />
+                    <button className="btn btn-filled" onClick={takeover} disabled={busy}>Ambil alih sesi di perangkat ini</button>
+                </div>
+            </div>
+        </div>
     );
 }
 

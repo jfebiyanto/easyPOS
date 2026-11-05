@@ -20,6 +20,13 @@ async function req(method, url, body, init = {}) {
         const err = new Error(data.message || 'Permintaan gagal.');
         err.status = res.status;
         err.errors = data.errors;
+        err.data = data;
+
+        // Akun ini sedang aktif di perangkat lain (satu sesi POS aktif per kasir): kasir diarahkan ke layar konflik.
+        if (res.status === 409 && data.code === 'pos_session_active') {
+            window.dispatchEvent(new CustomEvent('pos-session-conflict', { detail: data }));
+        }
+
         throw err;
     }
 
@@ -34,6 +41,8 @@ export const api = {
     promotions: () => req('GET', '/pos/promotions'),
     saveCart: (payload, init) => req('PUT', '/pos/cart', { payload }, init),
     restoreCart: () => req('POST', '/pos/cart/restore'),
+    heartbeat: () => req('POST', '/pos/session/heartbeat'),
+    takeoverSession: () => req('POST', '/pos/session/takeover'),
     logCartEvent: (body, init) => req('POST', '/pos/cart/events', body, init),
     createSale: (payload) => req('POST', '/pos/sales', payload),
     todaySales: () => req('GET', '/pos/sales'),
