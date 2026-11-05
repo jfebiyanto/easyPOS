@@ -181,7 +181,7 @@ class SapSalePostingTest extends TestCase
             && $request['U_SOL_FRST'] === 'Y'
             && $request['U_SOL_TRKY'] === $sale->id
             && $request['U_SOL_STID'] === $this->store->id
-            && $request['DocumentLines'] === [['ItemCode' => 'INDF-0001', 'Quantity' => 2.0, 'LineTotal' => 8000.0, 'WarehouseCode' => 'G.001.MN', 'VatGroup' => 'PPNK-11']]);
+            && $request['DocumentLines'] === [['ItemCode' => 'INDF-0001', 'Quantity' => 2.0, 'Price' => 4000.0, 'WarehouseCode' => 'G.001.MN', 'VatGroup' => 'PPNK-11']]);
         Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/IncomingPayments')
             && $request['CashAccount'] === '1100-1001-0002'
             && $request['CashSum'] === 8880.0
@@ -322,8 +322,8 @@ class SapSalePostingTest extends TestCase
         $this->sell();
 
         Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/Invoices')
-            && $request['DocumentLines'][0]['OcrCode'] === 'R001'
-            && $request['DocumentLines'][0]['CogsOcrCode'] === 'R001');
+            && $request['DocumentLines'][0]['CostingCode'] === 'R001'
+            && $request['DocumentLines'][0]['COGSCostingCode'] === 'R001');
     }
 
     public function test_profit_center_kosong_dibiarkan_kosong_di_baris_invoice(): void
@@ -333,8 +333,21 @@ class SapSalePostingTest extends TestCase
         $this->sell();
 
         Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/Invoices')
-            && ! array_key_exists('OcrCode', $request['DocumentLines'][0])
-            && ! array_key_exists('CogsOcrCode', $request['DocumentLines'][0]));
+            && ! array_key_exists('CostingCode', $request['DocumentLines'][0])
+            && ! array_key_exists('COGSCostingCode', $request['DocumentLines'][0]));
+    }
+
+    public function test_ppn_inklusif_mengirim_harga_di_gross_price(): void
+    {
+        $this->fakeSap();
+        $this->company->update(['ppn_inclusive' => true]);
+
+        $sale = $this->sell();
+
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/Invoices')
+            && $request['DocumentLines'][0]['GrossPrice'] === round((float) $sale->lines[0]->line_total / 2, 6)
+            && ! array_key_exists('Price', $request['DocumentLines'][0])
+            && ! array_key_exists('LineTotal', $request['DocumentLines'][0]));
     }
 
     public function test_dokumen_yang_sudah_ada_di_sap_tidak_dibuat_dua_kali(): void

@@ -20,7 +20,7 @@ use Throwable;
  *
  * - Pembayaran tunai = CashAccount/CashSum (akun kas warehouse). QRIS dan EDC dicatat sebagai
  *   Credit Card (PaymentCreditCards) dengan akun QRIS/EDC warehouse dan nomor kartu default.
- * - Baris invoice memakai profit center warehouse (OcrCode/CogsOcrCode) bila terisi.
+ * - Baris invoice memakai profit center warehouse (CostingCode/COGSCostingCode di Service Layer) bila terisi, dan harga satuan di GrossPrice (PPN inklusif) atau Price (eksklusif).
  *
  * - Header dokumen: U_SOL_FRST = 'Y', U_SOL_TRKY = UUID penjualan, U_SOL_STID = UUID gerai.
  * - Idempoten per langkah: sebelum membuat dokumen, cari dokumen dengan U_SOL_TRKY yang sama.
@@ -196,20 +196,25 @@ class SapSalePosting
     }
 
     /**
-     * Baris invoice memakai total baris setelah diskon, sebelum PPN (LineTotal) agar
-     * pembulatan mengikuti easyPOS; SAP menghitung harga satuan dari LineTotal / Quantity.
+     * Harga satuan efektif (setelah diskon promosi) dikirim sebagai `GrossPrice` (harga termasuk PPN)
+     * bila setting PPN inklusif aktif, atau `Price` (harga sebelum PPN) bila tidak. SAP menghitung
+     * total baris dari harga x Quantity.
      *
      * @return array<string, mixed>
      */
     private function invoiceLine(Sale $sale, SaleLine $line): array
     {
-        // Inklusif maupun eksklusif: line_total - tax_amount = nilai sebelum PPN.
-        $net = round((float) $line->line_total - (float) $line->tax_amount, 2);
+        $qty = (float) $line->qty;
+        $inclusive = $this->company->ppn_enabled && $this->company->ppn_inclusive;
+        // line_total sudah termasuk PPN pada mode inklusif; pada mode eksklusif line_total - tax_amount = nilai sebelum PPN.
+        $amount = $inclusive
+            ? (float) $line->line_total
+            : (float) $line->line_total - (float) $line->tax_amount;
 
         $payload = [
             'ItemCode' => $line->sku_snapshot,
-            'Quantity' => (float) $line->qty,
-            'LineTotal' => $net,
+            'Quantity' => $qty,
+            $inclusive ? 'GrossPrice' : 'Price' => $qty > 0 ? round($amount / $qty, 6) : 0.0,
             'WarehouseCode' => $sale->store->warehouse->code,
         ];
 
@@ -217,10 +222,11 @@ class SapSalePosting
             $payload['VatGroup'] = $line->tax_group_code;
         }
 
-        // Profit center warehouse (UDF U_SOL_PRFC); dikosongkan bila belum diatur.
+        // Profit center warehouse (UDF U_SOL_PRFC); dikosongkan bila belum diatur. Di Service Layer
+        // field dimensi 1 bernama CostingCode/COGSCostingCode (OcrCode/CogsOcrCode adalah nama DI API).
         if (filled($sale->store->warehouse->profit_center)) {
-            $payload['OcrCode'] = $sale->store->warehouse->profit_center;
-            $payload['CogsOcrCode'] = $sale->store->warehouse->profit_center;
+            $payload['CostingCode'] = $sale->store->warehouse->profit_center;
+            $payload['COGSCostingCode'] = $sale->store->warehouse->profit_center;
         }
 
         return $payload;
