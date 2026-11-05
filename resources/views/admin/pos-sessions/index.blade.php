@@ -16,9 +16,9 @@
 </div>
 
 <div class="table-toolbar">
-    <form method="GET" action="{{ route('admin.pos-sessions.index') }}" class="search-form">
+    <form method="GET" action="{{ route('admin.pos-sessions.index') }}" class="search-form" style="display:flex; gap:8px; flex:0 1 57%; min-width:320px;">
         @if ($status) <input type="hidden" name="status" value="{{ $status }}"> @endif
-        <input class="search-box" type="search" name="q" value="{{ request('q') }}" placeholder="Cari kasir, browser, atau IP…">
+        <input class="search-box" style="flex:1; min-width:0; max-width:none;" type="search" name="q" value="{{ request('q') }}" placeholder="Cari kasir, browser, atau IP…">
         <button type="submit" class="btn btn-tonal">Cari</button>
     </form>
 </div>
