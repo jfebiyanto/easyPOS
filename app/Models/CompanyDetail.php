@@ -20,6 +20,7 @@ class CompanyDetail extends Model
         'sap_enabled', 'sap_verify_ssl', 'sap_endpoint_url', 'sap_db_name', 'sap_username', 'sap_password',
         'sap_sync_interval_minutes', 'sap_auto_sync', 'sap_last_synced_at', 'sap_initial_imported_at',
         'sap_stock_synced_at', 'sap_stock_sync_error', 'sap_sync_watermarks', 'sap_stock_reconciled_at',
+        'promotion_hierarchy',
     ];
 
     protected $hidden = ['sap_password', 'payment_providers'];
@@ -33,6 +34,7 @@ class CompanyDetail extends Model
             'allow_negative_stock' => 'boolean',
             'return_require_receipt' => 'boolean',
             'sku_config' => 'array',
+            'promotion_hierarchy' => 'array',
             'payment_providers' => 'encrypted:array',
             'sap_enabled' => 'boolean',
             'sap_verify_ssl' => 'boolean',

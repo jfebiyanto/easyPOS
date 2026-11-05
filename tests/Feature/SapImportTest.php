@@ -12,6 +12,7 @@ use App\Models\PriceList;
 use App\Models\PriceListItem;
 use App\Models\Product;
 use App\Models\ProductGroup;
+use App\Models\Promotion;
 use App\Models\SapSyncRun;
 use App\Models\Store;
 use App\Models\TaxGroup;
@@ -133,6 +134,36 @@ class SapImportTest extends TestCase
                     ['PriceList' => 3, 'Price' => 9000],
                 ],
             ]]]),
+            '*/SpecialPrices*' => Http::response(['value' => [[
+                'ItemCode' => 'ITM-001', 'CardCode' => '*1', 'PriceListNum' => 1, 'Valid' => 'tYES',
+                'SpecialPriceDataAreas' => [[
+                    'BPCode' => '*1', 'PriceListNo' => 1, 'RowNumber' => 0, 'SpecialPrice' => 15000,
+                    'DateFrom' => '2026-11-01T00:00:00Z', 'Dateto' => '2026-12-31T00:00:00Z',
+                    'SpecialPriceQuantityAreas' => [
+                        ['Quantity' => 12, 'SpecialPrice' => 13950, 'RowNumber' => 1],
+                        ['Quantity' => 5, 'SpecialPrice' => 14250, 'RowNumber' => 0],
+                    ],
+                ]],
+            ], [
+                'ItemCode' => 'TIDAK-ADA', 'CardCode' => '*1', 'PriceListNum' => 1, 'Valid' => 'tYES',
+                'SpecialPriceDataAreas' => [['BPCode' => '*1', 'PriceListNo' => 1, 'RowNumber' => 0, 'SpecialPrice' => 1]],
+            ], [
+                'ItemCode' => 'ITM-001', 'CardCode' => '*2', 'PriceListNum' => 1, 'Valid' => 'tYES',
+                'SpecialPriceDataAreas' => [['BPCode' => '*2', 'PriceListNo' => 1, 'RowNumber' => 0, 'SpecialPrice' => 1]],
+            ]]]),
+            '*/EnhancedDiscountGroups*' => Http::response(['value' => [[
+                'AbsEntry' => 1, 'Type' => 'dgt_CustomerGroup', 'ObjectCode' => '101', 'DiscountRelations' => 'dgrHighestDiscount',
+                'Active' => 'tYES', 'ValidFrom' => '2026-11-05T00:00:00Z', 'ValidTo' => '2026-11-08T00:00:00Z',
+                'DiscountGroupLineCollection' => [
+                    ['ObjectType' => 'dgboManufacturer', 'ObjectCode' => '5', 'DiscountType' => 'dgdt_Fixed', 'Discount' => 15],
+                    ['ObjectType' => 'dgboItemGroups', 'ObjectCode' => '100', 'DiscountType' => 'dgdt_Fixed', 'Discount' => 10],
+                    ['ObjectType' => 'dgboItems', 'ObjectCode' => 'ITM-001', 'DiscountType' => 'dgdt_Variable', 'Discount' => 0, 'PaidQuantity' => 2, 'FreeQuantity' => 1],
+                    ['ObjectType' => 'dgboItemProperties', 'ObjectCode' => '3', 'DiscountType' => 'dgdt_Fixed', 'Discount' => 5],
+                ],
+            ], [
+                'AbsEntry' => 2, 'Type' => 'dgt_VendorGroup', 'ObjectCode' => '1', 'DiscountRelations' => 'dgrLowestDiscount', 'Active' => 'tYES',
+                'DiscountGroupLineCollection' => [['ObjectType' => 'dgboNone', 'DiscountType' => 'dgdt_Fixed', 'Discount' => 5]],
+            ]]]),
             '*/BusinessPartnerGroups*' => Http::response(['value' => [['Code' => 101, 'Name' => 'Grosir']]]),
             '*/BusinessPartners*' => Http::response(['value' => [[
                 'CardCode' => 'C0001',
@@ -174,6 +205,21 @@ class SapImportTest extends TestCase
         $this->assertTrue(Warehouse::where('code', 'WH-01')->value('is_retail'));
         $this->assertSame('PC-JKT', Warehouse::where('code', 'WH-01')->value('profit_center'));
         $this->assertSame('1100-1001-0002', Warehouse::where('code', 'WH-01')->value('cash_account'));
+        $volume = Promotion::where('source', 'sap')->where('type', 'volume_price')->get();
+        $this->assertCount(1, $volume);
+        $this->assertSame([['min_qty' => 1, 'price' => 15000], ['min_qty' => 5, 'price' => 14250], ['min_qty' => 12, 'price' => 13950]], $volume[0]->tiers);
+        $this->assertSame('all', $volume[0]->customer_scope);
+        $this->assertSame('1', $volume[0]->price_list_code);
+        $this->assertSame(Product::where('sku', 'ITM-001')->value('id'), $volume[0]->product_id);
+        $this->assertSame('2026-12-31', $volume[0]->ends_at->timezone($this->company->fresh()->timezone)->toDateString());
+
+        $groups = Promotion::where('source', 'sap')->where('type', 'discount_percent')->orderBy('sap_ref')->get();
+        $this->assertCount(2, $groups, 'Hanya baris Fixed dengan sasaran yang didukung (Variable, properti item, dan grup vendor dilewati).');
+        $this->assertSame([15.0, 10.0], $groups->map(fn ($g) => (float) $g->value)->all());
+        $this->assertSame(['customer_group', '101', 'highest', 'DG|1'], [$groups[0]->customer_scope, $groups[0]->customer_ref, $groups[0]->group_relation, $groups[0]->group_key]);
+        $this->assertSame(Brand::where('code', '5')->value('id'), $groups[0]->brand_id);
+        $this->assertSame(ProductGroup::where('code', '100')->value('id'), $groups[1]->product_group_id);
+
         $this->assertSame(3, CreditCard::count());
         $this->assertSame('EDC BANK', CreditCard::where('code', '2')->value('name'));
         $this->assertSame('1100-2002-0003', CreditCard::where('code', '2')->value('gl_account'));
@@ -229,7 +275,7 @@ class SapImportTest extends TestCase
         $this->assertSame(1, $run->summary['item_master']['created']);
 
         $this->assertSame(
-            ['tax_group', 'warehouse', 'credit_card', 'item_category', 'manufacturer', 'unit', 'customer_group', 'customer', 'item_master', 'price_list', 'price_list_detail', 'stock_mutation', 'warehouse_stock'],
+            ['tax_group', 'warehouse', 'credit_card', 'item_category', 'manufacturer', 'unit', 'customer_group', 'customer', 'item_master', 'price_list', 'price_list_detail', 'period_volume', 'discount_group', 'stock_mutation', 'warehouse_stock'],
             array_keys($run->summary)
         );
         foreach ($run->summary as $progress) {

@@ -11,6 +11,7 @@ use App\Models\PriceList;
 use App\Models\PriceListItem;
 use App\Models\Product;
 use App\Models\ProductGroup;
+use App\Models\Promotion;
 use App\Models\SapSyncRun;
 use App\Models\TaxGroup;
 use App\Models\Unit;
@@ -59,6 +60,8 @@ class SapImportService
         'item_master' => ['Produk (Item Master Data)', 'OITM'],
         'price_list' => ['Price List', 'OPLN'],
         'price_list_detail' => ['Price List Details', 'ITM1'],
+        'period_volume' => ['Period & Volume Discount', 'OSPP'],
+        'discount_group' => ['Discount Group', 'OEDG'],
         'stock_mutation' => ['Mutasi Stok', 'OIVL'],
         'warehouse_stock' => ['Saldo Stok SAP (rekonsiliasi)', 'OITW'],
     ];
@@ -146,6 +149,8 @@ class SapImportService
             $this->importItems($client, $itemsChanged);    // OITM
             $this->importPriceLists($client);       // OPLN
             $this->importPriceListDetails($client, $itemsChanged); // ITM1
+            $this->importPeriodVolumeDiscounts($client); // OSPP/OSPQ (SpecialPrices)
+            $this->importDiscountGroups($client);   // OEDG (EnhancedDiscountGroups)
             $this->importStockMutations($client);   // OIVL → buku besar & on_hand
             $fullReconcile = $this->importWarehouseStocks($client, $previousSyncAt);  // OITW → sap_on_hand (rekonsiliasi)
 
@@ -468,6 +473,199 @@ class SapImportService
 
             return $outcome;
         });
+    }
+
+    /**
+     * Period & Volume Discount (SpecialPrices): harga khusus per item, periode, dan tingkat qty.
+     * Satu baris promosi `volume_price` per area data SAP; tingkat dimulai dari harga area (qty 1)
+     * lalu tiap area qty. Hanya BP `*1` (semua) dan BP spesifik yang didukung; `*2` dst. dilewati.
+     * Tidak ada penanda waktu perubahan, jadi diambil utuh; baris yang hilang di SAP dinonaktifkan.
+     */
+    private function importPeriodVolumeDiscounts(SapServiceLayer $client): void
+    {
+        $seen = [];
+
+        $this->each('period_volume', $client, 'SpecialPrices', [], function (array $row) use (&$seen) {
+            $sku = $this->cut($row['ItemCode'] ?? '', 40);
+            $productId = $sku !== '' ? Product::where('company_id', $this->companyId)->where('sku', $sku)->value('id') : null;
+            if ($productId === null) {
+                return null;
+            }
+
+            $outcome = 'unchanged';
+            foreach ($row['SpecialPriceDataAreas'] ?? [] as $area) {
+                $bpCode = $this->cut($area['BPCode'] ?? ($row['CardCode'] ?? ''), 50);
+                if ($bpCode === '' || (str_starts_with($bpCode, '*') && $bpCode !== '*1')) {
+                    continue;
+                }
+
+                $tiers = collect([['min_qty' => 1, 'price' => (float) ($area['SpecialPrice'] ?? 0)]])
+                    ->merge(collect($area['SpecialPriceQuantityAreas'] ?? [])->map(fn (array $q) => ['min_qty' => (float) ($q['Quantity'] ?? 0), 'price' => (float) ($q['SpecialPrice'] ?? 0)]))
+                    ->filter(fn (array $t) => $t['min_qty'] > 0)
+                    ->sortBy('min_qty')->values()->all();
+
+                $ref = 'PV|'.$sku.'|'.$bpCode.'|'.($area['PriceListNo'] ?? $row['PriceListNum'] ?? '').'|'.($area['RowNumber'] ?? 0);
+                $seen[] = $ref;
+
+                [, $result] = $this->store(Promotion::class, ['sap_ref' => $ref], [
+                    'code' => 'PV-'.substr(sha1($ref), 0, 12),
+                    'name' => 'Period & Volume '.$sku,
+                    'type' => Promotion::TYPE_VOLUME_PRICE,
+                    'source' => Promotion::SOURCE_SAP,
+                    'value' => 0,
+                    'min_qty' => 1,
+                    'product_id' => $productId,
+                    'customer_scope' => $bpCode === '*1' ? Promotion::CUSTOMER_ALL : Promotion::CUSTOMER_SPECIFIC,
+                    'customer_ref' => $bpCode === '*1' ? null : $bpCode,
+                    'price_list_code' => (string) ($area['PriceListNo'] ?? $row['PriceListNum'] ?? '') ?: null,
+                    'tiers' => $tiers,
+                    'starts_at' => $this->sapDate($area['DateFrom'] ?? null, false),
+                    'ends_at' => $this->sapDate($area['Dateto'] ?? null, true),
+                    'is_active' => ($row['Valid'] ?? 'tYES') === 'tYES',
+                ]);
+                $outcome = $this->mergeOutcome($outcome, $result);
+            }
+
+            return $outcome;
+        });
+
+        $this->deactivateMissingSapDiscounts('PV|', $seen);
+    }
+
+    /**
+     * Discount Groups (EnhancedDiscountGroups). Satu baris promosi `discount_percent` per baris grup
+     * bertipe Fixed; baris Variable dan properti item belum didukung dan dilewati. Baris satu grup
+     * berbagi `group_key` dan `group_relation` (DiscountRelations SAP) untuk digabung saat dihitung.
+     */
+    private function importDiscountGroups(SapServiceLayer $client): void
+    {
+        $seen = [];
+        $relations = [
+            'dgrLowestDiscount' => 'lowest', 'dgrHighestDiscount' => 'highest', 'dgrAverageDiscount' => 'average',
+            'dgrDiscountTotals' => 'total', 'dgrMultipliedDiscount' => 'multiplied',
+        ];
+
+        $this->each('discount_group', $client, 'EnhancedDiscountGroups', [], function (array $row) use (&$seen, $relations) {
+            $scope = match ($row['Type'] ?? null) {
+                'dgt_AllBPs' => [Promotion::CUSTOMER_ALL, null],
+                'dgt_CustomerGroup' => [Promotion::CUSTOMER_GROUP, $this->cut($row['ObjectCode'] ?? '', 50)],
+                'dgt_SpecificBP' => [Promotion::CUSTOMER_SPECIFIC, $this->cut($row['ObjectCode'] ?? '', 50)],
+                default => null,
+            };
+            if ($scope === null || ($scope[0] !== Promotion::CUSTOMER_ALL && $scope[1] === '')) {
+                return null;
+            }
+
+            $entry = (string) ($row['AbsEntry'] ?? '');
+            $groupKey = 'DG|'.$entry;
+            $outcome = 'unchanged';
+            $applied = 0;
+
+            foreach (array_values($row['DiscountGroupLineCollection'] ?? []) as $index => $line) {
+                if (($line['DiscountType'] ?? null) !== 'dgdt_Fixed' || (float) ($line['Discount'] ?? 0) <= 0) {
+                    continue;
+                }
+
+                $target = $this->discountTarget((string) ($line['ObjectType'] ?? ''), $this->cut($line['ObjectCode'] ?? '', 50));
+                if ($target === null) {
+                    continue;
+                }
+
+                $ref = $groupKey.'|'.$index;
+                $seen[] = $ref;
+                $percent = round((float) $line['Discount'], 2);
+
+                [, $result] = $this->store(Promotion::class, ['sap_ref' => $ref], [
+                    'code' => 'DG-'.substr(sha1($ref), 0, 12),
+                    'name' => 'Discount Group #'.$entry.' · '.$target['label'].' '.rtrim(rtrim(number_format($percent, 2, '.', ''), '0'), '.').'%',
+                    'type' => 'discount_percent',
+                    'source' => Promotion::SOURCE_SAP,
+                    'value' => $percent,
+                    'min_qty' => 1,
+                    'product_id' => $target['product_id'],
+                    'brand_id' => $target['brand_id'],
+                    'product_group_id' => $target['product_group_id'],
+                    'customer_scope' => $scope[0],
+                    'customer_ref' => $scope[1],
+                    'group_key' => $groupKey,
+                    'group_relation' => $relations[$row['DiscountRelations'] ?? ''] ?? 'lowest',
+                    'starts_at' => $this->sapDate($row['ValidFrom'] ?? null, false),
+                    'ends_at' => $this->sapDate($row['ValidTo'] ?? null, true),
+                    'is_active' => ($row['Active'] ?? 'tYES') === 'tYES',
+                ]);
+                $outcome = $this->mergeOutcome($outcome, $result);
+                $applied++;
+            }
+
+            return $applied > 0 ? $outcome : null;
+        });
+
+        $this->deactivateMissingSapDiscounts('DG|', $seen);
+    }
+
+    /**
+     * Sasaran satu baris Discount Group: item, item group, atau manufacturer (brand). `dgboNone` berlaku
+     * untuk semua item. Properti item belum diimpor sehingga mengembalikan null.
+     *
+     * @return ?array{label: string, product_id: ?string, brand_id: ?string, product_group_id: ?string}
+     */
+    private function discountTarget(string $objectType, string $code): ?array
+    {
+        $none = ['label' => 'Semua item', 'product_id' => null, 'brand_id' => null, 'product_group_id' => null];
+
+        return match ($objectType) {
+            'dgboNone' => $none,
+            'dgboItems' => ($p = Product::where('company_id', $this->companyId)->where('sku', $code)->first(['id', 'name']))
+                ? ['label' => $p->name] + ['product_id' => $p->id] + $none : null,
+            'dgboItemGroups' => ($g = ProductGroup::where('company_id', $this->companyId)->where('code', $code)->first(['id', 'name']))
+                ? ['label' => $g->name] + ['product_group_id' => $g->id] + $none : null,
+            'dgboManufacturer' => ($b = Brand::where('company_id', $this->companyId)->where('code', $code)->first(['id', 'name']))
+                ? ['label' => $b->name] + ['brand_id' => $b->id] + $none : null,
+            default => null,
+        };
+    }
+
+    /**
+     * Nonaktifkan diskon SAP yang tidak lagi ada di SAP (hanya pada sinkronisasi delta; impor awal tidak punya data lama).
+     *
+     * @param  list<string>  $seen
+     */
+    private function deactivateMissingSapDiscounts(string $prefix, array $seen): void
+    {
+        if ($this->isInitial()) {
+            return;
+        }
+
+        Promotion::where('company_id', $this->companyId)
+            ->where('source', Promotion::SOURCE_SAP)
+            ->where('sap_ref', 'like', $prefix.'%')
+            ->whereNotIn('sap_ref', $seen)
+            ->where('is_active', true)
+            ->update(['is_active' => false]);
+    }
+
+    private function mergeOutcome(string $current, string $next): string
+    {
+        $rank = ['unchanged' => 0, 'skipped' => 1, 'updated' => 2, 'created' => 3];
+
+        return ($rank[$next] ?? 0) > ($rank[$current] ?? 0) ? $next : $current;
+    }
+
+    /**
+     * Tanggal SAP ("2026-11-05T00:00:00Z") menjadi awal atau akhir hari di zona waktu perusahaan; kosong = tanpa batas.
+     */
+    private function sapDate(mixed $value, bool $endOfDay): ?Carbon
+    {
+        $date = substr((string) $value, 0, 10);
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            return null;
+        }
+
+        $day = Carbon::parse($date, $this->company->timezone ?: 'Asia/Jakarta');
+
+        // Tanpa mikrodetik: kolom timestamp(0) membulatkan 23:59:59.999999 ke hari berikutnya.
+        // Disimpan sebagai UTC (zona waktu aplikasi); Eloquent menulis jam dinding Carbon apa adanya.
+        return ($endOfDay ? $day->endOfDay()->setMicroseconds(0) : $day->startOfDay())->utc();
     }
 
     /**

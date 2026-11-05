@@ -12,6 +12,32 @@ class Promotion extends MasterModel
         'company_id', 'code', 'name', 'type', 'value', 'product_id', 'min_qty',
         'buy_qty', 'get_qty', 'get_product_id', 'max_applications',
         'starts_at', 'ends_at', 'is_active', 'description',
+        'source', 'sap_ref', 'brand_id', 'product_group_id', 'customer_scope', 'customer_ref',
+        'price_list_code', 'tiers', 'group_key', 'group_relation',
+    ];
+
+    public const SOURCE_MANUAL = 'manual';
+
+    public const SOURCE_SAP = 'sap';
+
+    /** Harga khusus bertingkat menurut qty (Period & Volume Discount SAP B1). */
+    public const TYPE_VOLUME_PRICE = 'volume_price';
+
+    public const CUSTOMER_ALL = 'all';
+
+    public const CUSTOMER_GROUP = 'customer_group';
+
+    public const CUSTOMER_SPECIFIC = 'customer';
+
+    /**
+     * Sumber diskon yang diurutkan di hierarki promosi (urutan bawaan = urutan di sini).
+     */
+    public const HIERARCHY_SOURCES = [
+        'sap_period_volume' => 'Period & Volume Discount (SAP B1)',
+        'sap_discount_group' => 'Discount Group (SAP B1)',
+        'special_price' => 'Harga Khusus (easyPOS)',
+        'discount_amount' => 'Diskon Nominal (easyPOS)',
+        'buy_x_get_y' => 'Beli X Gratis Y (easyPOS)',
     ];
 
     public const TYPES = [
@@ -32,7 +58,25 @@ class Promotion extends MasterModel
             'max_applications' => 'integer',
             'starts_at' => 'datetime',
             'ends_at' => 'datetime',
+            'tiers' => 'array',
         ];
+    }
+
+    public function isFromSap(): bool
+    {
+        return $this->source === self::SOURCE_SAP;
+    }
+
+    /**
+     * Kunci sumber di hierarki promosi untuk promosi ini.
+     */
+    public function hierarchyKey(): string
+    {
+        if ($this->isFromSap()) {
+            return $this->type === self::TYPE_VOLUME_PRICE ? 'sap_period_volume' : 'sap_discount_group';
+        }
+
+        return $this->type;
     }
 
     /**
