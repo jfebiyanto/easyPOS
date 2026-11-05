@@ -531,7 +531,9 @@ class SapSalePostingTest extends TestCase
             ->get(route('admin.sap-postings.index'))
             ->assertOk()
             ->assertSee($sale->number)
-            ->assertSee('A/R Invoice 2600001')
+            ->assertSeeInOrder(['A/R Invoice SAP', 'Incoming Payment SAP'])
+            ->assertSee('2600001')
+            ->assertDontSee('A/R Invoice 2600001')
             ->assertSee('Kirim Ulang');
 
         $this->actingAs($this->cashier)

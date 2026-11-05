@@ -8,7 +8,6 @@
     $statusLabels = ['pending' => 'Menunggu', 'invoiced' => 'Invoice terposting', 'posted' => 'Terposting', 'failed' => 'Gagal'];
     $statusChips = ['pending' => 'chip-neutral', 'invoiced' => 'chip-info', 'posted' => 'chip-success', 'failed' => 'chip-danger'];
     $money = fn ($n) => number_format((float) $n, 2, ',', '.');
-    $sapDocument = fn (?int $objType, ?string $docNum) => $docNum ? (\App\Models\WarehouseStockLedger::SAP_OBJECT_NAMES[$objType] ?? 'ObjType '.$objType).' '.$docNum : '-';
 @endphp
 
 @section('content')
@@ -29,8 +28,8 @@
                 <th>Customer</th>
                 <th style="text-align:right;">Total</th>
                 <th>Status</th>
-                <th>Invoice SAP</th>
-                <th>Pembayaran SAP</th>
+                <th>A/R Invoice SAP</th>
+                <th>Incoming Payment SAP</th>
                 <th style="text-align:right;">Aksi</th>
             </tr>
         </thead>
@@ -48,8 +47,8 @@
                             <div class="hint" style="color: var(--color-danger);">{{ $sale->sap_post_error }}</div>
                         @endif
                     </td>
-                    <td>{{ $sapDocument($sale->sap_invoice_obj_type, $sale->sap_invoice_doc_num) }}</td>
-                    <td>{{ $sapDocument($sale->sap_payment_obj_type, $sale->sap_payment_doc_num) }}</td>
+                    <td class="mono">{{ $sale->sap_invoice_doc_num ?: '-' }}</td>
+                    <td class="mono">{{ $sale->sap_payment_doc_num ?: '-' }}</td>
                     <td style="text-align:right;">
                         @if ($canManage && $sale->sap_post_status === 'failed')
                             <form method="POST" action="{{ route('admin.sap-postings.retry', $sale) }}">
