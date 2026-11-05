@@ -538,6 +538,13 @@ export default function App() {
         return () => window.removeEventListener('keydown', onKeyDown);
     }, []);
 
+    // Notifikasi sukses/info/peringatan hilang sendiri setelah 5 detik; error tetap tampil sampai diklik.
+    useEffect(() => {
+        if (!notice || notice.type === 'error') return undefined;
+        const timer = setTimeout(() => setNotice(null), 5000);
+        return () => clearTimeout(timer);
+    }, [notice]);
+
     // Fokus kembali ke kotak input setelah dialog tertutup, agar kasir bisa langsung memindai barang berikutnya.
     useEffect(() => {
         if (!modalOpen) scanRef.current?.focus();
