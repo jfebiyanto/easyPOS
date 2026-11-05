@@ -74,7 +74,7 @@ Delapan dari 12 tombol sudah punya fitur di easyPOS, sehingga cukup dipindahkan.
 | F2 | Pelanggan | Cari, pilih, atau daftarkan pelanggan | Customer Search | Sudah ada |
 | F3 | Cari Produk | Buka tab Produk dan fokus ke kotak input | Product Search | Sudah ada |
 | F4 | (kosong) | Nonaktif; belum ada padanan di easyPOS | Sale Edit | Tidak dibuat |
-| F5 | Ubah Item | Ubah qty baris terpilih | Item Edit | Qty sudah ada, dialog baru |
+| F5 | Ubah Item | Ubah qty baris terpilih | Item Edit | Qty sudah ada, dialog baru. Qty juga bisa diketik langsung di kolom Qty tabel (klik, angka, Enter) |
 | F6 | Transaksi | Daftar transaksi gerai pada business date aktif dan cetak ulang struk | Transaction Search | Belum dibuat, sesuai rencana daftar transaksi POS |
 | F7 | Pengiriman | Data penerima dan biaya kirim | FulFillment | Sudah ada, pindah dari dialog bayar |
 | F8 | Hapus Item | Hapus baris terpilih setelah konfirmasi | Void Item | Sudah ada, konfirmasi baru |

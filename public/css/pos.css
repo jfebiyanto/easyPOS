@@ -92,6 +92,9 @@
 .pos-table .col-num { width: 124px; text-align: right; }
 .pos-table .col-name { white-space: normal; }
 .pos-table td.sku, .pos-table td.money { font-size: 14px; }
+.pos-qty-input { width: 100%; box-sizing: border-box; height: 30px; padding: 0 6px; text-align: right; font-size: 14px; color: inherit; background: transparent; border: 1px solid transparent; border-radius: var(--radius-xs); }
+.pos-row:hover .pos-qty-input { border-color: var(--color-outline-strong); background: var(--color-surface); }
+.pos-qty-input:focus { outline: 2px solid var(--color-primary); outline-offset: -1px; border-color: var(--color-primary); background: var(--color-surface); }
 .pos-row { cursor: pointer; background: var(--color-surface); }
 .pos-row.is-selected { background: var(--color-primary-container); box-shadow: inset 3px 0 0 var(--color-primary); }
 .pos-row-name { display: block; font-weight: 500; }

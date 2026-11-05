@@ -5,6 +5,7 @@ import { enqueue, readQueue, removeFromQueue, writeQueue } from './offline.js';
 import { activePromotions, applyPromotions, readCachedPromotions, writeCachedPromotions } from './promotions.js';
 import { formatBusinessClock, formatIsoDate, serverOffset } from './businessClock.js';
 import { fitCartToStock, isOutOfStock, maxQty } from './stock.js';
+import { digitsOnly, parseQty } from './qty.js';
 import { customerPanel } from './customer.js';
 import { functionKeyStates, holdOrRecallAction, isFunctionKey, keyToAction, moveSelection, selectionAfterRemoval } from './functionKeys.js';
 
@@ -656,7 +657,14 @@ export default function App() {
                                             )}
                                         </td>
                                         <td className="col-num money">{l.discount > 0 ? `−${fmt(l.discount, currency)}` : '–'}</td>
-                                        <td className="col-qty money">{l.qty}</td>
+                                        <td className="col-qty">
+                                            <QtyCell
+                                                line={l}
+                                                onSelect={() => setSelectedId(l.id)}
+                                                onCommit={(qty) => setQty(l.id, qty)}
+                                                onDone={() => scanRef.current?.focus()}
+                                            />
+                                        </td>
                                         <td className="col-unit">{l.unit || '–'}</td>
                                         <td className="col-num money">{fmt(l.unit_price, currency)}</td>
                                         <td className="col-num money">{fmt(l.unit_price * l.qty - l.discount, currency)}</td>
@@ -1015,6 +1023,46 @@ function ConfirmDialog({ title, message, confirmLabel, onConfirm, onCancel }) {
 }
 
 // F5: ubah qty baris terpilih (tahap ini qty saja; diskon baris manual belum ada).
+/**
+ * Qty yang bisa diketik langsung di tabel: klik, ketik angka (mis. 5), Enter atau pindah fokus untuk
+ * menyimpan, Esc untuk membatalkan. Menggantikan scan berulang untuk barang yang sama.
+ */
+function QtyCell({ line, onSelect, onCommit, onDone }) {
+    const [draft, setDraft] = useState(null); // null = tidak sedang diedit
+
+    const commit = () => {
+        if (draft === null) return;
+        const qty = parseQty(draft);
+        setDraft(null);
+        if (qty !== null && qty !== line.qty) onCommit(qty);
+    };
+
+    return (
+        <input
+            className="pos-qty-input money"
+            inputMode="numeric"
+            aria-label={`Qty ${line.name}`}
+            value={draft ?? String(line.qty)}
+            onClick={(e) => e.stopPropagation()}
+            onFocus={(e) => { onSelect(); e.target.select(); }}
+            onChange={(e) => setDraft(digitsOnly(e.target.value))}
+            onBlur={commit}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    commit();
+                    onDone();
+                } else if (e.key === 'Escape') {
+                    e.stopPropagation();
+                    setDraft(null);
+                    onDone();
+                }
+            }}
+        />
+    );
+}
+
 function EditItemModal({ line, onClose, onSave }) {
     const [qty, setQty] = useState(String(line.qty));
     const limit = maxQty(line, false);
