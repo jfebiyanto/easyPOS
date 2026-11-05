@@ -10,6 +10,7 @@ use App\Models\Promotion;
 use App\Models\Sale;
 use App\Models\StockLedger;
 use App\Models\Store;
+use App\Models\StoreClosure;
 use App\Models\User;
 use App\Support\Sap\SapSalePosting;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -45,7 +46,11 @@ class SaleService
         $origin = $data['origin'] ?? 'online';
         $enforceStock = $origin !== 'offline';
         $soldAt = isset($data['sold_at']) ? Carbon::parse($data['sold_at']) : now();
-        $businessDate = $soldAt->copy()->setTimezone($company->timezone ?: 'Asia/Jakarta')->toDateString();
+        // Tanggal posting = tanggal bisnis yang belum di-EOD bila ada (juga dipakai sebagai posting date SAP).
+        $businessDate = StoreClosure::postingDate(
+            $storeId,
+            $soldAt->copy()->setTimezone($company->timezone ?: 'Asia/Jakarta')->toDateString()
+        );
 
         return DB::transaction(function () use ($data, $cashier, $company, $companyId, $storeId, $clientUuid, $rate, $taxCode, $inclusive, $taxEnabled, $origin, $enforceStock, $soldAt, $businessDate) {
             $subtotal = 0.0;

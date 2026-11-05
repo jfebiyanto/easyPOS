@@ -21,6 +21,7 @@ Route::middleware('auth')->prefix('pos')->name('pos.')->group(function () {
     Route::get('/', [PosController::class, 'shell'])->name('index');
     Route::middleware('pos.store')->group(function () {
         Route::get('/bootstrap', [PosController::class, 'bootstrap'])->name('bootstrap');
+        Route::post('/session/acknowledge', [PosController::class, 'acknowledgeSession'])->name('session.acknowledge');
         Route::get('/products', [PosController::class, 'products'])->name('products');
         Route::get('/promotions', [PosController::class, 'promotions'])->name('promotions');
         Route::get('/sales-lookup', [PosController::class, 'lookupSale'])->name('sales.lookup');

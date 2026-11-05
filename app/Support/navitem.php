@@ -68,21 +68,44 @@ if (! function_exists('store_business_status')) {
     /**
      * Status tanggal bisnis store untuk ditampilkan di POS & Management Console.
      * `locked_date` = tanggal bisnis sebelumnya yang masih punya transaksi tetapi belum di-EOD.
-     * `closed` = EOD tanggal bisnis hari ini sudah ditutup sehingga transaksi terkunci sampai dibuka ulang.
+     * `posting_date` = tanggal bisnis tempat transaksi baru dicatat (dan menjadi posting date SAP):
+     * `locked_date` bila ada, selain itu tanggal hari ini.
+     * `closed` = EOD tanggal posting sudah ditutup sehingga transaksi terkunci sampai dibuka ulang.
      *
-     * @return array{business_date: string, timezone: string, server_time: string, locked_date: ?string, closed: bool}
+     * @return array{business_date: string, posting_date: string, timezone: string, server_time: string, locked_date: ?string, closed: bool}
      */
     function store_business_status(?string $storeId): array
     {
         $businessDate = company_today();
+        $lockedDate = $storeId ? StoreClosure::unclosedPriorDate($storeId, $businessDate) : null;
+        $postingDate = $lockedDate ?? $businessDate;
 
         return [
             'business_date' => $businessDate,
+            'posting_date' => $postingDate,
             'timezone' => company_timezone(),
             'server_time' => now()->toIso8601String(),
-            'locked_date' => $storeId ? StoreClosure::unclosedPriorDate($storeId, $businessDate) : null,
-            'closed' => $storeId && StoreClosure::isClosed($storeId, $businessDate),
+            'locked_date' => $lockedDate,
+            'closed' => $storeId && StoreClosure::isClosed($storeId, $postingDate),
         ];
+    }
+}
+
+if (! function_exists('login_greeting')) {
+    /**
+     * Sapaan menurut jam lokal perusahaan: 06.00-09.59 pagi, 10.00-14.59 siang,
+     * 15.00-17.59 sore, selebihnya malam.
+     */
+    function login_greeting($at = null): string
+    {
+        $hour = (int) ($at ? Carbon::parse($at) : now())->setTimezone(company_timezone())->format('G');
+
+        return match (true) {
+            $hour >= 6 && $hour < 10 => 'Selamat pagi',
+            $hour >= 10 && $hour < 15 => 'Selamat siang',
+            $hour >= 15 && $hour < 18 => 'Selamat sore',
+            default => 'Selamat malam',
+        };
     }
 }
 

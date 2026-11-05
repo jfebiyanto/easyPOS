@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Store;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -44,11 +45,18 @@ class LoginController extends Controller
 
         $request->session()->regenerate();
 
+        // Setiap login memulai ulang konfirmasi tanggal bisnis; kasir juga disapa sesuai jam login.
+        $request->session()->forget('pos_backdate_ack');
+        $request->session()->forget('pos_greeting');
+        if ($user->isCashier()) {
+            $request->session()->put('pos_greeting', login_greeting());
+        }
+
         // Keep the active store in session for store-scoped master data.
         if (! $request->session()->has('active_store_id')) {
             $request->session()->put(
                 'active_store_id',
-                $user->store_id ?? \App\Models\Store::query()->orderBy('code')->value('id')
+                $user->store_id ?? Store::query()->orderBy('code')->value('id')
             );
         }
 

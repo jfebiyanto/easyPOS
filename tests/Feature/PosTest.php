@@ -18,6 +18,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Support\StockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -288,6 +289,83 @@ class PosTest extends TestCase
         $this->actingAs($this->cashier)->getJson('/pos/holds')->assertOk()->assertJsonCount(0, 'data');
         $this->actingAs($this->cashier)->postJson("/pos/holds/{$draft->id}/consume")->assertStatus(409);
         $this->assertSame('held', $draft->fresh()->status);
+    }
+
+    public function test_bootstrap_meminta_konfirmasi_bila_eod_tertunda_dan_tidak_lagi_setelah_dikonfirmasi(): void
+    {
+        $this->travelTo(now('Asia/Jakarta')->subDay()->setTime(10, 0));
+        $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload())->assertCreated();
+        $yesterday = company_today();
+        $this->travelBack();
+
+        $this->actingAs($this->cashier)->getJson('/pos/bootstrap')
+            ->assertOk()
+            ->assertJsonPath('prompt.backdate_date', $yesterday)
+            ->assertJsonPath('prompt.posting_date', $yesterday)
+            ->assertJsonPath('business.posting_date', $yesterday);
+
+        $this->actingAs($this->cashier)->postJson('/pos/session/acknowledge')->assertOk();
+
+        $this->actingAs($this->cashier)->getJson('/pos/bootstrap')
+            ->assertJsonPath('prompt.backdate_date', null)
+            ->assertJsonPath('prompt.posting_date', $yesterday);
+    }
+
+    public function test_login_baru_meminta_konfirmasi_tanggal_bisnis_lagi(): void
+    {
+        $this->travelTo(now('Asia/Jakarta')->subDay()->setTime(10, 0));
+        $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload())->assertCreated();
+        $yesterday = company_today();
+        $this->travelBack();
+        $this->actingAs($this->cashier)->postJson('/pos/session/acknowledge')->assertOk();
+        $this->post('/logout');
+
+        $this->post('/login', ['username' => 'kasir1', 'password' => 'password'])->assertRedirect();
+
+        $this->getJson('/pos/bootstrap')->assertJsonPath('prompt.backdate_date', $yesterday);
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function greetingTimes(): array
+    {
+        return [
+            '05.59 malam' => ['05:59', 'Selamat malam'],
+            '06.00 pagi' => ['06:00', 'Selamat pagi'],
+            '09.59 pagi' => ['09:59', 'Selamat pagi'],
+            '10.00 siang' => ['10:00', 'Selamat siang'],
+            '14.59 siang' => ['14:59', 'Selamat siang'],
+            '15.00 sore' => ['15:00', 'Selamat sore'],
+            '17.59 sore' => ['17:59', 'Selamat sore'],
+            '18.00 malam' => ['18:00', 'Selamat malam'],
+            '00.00 malam' => ['00:00', 'Selamat malam'],
+        ];
+    }
+
+    #[DataProvider('greetingTimes')]
+    public function test_kasir_disapa_sesuai_jam_login_dan_sapaan_hilang_setelah_dikonfirmasi(string $time, string $greeting): void
+    {
+        $this->travelTo(Carbon::parse("2026-11-05 {$time}", 'Asia/Jakarta'));
+
+        $this->post('/login', ['username' => 'kasir1', 'password' => 'password'])->assertRedirect();
+
+        $this->getJson('/pos/bootstrap')
+            ->assertOk()
+            ->assertJsonPath('prompt.greeting', $greeting)
+            ->assertJsonPath('prompt.posting_date', '2026-11-05');
+
+        $this->postJson('/pos/session/acknowledge')->assertOk()->assertJsonPath('data.greeting', null);
+        $this->getJson('/pos/bootstrap')->assertJsonPath('prompt.greeting', null);
+    }
+
+    public function test_store_manager_tidak_mendapat_sapaan_kasir(): void
+    {
+        User::create(['company_id' => $this->company->id, 'store_id' => $this->store->id, 'name' => 'Manager', 'username' => 'manager1', 'role' => User::ROLE_STORE_MANAGER, 'is_active' => true, 'password' => 'password']);
+
+        $this->post('/login', ['username' => 'manager1', 'password' => 'password'])->assertRedirect();
+
+        $this->getJson('/pos/bootstrap')->assertOk()->assertJsonPath('prompt.greeting', null);
     }
 
     public function test_pencarian_produk_tidak_membedakan_huruf_besar_kecil(): void

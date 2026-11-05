@@ -149,6 +149,24 @@ class SapSalePostingTest extends TestCase
             && $request['PaymentInvoices'] === [['DocEntry' => 4, 'InvoiceType' => 'it_Invoice', 'SumApplied' => 8880.0]]);
     }
 
+    public function test_posting_date_sap_memakai_tanggal_bisnis_eod_tertunda_bukan_hari_ini(): void
+    {
+        $this->fakeSap();
+        $yesterday = now('Asia/Jakarta')->subDay()->toDateString();
+        $this->sell()->update(['business_date' => $yesterday]);
+
+        $sale = $this->sell();
+
+        $this->assertSame($yesterday, $sale->business_date->toDateString());
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/Invoices')
+            && $request['U_SOL_TRKY'] === $sale->id
+            && $request['DocDate'] === $yesterday
+            && $request['TaxDate'] === $yesterday);
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/IncomingPayments')
+            && $request['U_SOL_TRKY'] === $sale->id
+            && $request['DocDate'] === $yesterday);
+    }
+
     public function test_dokumen_yang_sudah_ada_di_sap_tidak_dibuat_dua_kali(): void
     {
         $this->fakeSap(['invoice' => ['DocEntry' => 4, 'DocNum' => 2600001], 'payment' => ['DocEntry' => 7, 'DocNum' => 2600003]]);

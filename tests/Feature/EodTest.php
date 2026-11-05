@@ -94,33 +94,84 @@ class EodTest extends TestCase
         $this->assertSame(0.0, (float) $closure->cash_variance);
     }
 
-    public function test_tanggal_bisnis_berikutnya_terkunci_sampai_eod(): void
+    /**
+     * @return array<string, mixed>
+     */
+    private function salePayload(string $origin = 'online'): array
     {
-        $sale = $this->sell(1);
-        $yesterday = now()->subDay()->toDateString();
-        $sale->update(['business_date' => $yesterday]);
-
-        // Transaksi hari ini diblokir karena EOD kemarin belum selesai.
-        $this->actingAs($this->cashier)->postJson('/pos/sales', [
+        return [
             'client_uuid' => (string) Str::uuid(),
-            'origin' => 'online',
+            'origin' => $origin,
             'lines' => [['product_id' => $this->product->id, 'qty' => 1]],
             'payments' => [['payment_type_id' => $this->cash->id, 'amount' => 10000, 'status' => 'confirmed']],
-        ])->assertStatus(422);
+        ];
+    }
 
-        // Setelah EOD kemarin, transaksi hari ini diizinkan.
+    public function test_transaksi_ditolak_409_sampai_kasir_mengonfirmasi_pencatatan_ke_tanggal_eod_tertunda(): void
+    {
+        $yesterday = now()->subDay()->toDateString();
+        $this->sell(1)->update(['business_date' => $yesterday]);
+
+        $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload())->assertStatus(409);
+
+        $this->assertSame(1, Sale::count());
+    }
+
+    public function test_setelah_konfirmasi_transaksi_hari_ini_dicatat_sebagai_tanggal_eod_tertunda(): void
+    {
+        $yesterday = now()->subDay()->toDateString();
+        $this->sell(1)->update(['business_date' => $yesterday]);
+
+        $this->actingAs($this->cashier)->postJson('/pos/session/acknowledge')
+            ->assertOk()
+            ->assertJsonPath('data.backdate_date', null)
+            ->assertJsonPath('data.posting_date', $yesterday);
+
+        $payload = $this->salePayload();
+        $this->actingAs($this->cashier)->postJson('/pos/sales', $payload)->assertStatus(201);
+
+        $this->assertSame($yesterday, Sale::where('client_uuid', $payload['client_uuid'])->first()->business_date->toDateString());
+    }
+
+    public function test_transaksi_offline_tidak_perlu_konfirmasi_dan_dicatat_ke_tanggal_eod_tertunda(): void
+    {
+        $yesterday = now()->subDay()->toDateString();
+        $this->sell(1)->update(['business_date' => $yesterday]);
+
+        $payload = $this->salePayload('offline');
+        $this->actingAs($this->cashier)->postJson('/pos/sales', $payload)->assertStatus(201);
+
+        $this->assertSame($yesterday, Sale::where('client_uuid', $payload['client_uuid'])->first()->business_date->toDateString());
+    }
+
+    public function test_setelah_eod_tertunda_selesai_transaksi_kembali_dicatat_ke_hari_ini(): void
+    {
+        $yesterday = now()->subDay()->toDateString();
+        $this->sell(1)->update(['business_date' => $yesterday]);
+
         $this->actingAs($this->owner)->post(route('admin.eod.store'), [
             'store_id' => $this->store->id,
             'business_date' => $yesterday,
             'denominations' => [10000 => 1],
         ])->assertRedirect();
 
-        $this->actingAs($this->cashier)->postJson('/pos/sales', [
-            'client_uuid' => (string) Str::uuid(),
-            'origin' => 'online',
-            'lines' => [['product_id' => $this->product->id, 'qty' => 1]],
-            'payments' => [['payment_type_id' => $this->cash->id, 'amount' => 10000, 'status' => 'confirmed']],
-        ])->assertStatus(201);
+        $payload = $this->salePayload();
+        $this->actingAs($this->cashier)->postJson('/pos/sales', $payload)->assertStatus(201);
+
+        $this->assertSame(company_today(), Sale::where('client_uuid', $payload['client_uuid'])->first()->business_date->toDateString());
+    }
+
+    public function test_beberapa_hari_belum_eod_dicatat_ke_tanggal_tertua(): void
+    {
+        $oldest = now()->subDays(2)->toDateString();
+        $this->sell(1)->update(['business_date' => $oldest]);
+        $this->actingAs($this->cashier)->postJson('/pos/session/acknowledge')->assertOk();
+        $this->sell(1)->update(['business_date' => now()->subDay()->toDateString()]);
+
+        $payload = $this->salePayload();
+        $this->actingAs($this->cashier)->postJson('/pos/sales', $payload)->assertStatus(201);
+
+        $this->assertSame($oldest, Sale::where('client_uuid', $payload['client_uuid'])->first()->business_date->toDateString());
     }
 
     private function close(string $date): void

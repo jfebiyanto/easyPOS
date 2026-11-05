@@ -187,7 +187,7 @@ export default function App() {
         const timer = setInterval(async () => {
             try {
                 const res = await api.bootstrap();
-                setBoot((prev) => ({ ...prev, business: res.business, default_customer: res.default_customer }));
+                setBoot((prev) => ({ ...prev, business: res.business, default_customer: res.default_customer, prompt: res.prompt }));
                 if (res.store.id !== boot.store.id) {
                     setStoreChangeMessage(`Anda dipindahkan ke gerai ${res.store.code} · ${res.store.name}.`);
                 }
@@ -586,6 +586,25 @@ export default function App() {
 
             {showDevice && <DeviceModal onClose={() => setShowDevice(false)} />}
 
+            {(boot.prompt?.greeting || boot.prompt?.backdate_date) && (
+                <SessionPromptModal
+                    prompt={boot.prompt}
+                    name={boot.cashier?.name}
+                    onAcknowledge={async () => {
+                        try {
+                            const res = await api.acknowledgeSession();
+                            setBoot((prev) => ({ ...prev, prompt: res.data }));
+                        } catch (e) {
+                            setNotice({ type: 'error', text: e.message });
+                        }
+                    }}
+                    onDecline={async () => {
+                        await api.logout().catch(() => {});
+                        window.location.href = '/login';
+                    }}
+                />
+            )}
+
             {storeChangeMessage && (
                 <div className="pos-modal">
                     <div className="pos-modal-card">
@@ -628,7 +647,7 @@ function BusinessBar({ business }) {
         <footer className="pos-statusbar">
             <span className="pos-statusbar-item">
                 <span className="material-symbols-rounded">event</span>
-                Business Date: <strong>{clock.date}</strong>
+                Business Date: <strong>{business.posting_date && business.posting_date !== clock.isoDate ? formatIsoDate(business.posting_date) : clock.date}</strong>
             </span>
             <span className="pos-statusbar-item">
                 <span className="material-symbols-rounded">schedule</span>
@@ -643,7 +662,7 @@ function BusinessBar({ business }) {
             {business.locked_date && (
                 <span className="pos-statusbar-item pos-statusbar-warning">
                     <span className="material-symbols-rounded">lock</span>
-                    EOD {formatIsoDate(business.locked_date)} belum diselesaikan — transaksi online terkunci
+                    EOD {formatIsoDate(business.locked_date)} belum diselesaikan — transaksi dicatat sebagai tanggal itu
                 </span>
             )}
         </footer>
@@ -941,6 +960,32 @@ function DeviceModal({ onClose }) {
                 <div className="pos-modal-actions">
                     <button className="btn btn-outline" onClick={onClose}>Tutup</button>
                     <button className="btn btn-filled" onClick={connect}>Sambungkan Printer USB</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Sapaan login + tanggal bisnis. Bila EOD tanggal sebelumnya tertunda, kasir wajib memilih: lanjut
+// (transaksi dicatat ke tanggal itu) atau batal login agar Store Manager menyelesaikan EOD dulu.
+function SessionPromptModal({ prompt, name, onAcknowledge, onDecline }) {
+    const backdated = Boolean(prompt.backdate_date);
+
+    return (
+        <div className="pos-modal">
+            <div className="pos-modal-card">
+                <h2>{prompt.greeting || 'Selamat datang'}{name ? `, ${name}` : ''}!</h2>
+                <p>Business date: <strong>{formatIsoDate(prompt.posting_date)}</strong></p>
+                {backdated && (
+                    <p className="pos-session-warning">
+                        EOD tanggal {formatIsoDate(prompt.backdate_date)} belum diselesaikan. Jika Anda melanjutkan, semua transaksi
+                        hari ini akan dicatat sebagai transaksi tanggal {formatIsoDate(prompt.backdate_date)} (termasuk tanggal posting di SAP).
+                        Lanjutkan?
+                    </p>
+                )}
+                <div className="pos-modal-actions">
+                    {backdated && <button className="btn btn-outline" onClick={onDecline}>Tidak, batalkan login</button>}
+                    <button className="btn btn-filled" onClick={onAcknowledge}>{backdated ? 'Ya, lanjutkan' : 'Mulai'}</button>
                 </div>
             </div>
         </div>

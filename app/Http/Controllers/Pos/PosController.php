@@ -69,7 +69,46 @@ class PosController extends Controller
             'cashier' => $request->user()->only(['id', 'name', 'role']),
             'payment_types' => $paymentTypes,
             'business' => store_business_status($store->id),
+            'prompt' => $this->sessionPrompt($request, $store),
         ]);
+    }
+
+    /**
+     * Konfirmasi awal sesi: kasir menyetujui pencatatan ke tanggal bisnis yang belum di-EOD
+     * dan menutup sapaan login. Menolak konfirmasi dilakukan dengan keluar (logout) dari POS.
+     */
+    public function acknowledgeSession(Request $request): JsonResponse
+    {
+        $store = $this->store($request);
+        abort_unless($store, 422, 'Kasir belum ditugaskan ke gerai.');
+
+        $lockedDate = store_business_status($store->id)['locked_date'];
+        if ($lockedDate) {
+            $request->session()->put('pos_backdate_ack', $store->id.'|'.$lockedDate);
+        }
+        $request->session()->forget('pos_greeting');
+
+        return response()->json(['data' => $this->sessionPrompt($request, $store)]);
+    }
+
+    /**
+     * @return array{greeting: ?string, backdate_date: ?string, posting_date: string}
+     */
+    private function sessionPrompt(Request $request, Store $store): array
+    {
+        $status = store_business_status($store->id);
+        $needsBackdateAck = $status['locked_date'] && ! $this->backdateAcknowledged($store->id, $status['locked_date']);
+
+        return [
+            'greeting' => $request->session()->get('pos_greeting'),
+            'backdate_date' => $needsBackdateAck ? $status['locked_date'] : null,
+            'posting_date' => $status['posting_date'],
+        ];
+    }
+
+    private function backdateAcknowledged(string $storeId, string $date): bool
+    {
+        return session('pos_backdate_ack') === $storeId.'|'.$date;
     }
 
     public function products(Request $request): JsonResponse
@@ -197,15 +236,21 @@ class PosController extends Controller
 
         $data['store_id'] = $store->id;
 
-        // Kunci tanggal bisnis: transaksi online diblokir bila EOD hari sebelumnya belum selesai.
+        // Bila EOD tanggal sebelumnya tertunda, transaksi dicatat pada tanggal itu (SaleService), asalkan
+        // kasir sudah mengonfirmasinya saat login. EOD tanggal posting yang sudah ditutup tetap mengunci transaksi online.
         if (($data['origin'] ?? 'online') !== 'offline') {
-            $businessDate = company_business_date($data['sold_at'] ?? null);
-            $locked = StoreClosure::unclosedPriorDate($store->id, $businessDate);
-            abort_if($locked, 422, "Tutup toko tanggal {$locked} belum diselesaikan. Selesaikan EOD dulu.");
+            $calendarDate = company_business_date($data['sold_at'] ?? null);
+            $postingDate = StoreClosure::postingDate($store->id, $calendarDate);
+
             abort_if(
-                StoreClosure::isClosed($store->id, $businessDate),
+                $postingDate !== $calendarDate && ! $this->backdateAcknowledged($store->id, $postingDate),
+                409,
+                "Konfirmasi tanggal bisnis {$postingDate} diperlukan. Muat ulang POS."
+            );
+            abort_if(
+                StoreClosure::isClosed($store->id, $postingDate),
                 422,
-                "EOD tanggal {$businessDate} sudah ditutup. Buka ulang EOD di Management Console untuk melanjutkan transaksi."
+                "EOD tanggal {$postingDate} sudah ditutup. Buka ulang EOD di Management Console untuk melanjutkan transaksi."
             );
         }
 

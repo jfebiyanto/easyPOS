@@ -27,6 +27,8 @@ async function req(method, url, body) {
 
 export const api = {
     bootstrap: () => req('GET', '/pos/bootstrap'),
+    acknowledgeSession: () => req('POST', '/pos/session/acknowledge'),
+    logout: () => req('POST', '/logout'),
     products: (q = '') => req('GET', '/pos/products' + (q ? `?q=${encodeURIComponent(q)}` : '')),
     promotions: () => req('GET', '/pos/promotions'),
     createSale: (payload) => req('POST', '/pos/sales', payload),

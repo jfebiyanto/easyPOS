@@ -58,7 +58,17 @@ class StoreClosure extends Model
     }
 
     /**
-     * Tanggal bisnis terakhir yang belum ditutup untuk store (lebih lama dari $date).
+     * Tanggal posting transaksi: tanggal bisnis tertua yang masih punya transaksi tetapi belum di-EOD,
+     * atau tanggal kalender bila tidak ada. Transaksi tidak lagi ditolak saat EOD tertunda,
+     * melainkan dicatat pada tanggal bisnis yang belum ditutup itu.
+     */
+    public static function postingDate(string $storeId, string $calendarDate): string
+    {
+        return static::unclosedPriorDate($storeId, $calendarDate) ?? $calendarDate;
+    }
+
+    /**
+     * Tanggal bisnis tertua yang belum ditutup untuk store (lebih lama dari $date).
      */
     public static function unclosedPriorDate(string $storeId, string $date): ?string
     {
@@ -68,7 +78,9 @@ class StoreClosure extends Model
             ->distinct()
             ->pluck('business_date')
             ->map(fn ($d) => Carbon::parse($d)->toDateString())
-            ->unique();
+            ->unique()
+            ->sort()
+            ->values();
 
         $closed = static::query()
             ->where('store_id', $storeId)
