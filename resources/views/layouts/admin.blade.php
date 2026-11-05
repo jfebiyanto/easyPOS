@@ -209,7 +209,8 @@
             @if ($business['locked_date'])
                 <a class="status-bar-item status-bar-warning" href="{{ route('admin.eod.index', ['store' => $activeStore->id, 'date' => $business['locked_date']]) }}">
                     <span class="material-symbols-rounded">lock</span>
-                    EOD {{ $activeStore->code }} tanggal {{ \Illuminate\Support\Carbon::parse($business['locked_date'])->locale('id')->translatedFormat('j F Y') }} belum diselesaikan — transaksi POS terkunci
+                    @php($lockedDateLabel = \Illuminate\Support\Carbon::parse($business['locked_date'])->locale('id')->translatedFormat('j F Y'))
+                    EOD {{ $activeStore->code }} {{ $lockedDateLabel }} belum dijalankan. Semua transaksi akan tercatat sebagai transaksi {{ $lockedDateLabel }}.
                 </a>
             @endif
         </footer>

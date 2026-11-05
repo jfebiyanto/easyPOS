@@ -359,7 +359,7 @@ class FoundationTest extends TestCase
             ->assertOk()
             ->assertSee('Business Date')
             ->assertSee('data-timezone="Asia/Jakarta"', false)
-            ->assertDontSee('belum diselesaikan');
+            ->assertDontSee('belum dijalankan');
 
         Sale::create([
             'company_id' => $this->company->id,
@@ -373,7 +373,7 @@ class FoundationTest extends TestCase
 
         $this->actingAs($this->owner)->get(route('admin.dashboard'))
             ->assertOk()
-            ->assertSee('EOD STR001 tanggal 15 September 2026 belum diselesaikan');
+            ->assertSee('EOD STR001 15 September 2026 belum dijalankan. Semua transaksi akan tercatat sebagai transaksi 15 September 2026.');
     }
 
     public function test_pencarian_log_aktivitas_tetap_menghormati_filter_aksi(): void

@@ -1468,8 +1468,8 @@ function SessionPromptModal({ prompt, name, onAcknowledge, onDecline }) {
                 <p>Business date: <strong>{formatIsoDate(prompt.posting_date)}</strong></p>
                 {backdated && (
                     <p className="pos-session-warning">
-                        EOD tanggal {formatIsoDate(prompt.backdate_date)} belum diselesaikan. Jika Anda melanjutkan, semua transaksi
-                        hari ini akan dicatat sebagai transaksi tanggal {formatIsoDate(prompt.backdate_date)} (termasuk tanggal posting di SAP).
+                        EOD {formatIsoDate(prompt.backdate_date)} belum dijalankan. Jika Anda melanjutkan, semua transaksi
+                        akan tercatat sebagai transaksi {formatIsoDate(prompt.backdate_date)} (termasuk tanggal posting di SAP).
                         Lanjutkan?
                     </p>
                 )}
