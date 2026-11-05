@@ -522,6 +522,22 @@ class SapSalePostingTest extends TestCase
         $this->assertSame('-2.000', WarehouseStock::where('warehouse_id', $this->store->warehouse_id)->value('on_hand'));
     }
 
+    public function test_integration_monitor_menampilkan_20_data_per_halaman(): void
+    {
+        $this->fakeSap();
+        $base = $this->sell();
+        foreach (range(1, 21) as $i) {
+            $copy = $base->replicate();
+            $copy->forceFill(['id' => (string) Str::uuid(), 'number' => sprintf('SAL/PAGE/%03d', $i), 'client_uuid' => (string) Str::uuid(), 'sold_at' => now()->subMinutes(30 - $i), 'sap_post_status' => Sale::SAP_FAILED])->saveQuietly();
+        }
+
+        $this->actingAs($this->owner)->get(route('admin.sap-postings.index'))
+            ->assertOk()
+            ->assertViewHas('sales', fn ($sales) => $sales->count() === 20 && $sales->total() === 22 && $sales->lastPage() === 2);
+        $this->get(route('admin.sap-postings.index', ['page' => 2]))
+            ->assertViewHas('sales', fn ($sales) => $sales->count() === 2);
+    }
+
     public function test_halaman_posting_menampilkan_dokumen_sap_dan_hanya_owner_yang_bisa_kirim_ulang(): void
     {
         $this->fakeSap(['docTotal' => 1]);
@@ -530,6 +546,7 @@ class SapSalePostingTest extends TestCase
         $this->actingAs($this->owner)
             ->get(route('admin.sap-postings.index'))
             ->assertOk()
+            ->assertSee('Integration Monitor')
             ->assertSee($sale->number)
             ->assertSeeInOrder(['A/R Invoice SAP', 'Incoming Payment SAP'])
             ->assertSee('2600001')

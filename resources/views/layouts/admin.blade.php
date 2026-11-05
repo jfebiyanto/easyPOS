@@ -35,7 +35,7 @@
                     'konfigurasi' => ['Konfigurasi', [
                         ['admin.company.edit', 'apartment', 'Identitas Perusahaan', true],
                         ['admin.sap-import.index', 'cloud_download', 'Impor Data SAP B1', $isSuperuser && \App\Models\CompanyDetail::current()->sapIntegrationActive()],
-                        ['admin.sap-postings.index', 'cloud_upload', 'Posting SAP B1', $isSuperuser && \App\Models\CompanyDetail::current()->sapIntegrationActive()],
+                        ['admin.sap-postings.index', 'cloud_upload', 'Integration Monitor', $isSuperuser && \App\Models\CompanyDetail::current()->sapIntegrationActive()],
                         ['admin.stores.index', 'store', 'Daftar Gerai', $isSuperuser],
                         ['admin.warehouses.index', 'warehouse', 'Warehouse', $isSuperuser],
                         ['admin.tax-groups.index', 'percent', 'Tax Group', $isSuperuser],

@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
-@section('title', 'Posting SAP B1')
-@section('page_title', 'Posting SAP B1')
+@section('title', 'Integration Monitor')
+@section('page_title', 'Integration Monitor')
 
 @php
     $canManage = auth()->user()->isOwner();
