@@ -366,6 +366,11 @@ export default function App() {
             const snapshot = cartSnapshot.current;
             if (snapshot.cart.length > 0 && navigator.onLine) {
                 api.saveCart(buildCartPayload(snapshot), { keepalive: true }).catch(() => {});
+                api.logCartEvent({
+                    event: 'left_open',
+                    item_count: snapshot.cart.length,
+                    total: snapshot.cart.reduce((sum, l) => sum + l.qty * l.unit_price, 0),
+                }, { keepalive: true }).catch(() => {});
             }
         };
         window.addEventListener('pagehide', flush);
@@ -651,14 +656,14 @@ export default function App() {
         if (!modalOpen) scanRef.current?.focus();
     }, [modalOpen]);
 
-    // Online, keranjang tersimpan otomatis di server dan dipulihkan setelah muat ulang. Saat offline hanya ada
-    // cadangan di browser, jadi muat ulang tak sengaja tetap diperingatkan.
+    // Selama ada transaksi berjalan, menutup tab/jendela, memuat ulang, atau keluar meminta konfirmasi browser. Browser tidak
+    // mengizinkan pemblokiran penuh; yang lolos tetap tercatat (pos.cart_left_open) dan keranjangnya dipulihkan.
     useEffect(() => {
-        if (cart.length === 0 || online) return undefined;
+        if (cart.length === 0) return undefined;
         const guard = (e) => { e.preventDefault(); e.returnValue = ''; };
         window.addEventListener('beforeunload', guard);
         return () => window.removeEventListener('beforeunload', guard);
-    }, [cart.length, online]);
+    }, [cart.length]);
 
     useEffect(() => {
         document.querySelector('.pos-row.is-selected')?.scrollIntoView({ block: 'nearest' });

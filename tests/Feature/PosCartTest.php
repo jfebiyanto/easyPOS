@@ -170,6 +170,16 @@ class PosCartTest extends TestCase
         $this->assertSame('Qty dikurangi di STR001: SKU-1 Aqua dari 5 menjadi 1', ActivityLog::where('action', 'pos.cart_qty_reduced')->firstOrFail()->description);
     }
 
+    public function test_halaman_ditinggalkan_saat_transaksi_berjalan_dicatat_tanpa_menghapus_keranjang(): void
+    {
+        $this->actingAs($this->cashier)->putJson('/pos/cart', $this->cartPayload(3))->assertOk();
+
+        $this->postJson('/pos/cart/events', ['event' => 'left_open', 'item_count' => 1, 'total' => 12000])->assertCreated();
+
+        $this->assertSame('Halaman POS ditutup atau dimuat ulang saat transaksi berjalan di STR001: 1 barang, nilai Rp 12.000', ActivityLog::where('action', 'pos.cart_left_open')->firstOrFail()->description);
+        $this->assertSame(1, PosActiveCart::count(), 'Keranjang tetap tersimpan agar bisa dipulihkan.');
+    }
+
     public function test_peristiwa_keranjang_dan_penyimpanan_divalidasi(): void
     {
         $this->actingAs($this->cashier);

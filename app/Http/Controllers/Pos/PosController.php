@@ -277,7 +277,7 @@ class PosController extends Controller
     }
 
     /**
-     * Catat pembatalan di keranjang: batal transaksi, hapus item, atau qty dikurangi.
+     * Catat kejadian di keranjang: batal transaksi, hapus item, qty dikurangi, atau halaman POS ditinggalkan saat transaksi berjalan.
      */
     public function cartEvent(Request $request): JsonResponse
     {
@@ -285,7 +285,7 @@ class PosController extends Controller
         abort_unless($store, 422, 'Kasir belum ditugaskan ke gerai.');
 
         $data = $request->validate([
-            'event' => ['required', Rule::in(['cancelled', 'item_removed', 'qty_reduced'])],
+            'event' => ['required', Rule::in(['cancelled', 'item_removed', 'qty_reduced', 'left_open'])],
             'item_count' => ['nullable', 'integer', 'min:0'],
             'total' => ['nullable', 'numeric', 'min:0'],
             'sku' => ['nullable', 'string', 'max:60'],
@@ -301,6 +301,7 @@ class PosController extends Controller
 
         [$action, $description] = match ($data['event']) {
             'cancelled' => ['pos.cart_cancelled', "Batal transaksi di {$store->code}: ".(int) ($data['item_count'] ?? 0).' barang, total '.$rupiah($data['total'] ?? 0)],
+            'left_open' => ['pos.cart_left_open', "Halaman POS ditutup atau dimuat ulang saat transaksi berjalan di {$store->code}: ".(int) ($data['item_count'] ?? 0).' barang, nilai '.$rupiah($data['total'] ?? 0)],
             'item_removed' => ['pos.cart_item_removed', "Hapus item di {$store->code}: {$item} × ".($data['qty'] ?? 0).' ('.$rupiah($data['amount'] ?? 0).')'],
             default => ['pos.cart_qty_reduced', "Qty dikurangi di {$store->code}: {$item} dari ".($data['from_qty'] ?? 0).' menjadi '.($data['to_qty'] ?? 0)],
         };
