@@ -231,7 +231,8 @@ class SapImportService
 
     /**
      * Semua warehouse diimpor; UDF U_SOL_RETAIL = 'Y' menandai warehouse retail (yang dapat dipakai gerai).
-     * Profit center dari UDF U_SOL_PRFC (boleh kosong).
+     * Profit center dari UDF U_SOL_PRFC (boleh kosong); akun kas, QRIS, dan EDC dari U_SOL_CASH_ACC,
+     * U_SOL_QRIS_ACC, dan U_SOL_EDC_ACC (akun pembayaran Incoming Payment).
      */
     private function importWarehouses(SapServiceLayer $client): void
     {
@@ -244,11 +245,15 @@ class SapImportService
 
             $profitCenter = $this->cut($row['U_SOL_PRFC'] ?? '', 50);
             $cashAccount = $this->cut($row['U_SOL_CASH_ACC'] ?? '', 25);
+            $qrisAccount = $this->cut($row['U_SOL_QRIS_ACC'] ?? '', 25);
+            $edcAccount = $this->cut($row['U_SOL_EDC_ACC'] ?? '', 25);
 
             [, $outcome] = $this->store(Warehouse::class, ['code' => $code], [
                 'name' => $this->cut($row['WarehouseName'] ?? '', 255) ?: $code,
                 'profit_center' => $profitCenter !== '' ? $profitCenter : null,
                 'cash_account' => $cashAccount !== '' ? $cashAccount : null,
+                'qris_account' => $qrisAccount !== '' ? $qrisAccount : null,
+                'edc_account' => $edcAccount !== '' ? $edcAccount : null,
                 'is_retail' => ($row['U_SOL_RETAIL'] ?? null) === 'Y',
                 'is_active' => ($row['Inactive'] ?? 'tNO') !== 'tYES',
             ]);

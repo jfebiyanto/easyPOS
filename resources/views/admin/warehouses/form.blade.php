@@ -34,6 +34,16 @@
                 <div class="hint">Diambil dari SAP B1 (UDF U_SOL_CASH_ACC) untuk Incoming Payment tunai gerai.</div>
             </div>
             <div class="field">
+                <label for="qris_account">Akun QRIS</label>
+                <input type="text" id="qris_account" value="{{ $warehouse->qris_account ?? '-' }}" readonly>
+                <div class="hint">Diambil dari SAP B1 (UDF U_SOL_QRIS_ACC) untuk pembayaran QRIS (Credit Card) pada Incoming Payment.</div>
+            </div>
+            <div class="field">
+                <label for="edc_account">Akun EDC</label>
+                <input type="text" id="edc_account" value="{{ $warehouse->edc_account ?? '-' }}" readonly>
+                <div class="hint">Diambil dari SAP B1 (UDF U_SOL_EDC_ACC) untuk pembayaran EDC (Credit Card) pada Incoming Payment.</div>
+            </div>
+            <div class="field">
                 <div class="checkbox-row">
                     <input type="checkbox" id="is_retail" name="is_retail" value="1" @checked(old('is_retail', $warehouse->exists ? $warehouse->is_retail : true))>
                     <label for="is_retail">Warehouse retail</label>

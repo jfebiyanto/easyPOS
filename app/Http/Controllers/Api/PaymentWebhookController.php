@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SalePayment;
 use App\Support\Payment\PaymentManager;
 use App\Support\Payment\XenditPaymentProvider;
+use App\Support\Sap\SapSalePosting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -42,6 +43,11 @@ class PaymentWebhookController extends Controller
                 'status' => $paid ? 'confirmed' : 'pending',
                 'confirmed_at' => $paid ? now() : null,
             ]);
+
+            // Posting SAP menunggu pembayaran non-tunai terkonfirmasi; antrekan ulang setelah konfirmasi.
+            if ($paid && $payment->sale) {
+                SapSalePosting::queue($payment->sale);
+            }
         }
 
         return response()->json(['message' => 'ok']);

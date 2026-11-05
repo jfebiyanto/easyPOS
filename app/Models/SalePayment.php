@@ -21,6 +21,11 @@ class SalePayment extends Model
         ];
     }
 
+    public function sale()
+    {
+        return $this->belongsTo(Sale::class);
+    }
+
     public function paymentType()
     {
         return $this->belongsTo(PaymentType::class);

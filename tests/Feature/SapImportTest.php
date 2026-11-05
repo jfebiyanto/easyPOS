@@ -87,7 +87,7 @@ class SapImportTest extends TestCase
                 ['Code' => 'S1', 'Name' => 'AU Sales', 'Category' => 'bovcOutputTax', 'Inactive' => 'tYES', 'VatGroups_Lines' => [['Effectivefrom' => '2000-01-01T00:00:00Z', 'Rate' => 10]]],
             ]]),
             '*/Warehouses*' => Http::response(['value' => [
-                ['WarehouseCode' => 'WH-01', 'WarehouseName' => 'Gudang Retail 1', 'Inactive' => 'tNO', 'U_SOL_RETAIL' => 'Y', 'U_SOL_PRFC' => 'PC-JKT', 'U_SOL_CASH_ACC' => '1100-1001-0002'],
+                ['WarehouseCode' => 'WH-01', 'WarehouseName' => 'Gudang Retail 1', 'Inactive' => 'tNO', 'U_SOL_RETAIL' => 'Y', 'U_SOL_PRFC' => 'PC-JKT', 'U_SOL_CASH_ACC' => '1100-1001-0002', 'U_SOL_QRIS_ACC' => '1100-2002-0004', 'U_SOL_EDC_ACC' => '1100-2002-0003'],
                 ['WarehouseCode' => 'WH-02', 'WarehouseName' => 'Gudang Retail 2', 'Inactive' => 'tYES', 'U_SOL_RETAIL' => 'Y', 'U_SOL_PRFC' => ''],
                 ['WarehouseCode' => 'GL99', 'WarehouseName' => 'Gudang Load', 'Inactive' => 'tNO', 'U_SOL_RETAIL' => 'N', 'U_SOL_PRFC' => null],
             ]]),
@@ -168,6 +168,10 @@ class SapImportTest extends TestCase
         $this->assertTrue(Warehouse::where('code', 'WH-01')->value('is_retail'));
         $this->assertSame('PC-JKT', Warehouse::where('code', 'WH-01')->value('profit_center'));
         $this->assertSame('1100-1001-0002', Warehouse::where('code', 'WH-01')->value('cash_account'));
+        $this->assertSame('1100-2002-0004', Warehouse::where('code', 'WH-01')->value('qris_account'));
+        $this->assertSame('1100-2002-0003', Warehouse::where('code', 'WH-01')->value('edc_account'));
+        $this->assertNull(Warehouse::where('code', 'WH-02')->value('qris_account'));
+        $this->assertNull(Warehouse::where('code', 'GL99')->value('edc_account'));
         $this->assertNull(Warehouse::where('code', 'GL99')->value('cash_account'));
         $this->assertTrue(Warehouse::where('code', 'WH-01')->value('is_active'));
         $inactive = Warehouse::where('code', 'WH-02')->firstOrFail();

@@ -17,6 +17,7 @@ use App\Models\Warehouse;
 use App\Models\WarehouseStock;
 use App\Models\WarehouseStockLedger;
 use App\Support\SaleService;
+use App\Support\Sap\SapSalePosting;
 use App\Support\Sap\SapStockMutationService;
 use App\Support\StockService;
 use App\Support\WarehouseStockService;
@@ -65,7 +66,10 @@ class SapSalePostingTest extends TestCase
         $taxGroup = TaxGroup::factory()->create(['company_id' => $this->company->id, 'code' => 'PPNK-11', 'rate' => 11]);
         $this->company->update(['tax_group_id' => $taxGroup->id]);
 
-        $warehouse = Warehouse::factory()->create(['company_id' => $this->company->id, 'code' => 'G.001.MN', 'cash_account' => '1100-1001-0002']);
+        $warehouse = Warehouse::factory()->create([
+            'company_id' => $this->company->id, 'code' => 'G.001.MN', 'cash_account' => '1100-1001-0002',
+            'qris_account' => '1100-2002-0004', 'edc_account' => '1100-2002-0003',
+        ]);
         $this->customer = Customer::create([
             'company_id' => $this->company->id, 'code' => 'CR00001', 'name' => 'PELANGGAN UMUM',
             'is_member' => false, 'is_active' => true, 'source' => Customer::SOURCE_SAP,
@@ -105,6 +109,7 @@ class SapSalePostingTest extends TestCase
             return match (true) {
                 str_ends_with($url, '/Login') => Http::response(['SessionId' => 'abc']),
                 str_ends_with($url, '/Logout') => Http::response('', 204),
+                $get && str_contains($url, '/CreditCards') => Http::response(['value' => $this->creditCardsFor(urldecode($url))]),
                 $get && str_contains($url, '/Invoices(') => Http::response(['DocTotal' => $options['docTotal'] ?? 8880]),
                 $get && str_contains($url, '/Invoices') => Http::response(['value' => array_filter([$options['invoice'] ?? null])]),
                 $get && str_contains($url, '/IncomingPayments') => Http::response(['value' => array_filter([$options['payment'] ?? null])]),
@@ -113,6 +118,41 @@ class SapSalePostingTest extends TestCase
                 default => Http::response('', 204),
             };
         });
+    }
+
+    /**
+     * Kartu kredit SAP demo: QRIS (1) dan EDC BANK (2), akun GL-nya sama dengan UDF warehouse.
+     *
+     * @return list<array{CreditCardCode: int, GLAccount: string}>
+     */
+    private function creditCardsFor(string $url): array
+    {
+        $cards = ['1100-2002-0004' => 1, '1100-2002-0003' => 2];
+
+        foreach ($cards as $account => $code) {
+            if (str_contains($url, "GLAccount eq '{$account}'")) {
+                return [['CreditCardCode' => $code, 'GLAccount' => $account]];
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @param  list<array{0: string, 1: float, 2?: string}>  $payments  [kode tipe pembayaran, nominal, status]
+     */
+    private function sellWith(array $payments): Sale
+    {
+        return SaleService::create([
+            'store_id' => $this->store->id,
+            'client_uuid' => (string) Str::uuid(),
+            'lines' => [['product_id' => $this->product->id, 'qty' => 2]],
+            'payments' => array_map(fn (array $p) => [
+                'payment_type_id' => PaymentType::firstOrCreate(['company_id' => $this->company->id, 'code' => $p[0]], ['count_type' => 'summary', 'order_number' => 1, 'is_active' => true])->id,
+                'amount' => $p[1],
+                'status' => $p[2] ?? 'confirmed',
+            ], $payments),
+        ], $this->cashier)->fresh();
     }
 
     private function sell(): Sale
@@ -165,6 +205,136 @@ class SapSalePostingTest extends TestCase
         Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/IncomingPayments')
             && $request['U_SOL_TRKY'] === $sale->id
             && $request['DocDate'] === $yesterday);
+    }
+
+    public function test_pembayaran_qris_dicatat_sebagai_credit_card_dengan_akun_qris_warehouse(): void
+    {
+        $this->fakeSap();
+
+        $sale = $this->sellWith([['QRIS', 8880]]);
+
+        $this->assertSame(Sale::SAP_POSTED, $sale->sap_post_status);
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/IncomingPayments')
+            && ! isset($request['CashAccount']) && ! isset($request['CashSum'])
+            && $request['PaymentCreditCards'] === [[
+                'CreditCard' => 1,
+                'CreditCardNumber' => '1234',
+                'CardValidUntil' => $sale->business_date->copy()->addYear()->endOfMonth()->toDateString(),
+                'VoucherNum' => $sale->number,
+                'CreditSum' => 8880.0,
+                'CreditCur' => 'IDR',
+                'CreditAcct' => '1100-2002-0004',
+            ]]
+            && $request['PaymentInvoices'] === [['DocEntry' => 4, 'InvoiceType' => 'it_Invoice', 'SumApplied' => 8880.0]]);
+    }
+
+    public function test_pembayaran_edc_memakai_kartu_dan_akun_edc_warehouse(): void
+    {
+        $this->fakeSap();
+
+        $this->sellWith([['EDC', 8880]]);
+
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/IncomingPayments')
+            && $request['PaymentCreditCards'][0]['CreditCard'] === 2
+            && $request['PaymentCreditCards'][0]['CreditAcct'] === '1100-2002-0003'
+            && $request['PaymentCreditCards'][0]['CreditCardNumber'] === '1234');
+    }
+
+    public function test_pembayaran_campuran_tunai_dan_qris_tidak_menghitung_kembalian_tunai(): void
+    {
+        $this->fakeSap();
+
+        $sale = $this->sellWith([['QRIS', 5000], ['CASH', 5000]]);
+
+        $this->assertSame(Sale::SAP_POSTED, $sale->sap_post_status);
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/IncomingPayments')
+            && $request['CashAccount'] === '1100-1001-0002'
+            && $request['CashSum'] === 3880.0
+            && $request['PaymentCreditCards'][0]['CreditSum'] === 5000.0);
+    }
+
+    public function test_akun_qris_warehouse_kosong_menahan_posting_sebelum_invoice_dibuat(): void
+    {
+        $this->fakeSap();
+        $this->store->warehouse->update(['qris_account' => null]);
+
+        $sale = $this->sellWith([['QRIS', 8880]]);
+
+        $this->assertSame(Sale::SAP_FAILED, $sale->sap_post_status);
+        $this->assertStringContainsString('U_SOL_QRIS_ACC', $sale->sap_post_error);
+        $this->assertNull($sale->sap_invoice_doc_entry);
+        Http::assertNotSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/Invoices'));
+    }
+
+    public function test_akun_edc_warehouse_kosong_menahan_posting(): void
+    {
+        $this->fakeSap();
+        $this->store->warehouse->update(['edc_account' => null]);
+
+        $sale = $this->sellWith([['EDC', 8880]]);
+
+        $this->assertSame(Sale::SAP_FAILED, $sale->sap_post_status);
+        $this->assertStringContainsString('U_SOL_EDC_ACC', $sale->sap_post_error);
+    }
+
+    public function test_pembayaran_qris_pending_menahan_posting_sampai_dikonfirmasi(): void
+    {
+        $this->fakeSap();
+
+        $sale = $this->sellWith([['QRIS', 8880, 'pending']]);
+
+        $this->assertSame(Sale::SAP_FAILED, $sale->sap_post_status);
+        $this->assertStringContainsString('belum terkonfirmasi', $sale->sap_post_error);
+        $this->assertNull($sale->sap_invoice_doc_entry);
+
+        $sale->payments()->update(['status' => 'confirmed']);
+        SapSalePosting::queue($sale->fresh());
+
+        $this->assertSame(Sale::SAP_POSTED, $sale->fresh()->sap_post_status);
+    }
+
+    public function test_tipe_pembayaran_lain_belum_didukung_posting_sap(): void
+    {
+        $this->fakeSap();
+
+        $sale = $this->sellWith([['CARD', 8880]]);
+
+        $this->assertSame(Sale::SAP_FAILED, $sale->sap_post_status);
+        $this->assertStringContainsString('Tipe pembayaran CARD belum didukung', $sale->sap_post_error);
+    }
+
+    public function test_kartu_kredit_sap_dengan_akun_warehouse_harus_ada(): void
+    {
+        $this->fakeSap();
+        $this->store->warehouse->update(['qris_account' => '1100-9999-9999']);
+
+        $sale = $this->sellWith([['QRIS', 8880]]);
+
+        $this->assertSame(Sale::SAP_FAILED, $sale->sap_post_status);
+        $this->assertStringContainsString('Kartu kredit SAP B1 dengan akun 1100-9999-9999', $sale->sap_post_error);
+    }
+
+    public function test_profit_center_warehouse_dicatat_di_baris_invoice(): void
+    {
+        $this->fakeSap();
+        $this->store->warehouse->update(['profit_center' => 'R001']);
+
+        $this->sell();
+
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/Invoices')
+            && $request['DocumentLines'][0]['OcrCode'] === 'R001'
+            && $request['DocumentLines'][0]['CogsOcrCode'] === 'R001');
+    }
+
+    public function test_profit_center_kosong_dibiarkan_kosong_di_baris_invoice(): void
+    {
+        $this->fakeSap();
+
+        $this->sell();
+
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/Invoices')
+            && ! array_key_exists('OcrCode', $request['DocumentLines'][0])
+            && ! array_key_exists('CogsOcrCode', $request['DocumentLines'][0]));
     }
 
     public function test_dokumen_yang_sudah_ada_di_sap_tidak_dibuat_dua_kali(): void

@@ -159,7 +159,7 @@ class DatabaseSeeder extends Seeder
         PriceListSync::syncBasePrice($product);
 
         // Tipe pembayaran
-        foreach ([['CASH', 'Tunai', 1], ['QRIS', 'QRIS', 2], ['CARD', 'Kartu', 3]] as [$code, $desc, $order]) {
+        foreach ([['CASH', 'Tunai', 1], ['QRIS', 'QRIS', 2], ['EDC', 'EDC / Kartu', 3]] as [$code, $desc, $order]) {
             $pt = PaymentType::firstOrCreate(
                 ['company_id' => $company->id, 'code' => $code],
                 ['description' => $desc, 'order_number' => $order, 'count_type' => 'summary', 'is_offline_allowed' => true, 'is_active' => true]
