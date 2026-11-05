@@ -199,9 +199,14 @@ export default function App() {
     }, [loadProducts, loadPromotions, refreshHeldCount]);
 
     // Status kunci EOD, pelanggan default, dan penugasan gerai bisa berubah dari admin; segarkan berkala selama online.
+    // Promosi dan hierarki promosi ikut disegarkan (tiap menit dan saat tab kembali aktif) agar perubahan dari admin
+    // atau sinkronisasi SAP langsung terpakai tanpa memuat ulang POS.
     useEffect(() => {
         if (!boot || !online) return undefined;
+        const onVisible = () => { if (document.visibilityState === 'visible') loadPromotions(); };
+        document.addEventListener('visibilitychange', onVisible);
         const timer = setInterval(async () => {
+            loadPromotions();
             try {
                 const res = await api.bootstrap();
                 setBoot((prev) => ({ ...prev, business: res.business, default_customer: res.default_customer, prompt: res.prompt }));
@@ -215,7 +220,10 @@ export default function App() {
                 }
             }
         }, 60000);
-        return () => clearInterval(timer);
+        return () => {
+            clearInterval(timer);
+            document.removeEventListener('visibilitychange', onVisible);
+        };
     }, [boot !== null, online]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
