@@ -2,16 +2,40 @@
     {
         "name": "diskon persen berlaku untuk semua produk bila min qty terpenuhi",
         "promotions": [
-            { "id": "ALL10-id", "code": "ALL10", "name": "Promo ALL10", "type": "discount_percent", "value": 10, "product_id": null, "min_qty": 2 }
+            {
+                "id": "ALL10-id",
+                "code": "ALL10",
+                "name": "Promo ALL10",
+                "type": "discount_percent",
+                "value": 10,
+                "product_id": null,
+                "min_qty": 2
+            }
         ],
         "lines": [
-            { "product_id": "coffee", "qty": 2, "unit_price": 20000 },
-            { "product_id": "cookie", "qty": 1, "unit_price": 15000 }
+            {
+                "product_id": "coffee",
+                "qty": 2,
+                "unit_price": 20000
+            },
+            {
+                "product_id": "cookie",
+                "qty": 1,
+                "unit_price": 15000
+            }
         ],
         "expected": {
             "lines": [
-                { "promotion_id": "ALL10-id", "promotion_name": "Promo ALL10", "promotion_discount": 4000 },
-                { "promotion_id": null, "promotion_name": null, "promotion_discount": 0 }
+                {
+                    "promotion_id": "ALL10-id",
+                    "promotion_name": "Promo ALL10",
+                    "promotion_discount": 4000
+                },
+                {
+                    "promotion_id": null,
+                    "promotion_name": null,
+                    "promotion_discount": 0
+                }
             ],
             "bonus_hints": []
         }
@@ -19,16 +43,40 @@
     {
         "name": "diskon nominal per item tidak melebihi harga",
         "promotions": [
-            { "id": "CUT5K-id", "code": "CUT5K", "name": "Promo CUT5K", "type": "discount_amount", "value": 5000, "product_id": null, "min_qty": 1 }
+            {
+                "id": "CUT5K-id",
+                "code": "CUT5K",
+                "name": "Promo CUT5K",
+                "type": "discount_amount",
+                "value": 5000,
+                "product_id": null,
+                "min_qty": 1
+            }
         ],
         "lines": [
-            { "product_id": "coffee", "qty": 3, "unit_price": 20000 },
-            { "product_id": "cookie", "qty": 2, "unit_price": 3000 }
+            {
+                "product_id": "coffee",
+                "qty": 3,
+                "unit_price": 20000
+            },
+            {
+                "product_id": "cookie",
+                "qty": 2,
+                "unit_price": 3000
+            }
         ],
         "expected": {
             "lines": [
-                { "promotion_id": "CUT5K-id", "promotion_name": "Promo CUT5K", "promotion_discount": 15000 },
-                { "promotion_id": "CUT5K-id", "promotion_name": "Promo CUT5K", "promotion_discount": 6000 }
+                {
+                    "promotion_id": "CUT5K-id",
+                    "promotion_name": "Promo CUT5K",
+                    "promotion_discount": 15000
+                },
+                {
+                    "promotion_id": "CUT5K-id",
+                    "promotion_name": "Promo CUT5K",
+                    "promotion_discount": 6000
+                }
             ],
             "bonus_hints": []
         }
@@ -36,95 +84,292 @@
     {
         "name": "harga khusus berlaku bila lebih murah",
         "promotions": [
-            { "id": "SP-id", "code": "SP", "name": "Promo SP", "type": "special_price", "value": 18000, "product_id": "coffee", "min_qty": 1 }
+            {
+                "id": "SP-id",
+                "code": "SP",
+                "name": "Promo SP",
+                "type": "special_price",
+                "value": 18000,
+                "product_id": "coffee",
+                "min_qty": 1
+            }
         ],
-        "lines": [{ "product_id": "coffee", "qty": 2, "unit_price": 20000 }],
+        "lines": [
+            {
+                "product_id": "coffee",
+                "qty": 2,
+                "unit_price": 20000
+            }
+        ],
         "expected": {
-            "lines": [{ "promotion_id": "SP-id", "promotion_name": "Promo SP", "promotion_discount": 4000 }],
+            "lines": [
+                {
+                    "promotion_id": "SP-id",
+                    "promotion_name": "Promo SP",
+                    "promotion_discount": 4000
+                }
+            ],
             "bonus_hints": []
         }
     },
     {
         "name": "harga khusus diabaikan bila harga price list lebih murah",
         "promotions": [
-            { "id": "SP-id", "code": "SP", "name": "Promo SP", "type": "special_price", "value": 18000, "product_id": "coffee", "min_qty": 1 }
+            {
+                "id": "SP-id",
+                "code": "SP",
+                "name": "Promo SP",
+                "type": "special_price",
+                "value": 18000,
+                "product_id": "coffee",
+                "min_qty": 1
+            }
         ],
-        "lines": [{ "product_id": "coffee", "qty": 2, "unit_price": 17000 }],
+        "lines": [
+            {
+                "product_id": "coffee",
+                "qty": 2,
+                "unit_price": 17000
+            }
+        ],
         "expected": {
-            "lines": [{ "promotion_id": null, "promotion_name": null, "promotion_discount": 0 }],
+            "lines": [
+                {
+                    "promotion_id": null,
+                    "promotion_name": null,
+                    "promotion_discount": 0
+                }
+            ],
             "bonus_hints": []
         }
     },
     {
         "name": "promosi dengan potongan terbesar yang dipakai",
         "promotions": [
-            { "id": "P10-id", "code": "P10", "name": "Promo P10", "type": "discount_percent", "value": 10, "product_id": null, "min_qty": 1 },
-            { "id": "CUT3K-id", "code": "CUT3K", "name": "Promo CUT3K", "type": "discount_amount", "value": 3000, "product_id": "coffee", "min_qty": 1 }
+            {
+                "id": "P10-id",
+                "code": "P10",
+                "name": "Promo P10",
+                "type": "discount_percent",
+                "value": 10,
+                "product_id": null,
+                "min_qty": 1
+            },
+            {
+                "id": "CUT3K-id",
+                "code": "CUT3K",
+                "name": "Promo CUT3K",
+                "type": "discount_amount",
+                "value": 3000,
+                "product_id": "coffee",
+                "min_qty": 1
+            }
         ],
-        "lines": [{ "product_id": "coffee", "qty": 1, "unit_price": 20000 }],
+        "lines": [
+            {
+                "product_id": "coffee",
+                "qty": 1,
+                "unit_price": 20000
+            }
+        ],
         "expected": {
-            "lines": [{ "promotion_id": "CUT3K-id", "promotion_name": "Promo CUT3K", "promotion_discount": 3000 }],
+            "lines": [
+                {
+                    "promotion_id": "CUT3K-id",
+                    "promotion_name": "Promo CUT3K",
+                    "promotion_discount": 3000
+                }
+            ],
             "bonus_hints": []
         }
     },
     {
         "name": "potongan sama besar mengutamakan promosi khusus produk",
         "promotions": [
-            { "id": "A-ALL-id", "code": "A-ALL", "name": "Promo A-ALL", "type": "discount_amount", "value": 2000, "product_id": null, "min_qty": 1 },
-            { "id": "Z-COFFEE-id", "code": "Z-COFFEE", "name": "Promo Z-COFFEE", "type": "discount_percent", "value": 10, "product_id": "coffee", "min_qty": 1 }
+            {
+                "id": "A-ALL-id",
+                "code": "A-ALL",
+                "name": "Promo A-ALL",
+                "type": "discount_amount",
+                "value": 2000,
+                "product_id": null,
+                "min_qty": 1
+            },
+            {
+                "id": "Z-COFFEE-id",
+                "code": "Z-COFFEE",
+                "name": "Promo Z-COFFEE",
+                "type": "discount_percent",
+                "value": 10,
+                "product_id": "coffee",
+                "min_qty": 1
+            }
         ],
-        "lines": [{ "product_id": "coffee", "qty": 1, "unit_price": 20000 }],
+        "lines": [
+            {
+                "product_id": "coffee",
+                "qty": 1,
+                "unit_price": 20000
+            }
+        ],
         "expected": {
-            "lines": [{ "promotion_id": "Z-COFFEE-id", "promotion_name": "Promo Z-COFFEE", "promotion_discount": 2000 }],
+            "lines": [
+                {
+                    "promotion_id": "Z-COFFEE-id",
+                    "promotion_name": "Promo Z-COFFEE",
+                    "promotion_discount": 2000
+                }
+            ],
             "bonus_hints": []
         }
     },
     {
         "name": "beli x gratis y produk sama berlaku kelipatan",
         "promotions": [
-            { "id": "B2G1-id", "code": "B2G1", "name": "Promo B2G1", "type": "buy_x_get_y", "value": 0, "product_id": "coffee", "min_qty": 1, "buy_qty": 2, "get_qty": 1 }
+            {
+                "id": "B2G1-id",
+                "code": "B2G1",
+                "name": "Promo B2G1",
+                "type": "buy_x_get_y",
+                "value": 0,
+                "product_id": "coffee",
+                "min_qty": 1,
+                "buy_qty": 2,
+                "get_qty": 1
+            }
         ],
-        "lines": [{ "product_id": "coffee", "qty": 7, "unit_price": 20000 }],
+        "lines": [
+            {
+                "product_id": "coffee",
+                "qty": 7,
+                "unit_price": 20000
+            }
+        ],
         "expected": {
-            "lines": [{ "promotion_id": "B2G1-id", "promotion_name": "Promo B2G1", "promotion_discount": 40000 }],
+            "lines": [
+                {
+                    "promotion_id": "B2G1-id",
+                    "promotion_name": "Promo B2G1",
+                    "promotion_discount": 40000
+                }
+            ],
             "bonus_hints": []
         }
     },
     {
         "name": "beli x gratis y dibatasi maks kelipatan",
         "promotions": [
-            { "id": "B2G1-id", "code": "B2G1", "name": "Promo B2G1", "type": "buy_x_get_y", "value": 0, "product_id": "coffee", "min_qty": 1, "buy_qty": 2, "get_qty": 1, "max_applications": 1 }
+            {
+                "id": "B2G1-id",
+                "code": "B2G1",
+                "name": "Promo B2G1",
+                "type": "buy_x_get_y",
+                "value": 0,
+                "product_id": "coffee",
+                "min_qty": 1,
+                "buy_qty": 2,
+                "get_qty": 1,
+                "max_applications": 1
+            }
         ],
-        "lines": [{ "product_id": "coffee", "qty": 6, "unit_price": 20000 }],
+        "lines": [
+            {
+                "product_id": "coffee",
+                "qty": 6,
+                "unit_price": 20000
+            }
+        ],
         "expected": {
-            "lines": [{ "promotion_id": "B2G1-id", "promotion_name": "Promo B2G1", "promotion_discount": 20000 }],
+            "lines": [
+                {
+                    "promotion_id": "B2G1-id",
+                    "promotion_name": "Promo B2G1",
+                    "promotion_discount": 20000
+                }
+            ],
             "bonus_hints": []
         }
     },
     {
         "name": "beli x gratis y produk sama memberi petunjuk bila bonus belum diambil",
         "promotions": [
-            { "id": "B2G1-id", "code": "B2G1", "name": "Promo B2G1", "type": "buy_x_get_y", "value": 0, "product_id": "coffee", "min_qty": 1, "buy_qty": 2, "get_qty": 1 }
+            {
+                "id": "B2G1-id",
+                "code": "B2G1",
+                "name": "Promo B2G1",
+                "type": "buy_x_get_y",
+                "value": 0,
+                "product_id": "coffee",
+                "min_qty": 1,
+                "buy_qty": 2,
+                "get_qty": 1
+            }
         ],
-        "lines": [{ "product_id": "coffee", "qty": 2, "unit_price": 20000 }],
+        "lines": [
+            {
+                "product_id": "coffee",
+                "qty": 2,
+                "unit_price": 20000
+            }
+        ],
         "expected": {
-            "lines": [{ "promotion_id": null, "promotion_name": null, "promotion_discount": 0 }],
-            "bonus_hints": [{ "promotion_id": "B2G1-id", "promotion_name": "Promo B2G1", "product_id": "coffee", "qty": 1 }]
+            "lines": [
+                {
+                    "promotion_id": null,
+                    "promotion_name": null,
+                    "promotion_discount": 0
+                }
+            ],
+            "bonus_hints": [
+                {
+                    "promotion_id": "B2G1-id",
+                    "promotion_name": "Promo B2G1",
+                    "product_id": "coffee",
+                    "qty": 1
+                }
+            ]
         }
     },
     {
         "name": "beli x gratis y produk bonus berbeda diskon di baris bonus",
         "promotions": [
-            { "id": "B2G1-id", "code": "B2G1", "name": "Promo B2G1", "type": "buy_x_get_y", "value": 0, "product_id": "coffee", "min_qty": 1, "buy_qty": 2, "get_qty": 1, "get_product_id": "cookie" }
+            {
+                "id": "B2G1-id",
+                "code": "B2G1",
+                "name": "Promo B2G1",
+                "type": "buy_x_get_y",
+                "value": 0,
+                "product_id": "coffee",
+                "min_qty": 1,
+                "buy_qty": 2,
+                "get_qty": 1,
+                "get_product_id": "cookie"
+            }
         ],
         "lines": [
-            { "product_id": "coffee", "qty": 4, "unit_price": 20000 },
-            { "product_id": "cookie", "qty": 3, "unit_price": 15000 }
+            {
+                "product_id": "coffee",
+                "qty": 4,
+                "unit_price": 20000
+            },
+            {
+                "product_id": "cookie",
+                "qty": 3,
+                "unit_price": 15000
+            }
         ],
         "expected": {
             "lines": [
-                { "promotion_id": null, "promotion_name": null, "promotion_discount": 0 },
-                { "promotion_id": "B2G1-id", "promotion_name": "Promo B2G1", "promotion_discount": 30000 }
+                {
+                    "promotion_id": null,
+                    "promotion_name": null,
+                    "promotion_discount": 0
+                },
+                {
+                    "promotion_id": "B2G1-id",
+                    "promotion_name": "Promo B2G1",
+                    "promotion_discount": 30000
+                }
             ],
             "bonus_hints": []
         }
@@ -132,34 +377,103 @@
     {
         "name": "beli x gratis y produk bonus berbeda memberi petunjuk sisa jatah",
         "promotions": [
-            { "id": "B2G1-id", "code": "B2G1", "name": "Promo B2G1", "type": "buy_x_get_y", "value": 0, "product_id": "coffee", "min_qty": 1, "buy_qty": 2, "get_qty": 1, "get_product_id": "cookie" }
+            {
+                "id": "B2G1-id",
+                "code": "B2G1",
+                "name": "Promo B2G1",
+                "type": "buy_x_get_y",
+                "value": 0,
+                "product_id": "coffee",
+                "min_qty": 1,
+                "buy_qty": 2,
+                "get_qty": 1,
+                "get_product_id": "cookie"
+            }
         ],
         "lines": [
-            { "product_id": "coffee", "qty": 4, "unit_price": 20000 },
-            { "product_id": "cookie", "qty": 1, "unit_price": 15000 }
+            {
+                "product_id": "coffee",
+                "qty": 4,
+                "unit_price": 20000
+            },
+            {
+                "product_id": "cookie",
+                "qty": 1,
+                "unit_price": 15000
+            }
         ],
         "expected": {
             "lines": [
-                { "promotion_id": null, "promotion_name": null, "promotion_discount": 0 },
-                { "promotion_id": "B2G1-id", "promotion_name": "Promo B2G1", "promotion_discount": 15000 }
+                {
+                    "promotion_id": null,
+                    "promotion_name": null,
+                    "promotion_discount": 0
+                },
+                {
+                    "promotion_id": "B2G1-id",
+                    "promotion_name": "Promo B2G1",
+                    "promotion_discount": 15000
+                }
             ],
-            "bonus_hints": [{ "promotion_id": "B2G1-id", "promotion_name": "Promo B2G1", "product_id": "cookie", "qty": 1 }]
+            "bonus_hints": [
+                {
+                    "promotion_id": "B2G1-id",
+                    "promotion_name": "Promo B2G1",
+                    "product_id": "cookie",
+                    "qty": 1
+                }
+            ]
         }
     },
     {
         "name": "baris bonus memakai promosi lain bila potongannya lebih besar",
         "promotions": [
-            { "id": "B2G1-id", "code": "B2G1", "name": "Promo B2G1", "type": "buy_x_get_y", "value": 0, "product_id": "coffee", "min_qty": 1, "buy_qty": 2, "get_qty": 1, "get_product_id": "cookie" },
-            { "id": "COOKIE50-id", "code": "COOKIE50", "name": "Promo COOKIE50", "type": "discount_percent", "value": 50, "product_id": "cookie", "min_qty": 1 }
+            {
+                "id": "B2G1-id",
+                "code": "B2G1",
+                "name": "Promo B2G1",
+                "type": "buy_x_get_y",
+                "value": 0,
+                "product_id": "coffee",
+                "min_qty": 1,
+                "buy_qty": 2,
+                "get_qty": 1,
+                "get_product_id": "cookie"
+            },
+            {
+                "id": "COOKIE50-id",
+                "code": "COOKIE50",
+                "name": "Promo COOKIE50",
+                "type": "discount_percent",
+                "value": 50,
+                "product_id": "cookie",
+                "min_qty": 1
+            }
         ],
         "lines": [
-            { "product_id": "coffee", "qty": 2, "unit_price": 20000 },
-            { "product_id": "cookie", "qty": 4, "unit_price": 15000 }
+            {
+                "product_id": "coffee",
+                "qty": 2,
+                "unit_price": 20000
+            },
+            {
+                "product_id": "cookie",
+                "qty": 4,
+                "unit_price": 15000
+            }
         ],
         "expected": {
             "lines": [
-                { "promotion_id": null, "promotion_name": null, "promotion_discount": 0 },
-                { "promotion_id": "COOKIE50-id", "promotion_name": "Promo COOKIE50", "promotion_discount": 30000 }
+                {
+                    "promotion_id": null,
+                    "promotion_name": null,
+                    "promotion_discount": 0
+                },
+                {
+                    "promotion_id": "COOKIE50-id",
+                    "promotion_name": "Promo COOKIE50",
+                    "promotion_discount": 30000
+                }
             ],
             "bonus_hints": []
         }
@@ -167,11 +481,900 @@
     {
         "name": "pembulatan diskon persen ke 2 desimal",
         "promotions": [
-            { "id": "P15-id", "code": "P15", "name": "Promo P15", "type": "discount_percent", "value": 15, "product_id": null, "min_qty": 1 }
+            {
+                "id": "P15-id",
+                "code": "P15",
+                "name": "Promo P15",
+                "type": "discount_percent",
+                "value": 15,
+                "product_id": null,
+                "min_qty": 1
+            }
         ],
-        "lines": [{ "product_id": "coffee", "qty": 3, "unit_price": 3333.33 }],
+        "lines": [
+            {
+                "product_id": "coffee",
+                "qty": 3,
+                "unit_price": 3333.33
+            }
+        ],
         "expected": {
-            "lines": [{ "promotion_id": "P15-id", "promotion_name": "Promo P15", "promotion_discount": 1500 }],
+            "lines": [
+                {
+                    "promotion_id": "P15-id",
+                    "promotion_name": "Promo P15",
+                    "promotion_discount": 1500
+                }
+            ],
+            "bonus_hints": []
+        }
+    },
+    {
+        "name": "harga bertingkat memakai total qty barang yang sama di semua baris",
+        "promotions": [
+            {
+                "id": "VOL-id",
+                "code": "VOL",
+                "name": "Promo VOL",
+                "type": "volume_price",
+                "value": 0,
+                "product_id": "p",
+                "min_qty": 1,
+                "source": "sap",
+                "tiers": [
+                    {
+                        "min_qty": 1,
+                        "price": 4000
+                    },
+                    {
+                        "min_qty": 5,
+                        "price": 3800
+                    },
+                    {
+                        "min_qty": 12,
+                        "price": 3720
+                    }
+                ]
+            }
+        ],
+        "lines": [
+            {
+                "product_id": "p",
+                "qty": 3,
+                "unit_price": 4000
+            },
+            {
+                "product_id": "p",
+                "qty": 3,
+                "unit_price": 4000
+            }
+        ],
+        "expected": {
+            "lines": [
+                {
+                    "promotion_id": "VOL-id",
+                    "promotion_name": "Promo VOL",
+                    "promotion_discount": 600
+                },
+                {
+                    "promotion_id": "VOL-id",
+                    "promotion_name": "Promo VOL",
+                    "promotion_discount": 600
+                }
+            ],
+            "bonus_hints": []
+        }
+    },
+    {
+        "name": "harga bertingkat belum berlaku bila total qty belum mencapai tingkat",
+        "promotions": [
+            {
+                "id": "VOL-id",
+                "code": "VOL",
+                "name": "Promo VOL",
+                "type": "volume_price",
+                "value": 0,
+                "product_id": "p",
+                "min_qty": 1,
+                "source": "sap",
+                "tiers": [
+                    {
+                        "min_qty": 1,
+                        "price": 4000
+                    },
+                    {
+                        "min_qty": 5,
+                        "price": 3800
+                    }
+                ]
+            }
+        ],
+        "lines": [
+            {
+                "product_id": "p",
+                "qty": 4,
+                "unit_price": 4000
+            }
+        ],
+        "expected": {
+            "lines": [
+                {
+                    "promotion_id": null,
+                    "promotion_name": null,
+                    "promotion_discount": 0
+                }
+            ],
+            "bonus_hints": []
+        }
+    },
+    {
+        "name": "diskon customer group hanya untuk pelanggan di group itu",
+        "promotions": [
+            {
+                "id": "CG-id",
+                "code": "CG",
+                "name": "Promo CG",
+                "type": "discount_percent",
+                "value": 10,
+                "product_id": null,
+                "min_qty": 1,
+                "source": "sap",
+                "customer_scope": "customer_group",
+                "customer_ref": "102"
+            }
+        ],
+        "context": {
+            "customer": {
+                "code": "C1",
+                "group_code": "102"
+            },
+            "price_list_code": "1"
+        },
+        "lines": [
+            {
+                "product_id": "p",
+                "qty": 1,
+                "unit_price": 10000
+            }
+        ],
+        "expected": {
+            "lines": [
+                {
+                    "promotion_id": "CG-id",
+                    "promotion_name": "Promo CG",
+                    "promotion_discount": 1000
+                }
+            ],
+            "bonus_hints": []
+        }
+    },
+    {
+        "name": "diskon customer group tidak berlaku untuk group lain",
+        "promotions": [
+            {
+                "id": "CG-id",
+                "code": "CG",
+                "name": "Promo CG",
+                "type": "discount_percent",
+                "value": 10,
+                "product_id": null,
+                "min_qty": 1,
+                "source": "sap",
+                "customer_scope": "customer_group",
+                "customer_ref": "102"
+            }
+        ],
+        "context": {
+            "customer": {
+                "code": "C1",
+                "group_code": "999"
+            },
+            "price_list_code": "1"
+        },
+        "lines": [
+            {
+                "product_id": "p",
+                "qty": 1,
+                "unit_price": 10000
+            }
+        ],
+        "expected": {
+            "lines": [
+                {
+                    "promotion_id": null,
+                    "promotion_name": null,
+                    "promotion_discount": 0
+                }
+            ],
+            "bonus_hints": []
+        }
+    },
+    {
+        "name": "diskon customer group tidak berlaku tanpa pelanggan",
+        "promotions": [
+            {
+                "id": "CG-id",
+                "code": "CG",
+                "name": "Promo CG",
+                "type": "discount_percent",
+                "value": 10,
+                "product_id": null,
+                "min_qty": 1,
+                "source": "sap",
+                "customer_scope": "customer_group",
+                "customer_ref": "102"
+            }
+        ],
+        "lines": [
+            {
+                "product_id": "p",
+                "qty": 1,
+                "unit_price": 10000
+            }
+        ],
+        "expected": {
+            "lines": [
+                {
+                    "promotion_id": null,
+                    "promotion_name": null,
+                    "promotion_discount": 0
+                }
+            ],
+            "bonus_hints": []
+        }
+    },
+    {
+        "name": "diskon untuk satu pelanggan spesifik",
+        "promotions": [
+            {
+                "id": "BP-id",
+                "code": "BP",
+                "name": "Promo BP",
+                "type": "discount_percent",
+                "value": 5,
+                "product_id": null,
+                "min_qty": 1,
+                "source": "sap",
+                "customer_scope": "customer",
+                "customer_ref": "CR0000004"
+            }
+        ],
+        "context": {
+            "customer": {
+                "code": "CR0000004",
+                "group_code": "102"
+            }
+        },
+        "lines": [
+            {
+                "product_id": "p",
+                "qty": 2,
+                "unit_price": 10000
+            }
+        ],
+        "expected": {
+            "lines": [
+                {
+                    "promotion_id": "BP-id",
+                    "promotion_name": "Promo BP",
+                    "promotion_discount": 1000
+                }
+            ],
+            "bonus_hints": []
+        }
+    },
+    {
+        "name": "diskon terikat price list hanya berlaku bila price list gerai sama",
+        "promotions": [
+            {
+                "id": "PL-id",
+                "code": "PL",
+                "name": "Promo PL",
+                "type": "discount_percent",
+                "value": 10,
+                "product_id": null,
+                "min_qty": 1,
+                "source": "sap",
+                "price_list_code": "1"
+            }
+        ],
+        "context": {
+            "price_list_code": "2"
+        },
+        "lines": [
+            {
+                "product_id": "p",
+                "qty": 1,
+                "unit_price": 10000
+            }
+        ],
+        "expected": {
+            "lines": [
+                {
+                    "promotion_id": null,
+                    "promotion_name": null,
+                    "promotion_discount": 0
+                }
+            ],
+            "bonus_hints": []
+        }
+    },
+    {
+        "name": "diskon brand hanya untuk produk brand itu",
+        "promotions": [
+            {
+                "id": "BR-id",
+                "code": "BR",
+                "name": "Promo BR",
+                "type": "discount_percent",
+                "value": 10,
+                "product_id": null,
+                "min_qty": 1,
+                "source": "sap",
+                "brand_id": "b1"
+            }
+        ],
+        "lines": [
+            {
+                "product_id": "a",
+                "qty": 1,
+                "unit_price": 10000,
+                "brand_id": "b1"
+            },
+            {
+                "product_id": "b",
+                "qty": 1,
+                "unit_price": 10000,
+                "brand_id": "b2"
+            }
+        ],
+        "expected": {
+            "lines": [
+                {
+                    "promotion_id": "BR-id",
+                    "promotion_name": "Promo BR",
+                    "promotion_discount": 1000
+                },
+                {
+                    "promotion_id": null,
+                    "promotion_name": null,
+                    "promotion_discount": 0
+                }
+            ],
+            "bonus_hints": []
+        }
+    },
+    {
+        "name": "diskon item group hanya untuk produk group itu",
+        "promotions": [
+            {
+                "id": "IG-id",
+                "code": "IG",
+                "name": "Promo IG",
+                "type": "discount_percent",
+                "value": 20,
+                "product_id": null,
+                "min_qty": 1,
+                "source": "sap",
+                "product_group_id": "g1"
+            }
+        ],
+        "lines": [
+            {
+                "product_id": "a",
+                "qty": 1,
+                "unit_price": 10000,
+                "product_group_id": "g1"
+            },
+            {
+                "product_id": "b",
+                "qty": 1,
+                "unit_price": 10000,
+                "product_group_id": "g2"
+            }
+        ],
+        "expected": {
+            "lines": [
+                {
+                    "promotion_id": "IG-id",
+                    "promotion_name": "Promo IG",
+                    "promotion_discount": 2000
+                },
+                {
+                    "promotion_id": null,
+                    "promotion_name": null,
+                    "promotion_discount": 0
+                }
+            ],
+            "bonus_hints": []
+        }
+    },
+    {
+        "name": "hierarki ketat: sumber teratas menang walau potongannya lebih kecil",
+        "promotions": [
+            {
+                "id": "VOL-id",
+                "code": "VOL",
+                "name": "Promo VOL",
+                "type": "volume_price",
+                "value": 0,
+                "product_id": "p",
+                "min_qty": 1,
+                "source": "sap",
+                "tiers": [
+                    {
+                        "min_qty": 1,
+                        "price": 9500
+                    }
+                ]
+            },
+            {
+                "id": "SP-id",
+                "code": "SP",
+                "name": "Promo SP",
+                "type": "special_price",
+                "value": 7000,
+                "product_id": "p",
+                "min_qty": 1
+            }
+        ],
+        "hierarchy": [
+            "sap_period_volume",
+            "sap_discount_group",
+            "special_price",
+            "discount_amount",
+            "buy_x_get_y"
+        ],
+        "lines": [
+            {
+                "product_id": "p",
+                "qty": 1,
+                "unit_price": 10000
+            }
+        ],
+        "expected": {
+            "lines": [
+                {
+                    "promotion_id": "VOL-id",
+                    "promotion_name": "Promo VOL",
+                    "promotion_discount": 500
+                }
+            ],
+            "bonus_hints": []
+        }
+    },
+    {
+        "name": "hierarki ketat mengikuti urutan yang diubah admin",
+        "promotions": [
+            {
+                "id": "VOL-id",
+                "code": "VOL",
+                "name": "Promo VOL",
+                "type": "volume_price",
+                "value": 0,
+                "product_id": "p",
+                "min_qty": 1,
+                "source": "sap",
+                "tiers": [
+                    {
+                        "min_qty": 1,
+                        "price": 9500
+                    }
+                ]
+            },
+            {
+                "id": "SP-id",
+                "code": "SP",
+                "name": "Promo SP",
+                "type": "special_price",
+                "value": 7000,
+                "product_id": "p",
+                "min_qty": 1
+            }
+        ],
+        "hierarchy": [
+            "special_price",
+            "sap_period_volume"
+        ],
+        "lines": [
+            {
+                "product_id": "p",
+                "qty": 1,
+                "unit_price": 10000
+            }
+        ],
+        "expected": {
+            "lines": [
+                {
+                    "promotion_id": "SP-id",
+                    "promotion_name": "Promo SP",
+                    "promotion_discount": 3000
+                }
+            ],
+            "bonus_hints": []
+        }
+    },
+    {
+        "name": "tanpa hierarki potongan terbesar menang",
+        "promotions": [
+            {
+                "id": "VOL-id",
+                "code": "VOL",
+                "name": "Promo VOL",
+                "type": "volume_price",
+                "value": 0,
+                "product_id": "p",
+                "min_qty": 1,
+                "source": "sap",
+                "tiers": [
+                    {
+                        "min_qty": 1,
+                        "price": 9500
+                    }
+                ]
+            },
+            {
+                "id": "SP-id",
+                "code": "SP",
+                "name": "Promo SP",
+                "type": "special_price",
+                "value": 7000,
+                "product_id": "p",
+                "min_qty": 1
+            }
+        ],
+        "lines": [
+            {
+                "product_id": "p",
+                "qty": 1,
+                "unit_price": 10000
+            }
+        ],
+        "expected": {
+            "lines": [
+                {
+                    "promotion_id": "SP-id",
+                    "promotion_name": "Promo SP",
+                    "promotion_discount": 3000
+                }
+            ],
+            "bonus_hints": []
+        }
+    },
+    {
+        "name": "hierarki: sumber yang tidak menghasilkan diskon dilewati",
+        "promotions": [
+            {
+                "id": "VOL-id",
+                "code": "VOL",
+                "name": "Promo VOL",
+                "type": "volume_price",
+                "value": 0,
+                "product_id": "p",
+                "min_qty": 1,
+                "source": "sap",
+                "tiers": [
+                    {
+                        "min_qty": 5,
+                        "price": 9000
+                    }
+                ]
+            },
+            {
+                "id": "CUT-id",
+                "code": "CUT",
+                "name": "Promo CUT",
+                "type": "discount_amount",
+                "value": 1000,
+                "product_id": null,
+                "min_qty": 1
+            }
+        ],
+        "hierarchy": [
+            "sap_period_volume",
+            "special_price",
+            "discount_amount"
+        ],
+        "lines": [
+            {
+                "product_id": "p",
+                "qty": 1,
+                "unit_price": 10000
+            }
+        ],
+        "expected": {
+            "lines": [
+                {
+                    "promotion_id": "CUT-id",
+                    "promotion_name": "Promo CUT",
+                    "promotion_discount": 1000
+                }
+            ],
+            "bonus_hints": []
+        }
+    },
+    {
+        "name": "baris satu Discount Group digabung dengan relasi highest",
+        "promotions": [
+            {
+                "id": "DGA-id",
+                "code": "DGA",
+                "name": "Promo DGA",
+                "type": "discount_percent",
+                "value": 10,
+                "product_id": null,
+                "min_qty": 1,
+                "source": "sap",
+                "brand_id": "b1",
+                "group_key": "DG|1",
+                "group_relation": "highest"
+            },
+            {
+                "id": "DGB-id",
+                "code": "DGB",
+                "name": "Promo DGB",
+                "type": "discount_percent",
+                "value": 15,
+                "product_id": null,
+                "min_qty": 1,
+                "source": "sap",
+                "product_group_id": "g1",
+                "group_key": "DG|1",
+                "group_relation": "highest"
+            }
+        ],
+        "hierarchy": [
+            "sap_period_volume",
+            "sap_discount_group",
+            "special_price",
+            "discount_amount",
+            "buy_x_get_y"
+        ],
+        "lines": [
+            {
+                "product_id": "p",
+                "qty": 1,
+                "unit_price": 10000,
+                "brand_id": "b1",
+                "product_group_id": "g1"
+            }
+        ],
+        "expected": {
+            "lines": [
+                {
+                    "promotion_id": "DGA-id",
+                    "promotion_name": "Promo DGA",
+                    "promotion_discount": 1500
+                }
+            ],
+            "bonus_hints": []
+        }
+    },
+    {
+        "name": "baris satu Discount Group digabung dengan relasi lowest",
+        "promotions": [
+            {
+                "id": "DGA-id",
+                "code": "DGA",
+                "name": "Promo DGA",
+                "type": "discount_percent",
+                "value": 10,
+                "product_id": null,
+                "min_qty": 1,
+                "source": "sap",
+                "brand_id": "b1",
+                "group_key": "DG|1",
+                "group_relation": "lowest"
+            },
+            {
+                "id": "DGB-id",
+                "code": "DGB",
+                "name": "Promo DGB",
+                "type": "discount_percent",
+                "value": 15,
+                "product_id": null,
+                "min_qty": 1,
+                "source": "sap",
+                "product_group_id": "g1",
+                "group_key": "DG|1",
+                "group_relation": "lowest"
+            }
+        ],
+        "hierarchy": [
+            "sap_period_volume",
+            "sap_discount_group",
+            "special_price",
+            "discount_amount",
+            "buy_x_get_y"
+        ],
+        "lines": [
+            {
+                "product_id": "p",
+                "qty": 1,
+                "unit_price": 10000,
+                "brand_id": "b1",
+                "product_group_id": "g1"
+            }
+        ],
+        "expected": {
+            "lines": [
+                {
+                    "promotion_id": "DGA-id",
+                    "promotion_name": "Promo DGA",
+                    "promotion_discount": 1000
+                }
+            ],
+            "bonus_hints": []
+        }
+    },
+    {
+        "name": "baris satu Discount Group digabung dengan relasi average",
+        "promotions": [
+            {
+                "id": "DGA-id",
+                "code": "DGA",
+                "name": "Promo DGA",
+                "type": "discount_percent",
+                "value": 10,
+                "product_id": null,
+                "min_qty": 1,
+                "source": "sap",
+                "brand_id": "b1",
+                "group_key": "DG|1",
+                "group_relation": "average"
+            },
+            {
+                "id": "DGB-id",
+                "code": "DGB",
+                "name": "Promo DGB",
+                "type": "discount_percent",
+                "value": 15,
+                "product_id": null,
+                "min_qty": 1,
+                "source": "sap",
+                "product_group_id": "g1",
+                "group_key": "DG|1",
+                "group_relation": "average"
+            }
+        ],
+        "hierarchy": [
+            "sap_period_volume",
+            "sap_discount_group",
+            "special_price",
+            "discount_amount",
+            "buy_x_get_y"
+        ],
+        "lines": [
+            {
+                "product_id": "p",
+                "qty": 1,
+                "unit_price": 10000,
+                "brand_id": "b1",
+                "product_group_id": "g1"
+            }
+        ],
+        "expected": {
+            "lines": [
+                {
+                    "promotion_id": "DGA-id",
+                    "promotion_name": "Promo DGA",
+                    "promotion_discount": 1250
+                }
+            ],
+            "bonus_hints": []
+        }
+    },
+    {
+        "name": "baris satu Discount Group digabung dengan relasi total",
+        "promotions": [
+            {
+                "id": "DGA-id",
+                "code": "DGA",
+                "name": "Promo DGA",
+                "type": "discount_percent",
+                "value": 10,
+                "product_id": null,
+                "min_qty": 1,
+                "source": "sap",
+                "brand_id": "b1",
+                "group_key": "DG|1",
+                "group_relation": "total"
+            },
+            {
+                "id": "DGB-id",
+                "code": "DGB",
+                "name": "Promo DGB",
+                "type": "discount_percent",
+                "value": 15,
+                "product_id": null,
+                "min_qty": 1,
+                "source": "sap",
+                "product_group_id": "g1",
+                "group_key": "DG|1",
+                "group_relation": "total"
+            }
+        ],
+        "hierarchy": [
+            "sap_period_volume",
+            "sap_discount_group",
+            "special_price",
+            "discount_amount",
+            "buy_x_get_y"
+        ],
+        "lines": [
+            {
+                "product_id": "p",
+                "qty": 1,
+                "unit_price": 10000,
+                "brand_id": "b1",
+                "product_group_id": "g1"
+            }
+        ],
+        "expected": {
+            "lines": [
+                {
+                    "promotion_id": "DGA-id",
+                    "promotion_name": "Promo DGA",
+                    "promotion_discount": 2500
+                }
+            ],
+            "bonus_hints": []
+        }
+    },
+    {
+        "name": "baris satu Discount Group digabung dengan relasi multiplied",
+        "promotions": [
+            {
+                "id": "DGA-id",
+                "code": "DGA",
+                "name": "Promo DGA",
+                "type": "discount_percent",
+                "value": 10,
+                "product_id": null,
+                "min_qty": 1,
+                "source": "sap",
+                "brand_id": "b1",
+                "group_key": "DG|1",
+                "group_relation": "multiplied"
+            },
+            {
+                "id": "DGB-id",
+                "code": "DGB",
+                "name": "Promo DGB",
+                "type": "discount_percent",
+                "value": 15,
+                "product_id": null,
+                "min_qty": 1,
+                "source": "sap",
+                "product_group_id": "g1",
+                "group_key": "DG|1",
+                "group_relation": "multiplied"
+            }
+        ],
+        "hierarchy": [
+            "sap_period_volume",
+            "sap_discount_group",
+            "special_price",
+            "discount_amount",
+            "buy_x_get_y"
+        ],
+        "lines": [
+            {
+                "product_id": "p",
+                "qty": 1,
+                "unit_price": 10000,
+                "brand_id": "b1",
+                "product_group_id": "g1"
+            }
+        ],
+        "expected": {
+            "lines": [
+                {
+                    "promotion_id": "DGA-id",
+                    "promotion_name": "Promo DGA",
+                    "promotion_discount": 2350
+                }
+            ],
             "bonus_hints": []
         }
     }

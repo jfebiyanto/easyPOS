@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, uuid } from './api.js';
 import { printReceipt, connectUsbPrinter, hasUsbPrinter, getAutoPrint, setAutoPrint } from './printer.js';
 import { enqueue, readQueue, removeFromQueue, writeQueue } from './offline.js';
-import { activePromotions, applyPromotions, readCachedPromotions, writeCachedPromotions } from './promotions.js';
+import { activePromotions, applyPromotions, readCachedPromotionMeta, readCachedPromotions, writeCachedPromotionMeta, writeCachedPromotions } from './promotions.js';
 import { formatBusinessClock, formatIsoDate, serverOffset } from './businessClock.js';
 import { fitCartToStock, isOutOfStock, maxQty } from './stock.js';
 import { digitsOnly, parseQty } from './qty.js';
@@ -16,10 +16,12 @@ const fmt = (n, currency = 'IDR') =>
 
 // Baris keranjang + hasil promosi (discount, promotion_id, promotion_name). Keranjang di state tetap
 // mentah agar promosi dihitung ulang setiap kali keranjang/promosi berubah, termasuk saat hold dilanjutkan.
-function priceCart(cart, promotions, at = new Date()) {
+function priceCart(cart, promotions, at = new Date(), context = {}, hierarchy = null) {
     const result = applyPromotions(
-        cart.map((l) => ({ product_id: l.id, qty: l.qty, unit_price: l.unit_price })),
+        cart.map((l) => ({ product_id: l.id, qty: l.qty, unit_price: l.unit_price, brand_id: l.brand_id ?? null, product_group_id: l.product_group_id ?? null })),
         activePromotions(promotions, at),
+        context,
+        hierarchy,
     );
 
     return {
@@ -106,6 +108,7 @@ export default function App() {
     const [confirm, setConfirm] = useState(null);
     const [receipt, setReceipt] = useState(null);
     const [promotions, setPromotions] = useState(readCachedPromotions);
+    const [promotionMeta, setPromotionMeta] = useState(readCachedPromotionMeta);
     const scanRef = useRef(null);
 
     const currency = boot?.company?.currency || 'IDR';
@@ -126,6 +129,10 @@ export default function App() {
             const res = await api.promotions();
             setPromotions(res.data);
             writeCachedPromotions(res.data);
+            if (res.meta) {
+                setPromotionMeta(res.meta);
+                writeCachedPromotionMeta(res.meta);
+            }
         } catch {
             /* pakai cache */
         }
@@ -259,7 +266,7 @@ export default function App() {
                 if (found) {
                     return prev.map((l) => (l.id === product.id ? { ...l, qty: nextQty, stock: product.stock } : l));
                 }
-                return [...prev, { id: product.id, sku: product.sku, name: product.name, unit: product.unit, unit_price: product.price, qty: nextQty, track_stock: product.track_stock, stock: product.stock }];
+                return [...prev, { id: product.id, sku: product.sku, name: product.name, unit: product.unit, unit_price: product.price, qty: nextQty, track_stock: product.track_stock, stock: product.stock, brand_id: product.brand_id ?? null, product_group_id: product.product_group_id ?? null }];
             });
         }
         setSelectedId(product.id);
@@ -295,7 +302,19 @@ export default function App() {
 
     const [delivery, setDelivery] = useState({ enabled: false, recipient_name: '', phone: '', address: '', note: '', cost: 0 });
 
-    const priced = useMemo(() => priceCart(cart, promotions), [cart, promotions]);
+    // Diskon SAP dibatasi pelanggan (kode dan group) dan price list gerai; pelanggan kosong = pelanggan default gerai.
+    const discountContext = useMemo(() => {
+        const who = customer || boot?.default_customer || null;
+        return {
+            customer: who ? { code: who.code, group_code: who.group_code ?? null } : null,
+            price_list_code: promotionMeta.price_list_code ?? null,
+        };
+    }, [customer, boot, promotionMeta]);
+
+    const priced = useMemo(
+        () => priceCart(cart, promotions, new Date(), discountContext, promotionMeta.hierarchy ?? null),
+        [cart, promotions, discountContext, promotionMeta],
+    );
 
     const totals = useMemo(
         () => computeTotals(priced.lines, boot?.company, delivery.enabled ? Number(delivery.cost || 0) : 0),
@@ -318,7 +337,7 @@ export default function App() {
             sold_at: soldAt.toISOString(),
             customer_id: customer?.id || null,
             shipping_cost: delivery.enabled ? Number(delivery.cost || 0) : 0,
-            lines: priceCart(cart, promotions, soldAt).lines.map((l) => ({
+            lines: priceCart(cart, promotions, soldAt, discountContext, promotionMeta.hierarchy ?? null).lines.map((l) => ({
                 product_id: l.id,
                 qty: l.qty,
                 unit_price: l.unit_price,

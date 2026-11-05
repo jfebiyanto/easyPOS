@@ -3,8 +3,8 @@ import cases from '../../../tests/fixtures/promotion-cases.json';
 import { activePromotions, applyPromotions } from './promotions.js';
 
 describe('applyPromotions (sama dengan PromotionService PHP)', () => {
-    it.each(cases)('$name', ({ promotions, lines, expected }) => {
-        expect(applyPromotions(lines, promotions)).toEqual(expected);
+    it.each(cases)('$name', ({ promotions, lines, expected, context, hierarchy }) => {
+        expect(applyPromotions(lines, promotions, context ?? {}, hierarchy ?? null)).toEqual(expected);
     });
 });
 

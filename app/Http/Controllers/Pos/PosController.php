@@ -67,7 +67,7 @@ class PosController extends Controller
                 'return_window_days' => $company->return_window_days,
             ],
             'store' => ['id' => $store->id, 'code' => $store->code, 'name' => $store->name],
-            'default_customer' => $store->defaultCustomer?->only(['id', 'code', 'name']),
+            'default_customer' => $store->defaultCustomer ? $store->defaultCustomer->only(['id', 'code', 'name']) + ['group_code' => $store->defaultCustomer->customerGroup?->code] : null,
             'cashier' => $request->user()->only(['id', 'name', 'role']),
             'payment_types' => $paymentTypes,
             'business' => store_business_status($store->id),
@@ -133,6 +133,8 @@ class PosController extends Controller
             'sku' => $p->sku,
             'barcode' => $p->barcode,
             'name' => $p->name,
+            'brand_id' => $p->brand_id,
+            'product_group_id' => $p->product_group_id,
             'unit' => $p->unit?->code,
             'image' => $p->image_url,
             'track_stock' => (bool) $p->track_stock,
@@ -174,6 +176,15 @@ class PosController extends Controller
                     'get_qty' => $promotion->get_qty,
                     'get_product_id' => $promotion->get_product_id,
                     'max_applications' => $promotion->max_applications,
+                    'source' => $promotion->source,
+                    'brand_id' => $promotion->brand_id,
+                    'product_group_id' => $promotion->product_group_id,
+                    'customer_scope' => $promotion->customer_scope,
+                    'customer_ref' => $promotion->customer_ref,
+                    'price_list_code' => $promotion->price_list_code,
+                    'tiers' => $promotion->tiers,
+                    'group_key' => $promotion->group_key,
+                    'group_relation' => $promotion->group_relation,
                     'starts_at' => $promotion->starts_at?->toIso8601String(),
                     'ends_at' => $promotion->ends_at?->toIso8601String(),
                     'bonus_product' => $bonusProduct ? [
@@ -187,7 +198,13 @@ class PosController extends Controller
                 ];
             });
 
-        return response()->json(['data' => $promotions]);
+        return response()->json([
+            'data' => $promotions,
+            'meta' => [
+                'hierarchy' => CompanyDetail::current()->promotionHierarchy(),
+                'price_list_code' => PricingService::activeListCode($store->id),
+            ],
+        ]);
     }
 
     public function storeSale(Request $request): JsonResponse
@@ -656,6 +673,7 @@ class PosController extends Controller
             'phone' => $c->phone,
             'points_balance' => (float) $c->points_balance,
             'level' => $c->memberLevel?->name,
+            'group_code' => $c->customerGroup?->code,
             'earn_amount_per_point' => (float) ($c->memberLevel?->earn_amount_per_point ?? 0),
         ];
     }

@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\CompanyDetail;
+use App\Models\Customer;
 use App\Models\Delivery;
 use App\Models\NumberingConfig;
 use App\Models\Product;
@@ -70,7 +71,7 @@ class SaleService
                 $prepared[$key] = compact('product', 'qty', 'unitPrice');
             }
 
-            $promotions = self::resolvePromotions($data['lines'], $prepared, $companyId, $soldAt, $origin);
+            $promotions = self::resolvePromotions($data['lines'], $prepared, $company, $storeId, $data['customer_id'] ?? Store::whereKey($storeId)->value('default_customer_id'), $soldAt, $origin);
             if ($promotions['review_reason']) {
                 $reviewNeeded = true;
                 $reviewReason = $promotions['review_reason'];
@@ -218,11 +219,25 @@ class SaleService
      *     review_reason: ?string
      * }
      */
-    private static function resolvePromotions(array $lines, array $prepared, string $companyId, Carbon $soldAt, string $origin): array
+    private static function resolvePromotions(array $lines, array $prepared, CompanyDetail $company, string $storeId, ?string $customerId, Carbon $soldAt, string $origin): array
     {
+        $companyId = $company->id;
+        $customer = $customerId ? Customer::with('customerGroup:id,code')->find($customerId) : null;
+
         $calculated = PromotionService::apply(
-            array_map(fn (array $p) => ['product_id' => $p['product']->id, 'qty' => $p['qty'], 'unit_price' => $p['unitPrice']], $prepared),
+            array_map(fn (array $p) => [
+                'product_id' => $p['product']->id,
+                'qty' => $p['qty'],
+                'unit_price' => $p['unitPrice'],
+                'brand_id' => $p['product']->brand_id,
+                'product_group_id' => $p['product']->product_group_id,
+            ], $prepared),
             PromotionService::activeFor($companyId, $soldAt),
+            [
+                'customer' => $customer ? ['code' => $customer->code, 'group_code' => $customer->customerGroup?->code] : null,
+                'price_list_code' => PricingService::activeListCode($storeId),
+            ],
+            $company->promotionHierarchy(),
         );
 
         $clientSentPromotions = collect($lines)->contains(fn (array $line) => array_key_exists('promotion_id', $line));

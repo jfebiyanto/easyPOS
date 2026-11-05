@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\PriceList;
 use App\Models\PriceListItem;
 use App\Models\Product;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Resolusi harga jual untuk POS.
@@ -13,15 +14,18 @@ use App\Models\Product;
  */
 class PricingService
 {
-    public static function resolve(string $storeId, Product $product, float $qty = 1): float
+    /**
+     * Price list yang dipakai gerai saat ini (default dulu, lalu yang bertanggal efektif menang).
+     */
+    public static function chosenList(string $storeId): ?PriceList
     {
-        $listIds = \Illuminate\Support\Facades\DB::table('store_price_lists')
+        $listIds = DB::table('store_price_lists')
             ->where('store_id', $storeId)
             ->pluck('price_list_id')
             ->all();
 
         if ($listIds === []) {
-            return (float) $product->base_price;
+            return null;
         }
 
         $today = now()->toDateString();
@@ -34,7 +38,20 @@ class PricingService
             ->get();
 
         // default dulu, lalu dated → dated menang bila keduanya cocok.
-        $chosen = $lists->sortBy(fn ($l) => $l->is_default ? 0 : 1)->last();
+        return $lists->sortBy(fn ($l) => $l->is_default ? 0 : 1)->last();
+    }
+
+    /**
+     * Kode price list gerai (nomor price list SAP) untuk mencocokkan diskon SAP; null bila gerai tanpa price list.
+     */
+    public static function activeListCode(string $storeId): ?string
+    {
+        return self::chosenList($storeId)?->code;
+    }
+
+    public static function resolve(string $storeId, Product $product, float $qty = 1): float
+    {
+        $chosen = self::chosenList($storeId);
 
         if (! $chosen) {
             return (float) $product->base_price;

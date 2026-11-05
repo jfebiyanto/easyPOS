@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\CompanyDetail;
 use App\Models\CreditCard;
 use App\Models\Customer;
+use App\Models\CustomerGroup;
 use App\Models\PaymentType;
 use App\Models\PriceList;
 use App\Models\Product;
@@ -172,6 +173,101 @@ class PosTest extends TestCase
         ]]))->assertUnprocessable();
     }
 
+    private function sapVolumePromotion(array $overrides = []): Promotion
+    {
+        return Promotion::create(array_merge([
+            'company_id' => $this->company->id, 'code' => 'PV-1', 'name' => 'Period & Volume SKU-1', 'type' => Promotion::TYPE_VOLUME_PRICE,
+            'source' => Promotion::SOURCE_SAP, 'sap_ref' => 'PV|SKU-1|*1|DEFAULT|0', 'product_id' => $this->product->id, 'value' => 0,
+            'price_list_code' => 'DEFAULT', 'tiers' => [['min_qty' => 1, 'price' => 4000], ['min_qty' => 5, 'price' => 3800]],
+            'is_active' => true,
+        ], $overrides));
+    }
+
+    public function test_diskon_volume_sap_dihitung_di_penjualan_dan_dicatat_di_baris(): void
+    {
+        $promotion = $this->sapVolumePromotion();
+
+        $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload([
+            'lines' => [['product_id' => $this->product->id, 'qty' => 5, 'promotion_id' => $promotion->id, 'discount' => 1000]],
+            'payments' => [['payment_type_id' => $this->cash->id, 'amount' => 30000, 'status' => 'confirmed']],
+        ]))->assertCreated();
+
+        $line = Sale::firstOrFail()->lines()->firstOrFail();
+        $this->assertSame($promotion->id, $line->promotion_id);
+        $this->assertEquals(1000, $line->discount);
+    }
+
+    public function test_diskon_sap_terikat_price_list_tidak_berlaku_bila_price_list_gerai_berbeda(): void
+    {
+        $this->sapVolumePromotion(['price_list_code' => '99']);
+
+        $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload([
+            'lines' => [['product_id' => $this->product->id, 'qty' => 5]],
+            'payments' => [['payment_type_id' => $this->cash->id, 'amount' => 30000, 'status' => 'confirmed']],
+        ]))->assertCreated();
+
+        $this->assertEquals(0, Sale::firstOrFail()->lines()->firstOrFail()->discount);
+    }
+
+    public function test_diskon_customer_group_sap_hanya_untuk_pelanggan_di_group_itu(): void
+    {
+        $group = CustomerGroup::create(['company_id' => $this->company->id, 'code' => '102', 'name' => 'RETAIL', 'is_active' => true]);
+        $member = Customer::create(['company_id' => $this->company->id, 'code' => 'CR1', 'name' => 'Anggota', 'customer_group_id' => $group->id, 'is_active' => true]);
+        $other = Customer::create(['company_id' => $this->company->id, 'code' => 'CR2', 'name' => 'Lain', 'is_active' => true]);
+        $promotion = Promotion::create([
+            'company_id' => $this->company->id, 'code' => 'DG-1', 'name' => 'Discount Group #1', 'type' => 'discount_percent', 'value' => 10,
+            'source' => Promotion::SOURCE_SAP, 'sap_ref' => 'DG|1|0', 'customer_scope' => Promotion::CUSTOMER_GROUP, 'customer_ref' => '102', 'is_active' => true,
+        ]);
+
+        $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload([
+            'customer_id' => $member->id,
+            'lines' => [['product_id' => $this->product->id, 'qty' => 2, 'promotion_id' => $promotion->id, 'discount' => 800]],
+        ]))->assertCreated();
+        $this->assertEquals(800, Sale::firstOrFail()->lines()->firstOrFail()->discount);
+
+        // Pelanggan di luar group: klien yang mengklaim diskon ditolak (409) karena server tidak menghitungnya.
+        $this->postJson('/pos/sales', $this->salePayload([
+            'customer_id' => $other->id,
+            'lines' => [['product_id' => $this->product->id, 'qty' => 2, 'promotion_id' => $promotion->id, 'discount' => 800]],
+        ]))->assertStatus(409);
+    }
+
+    public function test_hierarki_promosi_perusahaan_menentukan_pemenang_di_server(): void
+    {
+        $volume = $this->sapVolumePromotion();
+        $special = Promotion::create(['company_id' => $this->company->id, 'code' => 'SP-1', 'name' => 'Harga Khusus', 'type' => 'special_price', 'value' => 3000, 'product_id' => $this->product->id, 'is_active' => true]);
+        $line = fn (Promotion $winner, float $discount) => [['product_id' => $this->product->id, 'qty' => 5, 'promotion_id' => $winner->id, 'discount' => $discount]];
+        $payments = [['payment_type_id' => $this->cash->id, 'amount' => 30000, 'status' => 'confirmed']];
+
+        // Bawaan: SAP Period & Volume di atas Harga Khusus easyPOS, walau potongannya lebih kecil (1.000 vs 5.000).
+        $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload(['lines' => $line($volume, 1000), 'payments' => $payments]))->assertCreated();
+
+        $this->company->update(['promotion_hierarchy' => ['special_price', 'sap_period_volume']]);
+        $this->postJson('/pos/sales', $this->salePayload(['lines' => $line($special, 5000), 'payments' => $payments]))->assertCreated();
+
+        $this->assertEquals([1000.0, 5000.0], Sale::orderBy('created_at')->get()->map(fn (Sale $s) => (float) $s->lines()->first()->discount)->all());
+    }
+
+    public function test_endpoint_promosi_mengirim_hierarki_dan_price_list_gerai(): void
+    {
+        $this->sapVolumePromotion();
+
+        $res = $this->actingAs($this->cashier)->getJson('/pos/promotions')->assertOk();
+        $res->assertJsonPath('meta.price_list_code', 'DEFAULT');
+        $res->assertJsonPath('meta.hierarchy.0', 'sap_period_volume');
+        $res->assertJsonPath('data.0.tiers.1.price', 3800);
+        $res->assertJsonPath('data.0.source', 'sap');
+    }
+
+    public function test_bootstrap_mengirim_group_pelanggan_default_untuk_diskon_customer_group(): void
+    {
+        $group = CustomerGroup::create(['company_id' => $this->company->id, 'code' => '102', 'name' => 'RETAIL', 'is_active' => true]);
+        $customer = Customer::create(['company_id' => $this->company->id, 'code' => 'CR00001', 'name' => 'UMUM', 'customer_group_id' => $group->id, 'is_active' => true]);
+        $this->store->update(['default_customer_id' => $customer->id]);
+
+        $this->actingAs($this->cashier)->getJson('/pos/bootstrap')->assertOk()->assertJsonPath('default_customer.group_code', '102');
+    }
+
     public function test_bootstrap_menampilkan_tanggal_bisnis_dan_tanggal_eod_yang_tertunda(): void
     {
         $this->travelTo(now('Asia/Jakarta')->subDay()->setTime(10, 0));
@@ -242,7 +338,7 @@ class PosTest extends TestCase
 
         $this->actingAs($this->cashier)->getJson('/pos/bootstrap')
             ->assertOk()
-            ->assertJsonPath('default_customer', ['id' => $retail->id, 'code' => 'C-RTL', 'name' => 'Pelanggan Retail']);
+            ->assertJsonPath('default_customer', ['id' => $retail->id, 'code' => 'C-RTL', 'name' => 'Pelanggan Retail', 'group_code' => null]);
     }
 
     public function test_bootstrap_tanpa_pelanggan_default_bila_gerai_belum_mengaturnya(): void

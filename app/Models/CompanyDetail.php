@@ -25,6 +25,23 @@ class CompanyDetail extends Model
 
     protected $hidden = ['sap_password', 'payment_providers'];
 
+    /**
+     * Urutan sumber diskon (hierarki promosi): sumber paling atas yang menghasilkan diskon pada baris menang.
+     * Kunci yang belum tersimpan atau tidak dikenal dirapikan ke bawah/dibuang; bawaan = urutan Promotion::HIERARCHY_SOURCES.
+     *
+     * @return list<string>
+     */
+    public function promotionHierarchy(): array
+    {
+        $known = array_keys(Promotion::HIERARCHY_SOURCES);
+        $saved = array_values(array_unique(array_filter(
+            (array) $this->promotion_hierarchy,
+            fn ($key) => in_array($key, $known, true),
+        )));
+
+        return array_merge($saved, array_values(array_diff($known, $saved)));
+    }
+
     protected function casts(): array
     {
         return [
