@@ -5,8 +5,10 @@
 
 /* ---------- Kerangka: header, pita, area utama, ringkasan + input, tombol fungsi ---------- */
 .pos {
-    --pos-panel: 380px; --pos-header-h: 48px; --pos-summary-h: 72px; --pos-fkeys-h: 64px;
-    display: grid; grid-template-rows: var(--pos-header-h) auto minmax(0, 1fr) var(--pos-summary-h) var(--pos-fkeys-h);
+    --pos-panel: 380px; --pos-header-h: 48px; --pos-summary-h: 60px; --pos-fkeys-h: 64px;
+    display: grid; grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: var(--pos-header-h) auto minmax(0, 1fr) var(--pos-summary-h) var(--pos-fkeys-h);
+    grid-template-areas: 'header' 'ribbons' 'main' 'bottom' 'fkeys';
     height: 100vh; background: var(--color-bg); color: var(--color-text); font-family: var(--font-ui);
 }
 .pos-loading { display: grid; place-items: center; height: 100vh; font-family: var(--font-ui); }
@@ -49,8 +51,16 @@
 }
 .pos-menu-item:hover { background: var(--color-surface-2); }
 
+/* Setiap bagian kerangka memakai area grid bernama: bagian yang tidak dirender tidak boleh menggeser baris lain. */
+.pos > .pos-header { grid-area: header; }
+.pos > .pos-ribbons { grid-area: ribbons; }
+.pos > .pos-main { grid-area: main; }
+.pos > .pos-bottom { grid-area: bottom; }
+.pos > .pos-fkeys { grid-area: fkeys; }
+
 /* ---------- Pita peringatan ---------- */
-.pos-ribbons:empty { display: none; }
+/* Tetap menjadi item grid (tinggi 0) agar baris grid .pos tidak bergeser */
+.pos-ribbons:empty { height: 0; overflow: hidden; }
 .pos-ribbon {
     display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 16px;
     background: var(--color-accent-container); color: var(--color-on-accent-container); font-size: 13px; font-weight: 600;
@@ -142,11 +152,11 @@
 .pos-bottom { display: grid; grid-template-columns: minmax(0, 1fr) var(--pos-panel); border-top: 1px solid var(--color-outline-strong); background: var(--color-surface); }
 .pos-summary { display: grid; grid-template-columns: .8fr 1.5fr 1fr 1.1fr 1fr 1.8fr; min-width: 0; }
 .pos-cell { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 0 12px; min-width: 0; border-right: 1px solid var(--color-outline); }
-.pos-cell-label { font-size: 12px; font-weight: 600; color: var(--color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pos-cell-value { font-size: 18px; font-weight: 600; line-height: 1.2; text-align: left; white-space: nowrap; }
+.pos-cell-label { font-size: 11px; font-weight: 600; color: var(--color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pos-cell-value { font-size: 15px; font-weight: 600; line-height: 1.2; text-align: left; white-space: nowrap; }
 .pos-cell-total { background: var(--color-primary); color: var(--color-on-primary); border-right: 0; }
 .pos-cell-total .pos-cell-label { color: var(--color-on-primary); }
-.pos-cell-total .pos-cell-value { font-size: 32px; font-weight: 700; line-height: 1.1; }
+.pos-cell-total .pos-cell-value { font-size: 24px; font-weight: 700; line-height: 1.1; }
 .pos-input-box { display: flex; align-items: center; padding: 0 12px; border-left: 1px solid var(--color-outline-strong); }
 .pos-scan {
     width: 100%; height: 48px; padding: 0 14px; font-size: 16px; font-family: var(--font-ui);
@@ -212,8 +222,8 @@
     .pos-table .col-num { width: 104px; }
     .pos-table td, .pos-table thead th { padding-left: 8px; padding-right: 8px; }
     .pos-cell { padding: 0 8px; }
-    .pos-cell-value { font-size: 16px; }
-    .pos-cell-total .pos-cell-value { font-size: 26px; }
+    .pos-cell-value { font-size: 14px; }
+    .pos-cell-total .pos-cell-value { font-size: 20px; }
     .pos-fkey-label { font-size: 12px; }
 }
 

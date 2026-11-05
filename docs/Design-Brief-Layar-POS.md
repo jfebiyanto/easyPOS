@@ -58,7 +58,7 @@ Ukuran di bawah ini adalah usulan untuk lebar 1366 px.
 | Pita peringatan | Tinggi 32 px, hanya bila ada | Peringatan EOD |
 | Tabel barang | Sisa tinggi, lebar ±986 px | Baris keranjang dan saran bonus |
 | Panel kanan | Lebar 380 px | Tab Pelanggan, Promo & Bonus, Produk |
-| Ringkasan | Tinggi 72 px | Item (baris/qty), Subtotal, Diskon, PPN, Ongkir, TOTAL |
+| Ringkasan | Tinggi 60 px | Item (baris/qty), Subtotal, Diskon, PPN, Ongkir, TOTAL |
 | Kotak input | Sejajar ringkasan, lebar 380 px | Scan barcode dan cari produk, selalu fokus |
 | Tombol fungsi | Tinggi 64 px, selebar layar | F1–F12 |
 
@@ -109,9 +109,9 @@ Gunakan token yang sudah ada di `public/css/tokens.css`, tanpa warna baru. Palet
 | Kepala tabel | `--color-surface-2` | Inter 13/600 | Garis bawah `--color-outline-strong` |
 | Baris tabel | `--color-surface` | Nama Inter 14; angka dan kode IBM Plex Mono 14 | Tinggi 40 px, garis 1 px |
 | Baris terpilih | `--color-primary-container` | Sama dengan baris biasa | Garis kiri 3 px `--color-primary` |
-| Label ringkasan | `--color-primary` | Inter 12/600 | Sel dipisah garis 1 px |
-| Angka ringkasan | `--color-text` | IBM Plex Mono 18/600 | Rata kiri |
-| TOTAL | `--color-primary`, teks putih | IBM Plex Mono 32/700 | Sel paling lebar |
+| Label ringkasan | `--color-primary` | Inter 11/600 | Sel dipisah garis 1 px |
+| Angka ringkasan | `--color-text` | IBM Plex Mono 15/600 | Rata kiri |
+| TOTAL | `--color-primary`, teks putih | IBM Plex Mono 24/700 | Sel paling lebar |
 | Tombol fungsi | `--color-surface-2`, garis `--color-outline` | Nama tombol Plex Mono 12/600; aksi Inter 13 | Radius `--radius-xs` |
 | F12 Bayar | `--color-primary`, teks putih | Sama dengan tombol fungsi | Satu-satunya tombol terisi |
 | Peringatan | `--color-accent-container` | Inter 13/600 | Pita selebar layar |
