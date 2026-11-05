@@ -71,6 +71,7 @@
                     ]],
                     'laporan' => ['Laporan', [
                         ['admin.reports.index', 'bar_chart', 'Laporan Penjualan', true],
+                        ['admin.cancellations.index', 'block', 'Pembatalan Transaksi', true],
                         ['admin.logs.index', 'history', 'Log Aktivitas', $isSuperuser],
                         ['admin.pos-sessions.index', 'devices', 'Sesi Kasir', $isSuperuser],
                     ]],

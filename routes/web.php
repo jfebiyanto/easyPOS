@@ -84,6 +84,8 @@ Route::prefix('admin')
         // Activity log
         Route::get('/activity-logs', [Admin\ActivityLogController::class, 'index'])->name('logs.index');
         Route::get('/pos-sessions', [Admin\PosSessionController::class, 'index'])->name('pos-sessions.index');
+        Route::get('/cancellations', [Admin\CancellationReportController::class, 'index'])->name('cancellations.index');
+        Route::get('/cancellations/export', [Admin\CancellationReportController::class, 'export'])->name('cancellations.export');
 
         // Tipe pembayaran — global, bisa dipakai di beberapa gerai
         Route::resource('payment-types', Admin\PaymentTypeController::class)->except('show');

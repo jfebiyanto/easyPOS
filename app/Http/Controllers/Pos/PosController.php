@@ -9,6 +9,7 @@ use App\Models\CustomerGroup;
 use App\Models\NumberingConfig;
 use App\Models\PaymentType;
 use App\Models\PosActiveCart;
+use App\Models\PosCancellation;
 use App\Models\Product;
 use App\Models\Promotion;
 use App\Models\Sale;
@@ -294,6 +295,16 @@ class PosController extends Controller
             'amount' => ['nullable', 'numeric', 'min:0'],
             'from_qty' => ['nullable', 'numeric', 'min:0'],
             'to_qty' => ['nullable', 'numeric', 'min:0'],
+            'customer_id' => ['nullable', Rule::exists('customers', 'id')->where('company_id', current_company_id())],
+            'reason' => ['nullable', 'string', 'max:500'],
+            'occurred_at' => ['nullable', 'date'],
+            'items' => ['nullable', 'array', 'max:300'],
+            'items.*.sku' => ['nullable', 'string', 'max:60'],
+            'items.*.name' => ['nullable', 'string', 'max:255'],
+            'items.*.qty' => ['required_with:items', 'numeric', 'min:0'],
+            'items.*.unit_price' => ['nullable', 'numeric', 'min:0'],
+            'items.*.discount' => ['nullable', 'numeric', 'min:0'],
+            'items.*.line_total' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $rupiah = fn ($n) => 'Rp '.number_format((float) $n, 0, ',', '.');
@@ -307,9 +318,19 @@ class PosController extends Controller
             default => ['pos.cart_qty_reduced', "Qty dikurangi di {$store->code}: {$item} dari ".($data['from_qty'] ?? 0).' menjadi '.($data['to_qty'] ?? 0)],
         };
 
-        ActivityLogger::log($action, $description, null, $data + ['store_id' => $store->id]);
+        ActivityLogger::log($action, $description, null, collect($data)->except('items')->all() + ['store_id' => $store->id]);
 
         if ($data['event'] === 'cancelled') {
+            PosCancellation::recordFor($request, PosCancellation::TYPE_CART, [
+                'store_id' => $store->id,
+                'customer_id' => $data['customer_id'] ?? null,
+                'reason' => $data['reason'] ?? null,
+                'items' => $data['items'] ?? null,
+                'item_count' => (int) ($data['item_count'] ?? count($data['items'] ?? [])),
+                'total' => $data['total'] ?? 0,
+                'occurred_at' => $data['occurred_at'] ?? null,
+            ]);
+
             PosActiveCart::where('company_id', current_company_id())->where('cashier_id', $request->user()->id)->delete();
         }
 
@@ -464,6 +485,23 @@ class PosController extends Controller
         $sale = SaleService::void($sale, $request->user(), $data['reason']);
 
         ActivityLogger::log('pos.sale_void', "Void transaksi {$sale->number}", $sale);
+
+        PosCancellation::recordFor($request, PosCancellation::TYPE_SALE_VOID, [
+            'store_id' => $sale->store_id,
+            'customer_id' => $sale->customer_id,
+            'sale_id' => $sale->id,
+            'sale_number' => $sale->number,
+            'reason' => $data['reason'],
+            'items' => $sale->lines->map(fn ($line) => [
+                'sku' => $line->sku_snapshot,
+                'name' => $line->name_snapshot,
+                'qty' => $line->qty,
+                'unit_price' => $line->unit_price,
+                'discount' => $line->discount,
+                'line_total' => $line->line_total,
+            ])->all(),
+            'total' => $sale->total,
+        ]);
 
         return response()->json(['data' => $this->salePayload($sale)]);
     }

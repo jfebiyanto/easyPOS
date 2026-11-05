@@ -7,6 +7,7 @@ import { formatBusinessClock, formatIsoDate, serverOffset } from './businessCloc
 import { fitCartToStock, isOutOfStock, maxQty } from './stock.js';
 import { digitsOnly, parseQty } from './qty.js';
 import { approvalMissing, normalizePayments, requiresApproval } from './payment.js';
+import { enqueueCancellation, flushCancelQueue } from './cancelQueue.js';
 import { buildCartPayload, clearCartBackup, pickNewestCart, readCartBackup, writeCartBackup } from './cartPersistence.js';
 import { customerPanel } from './customer.js';
 import { functionKeyStates, holdOrRecallAction, isFunctionKey, keyToAction, moveSelection, selectionAfterRemoval } from './functionKeys.js';
@@ -139,6 +140,9 @@ export default function App() {
         }
     }, []);
 
+    // Antrean pembatalan transaksi yang tertahan (offline) dikirim ulang begitu tersambung.
+    const flushCancellations = useCallback(() => flushCancelQueue((body) => api.logCartEvent(body)), []);
+
     const refreshHeldCount = useCallback(async () => {
         const local = readLocalHolds();
         if (navigator.onLine) {
@@ -190,6 +194,7 @@ export default function App() {
                 const res = await api.bootstrap();
                 setBoot(res);
                 await Promise.all([loadProducts(''), loadPromotions()]);
+                flushCancellations();
                 await syncLocalHolds();
                 refreshHeldCount();
             } catch (e) {
@@ -199,7 +204,7 @@ export default function App() {
                 setNotice({ type: 'error', text: e.message });
             }
         })();
-    }, [loadProducts, loadPromotions, refreshHeldCount]);
+    }, [loadProducts, loadPromotions, refreshHeldCount, flushCancellations]);
 
     // Status kunci EOD, pelanggan default, dan penugasan gerai bisa berubah dari admin; segarkan berkala selama online.
     // Promosi dan hierarki promosi ikut disegarkan (tiap menit dan saat tab kembali aktif) agar perubahan dari admin
@@ -230,7 +235,7 @@ export default function App() {
     }, [boot !== null, online]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
-        const on = () => { setOnline(true); flushQueue(); loadPromotions(); syncLocalHolds().then(refreshHeldCount); };
+        const on = () => { setOnline(true); flushQueue(); flushCancellations(); loadPromotions(); syncLocalHolds().then(refreshHeldCount); };
         const off = () => setOnline(false);
         window.addEventListener('online', on);
         window.addEventListener('offline', off);
@@ -263,6 +268,19 @@ export default function App() {
     // Pembatalan di keranjang (batal transaksi, hapus item, qty dikurangi) dicatat di server untuk diperiksa manajer.
     const logCartEvent = (body) => {
         if (navigator.onLine) api.logCartEvent(body).catch(() => {});
+    };
+
+    // Batal Transaksi dilaporkan lengkap (barang, pelanggan, waktu). Saat offline atau gagal terkirim ditahan di browser
+    // dan dikirim ulang begitu tersambung, supaya pembatalan tidak lolos tanpa jejak.
+    const reportCancellation = (body) => {
+        const entry = { ...body, occurred_at: new Date().toISOString() };
+        if (!navigator.onLine) {
+            enqueueCancellation(entry);
+            return;
+        }
+        api.logCartEvent(entry).catch((error) => {
+            if (!error.status || error.status >= 500 || error.status === 409) enqueueCancellation(entry);
+        });
     };
 
     const addProduct = (product, qty = 1) => {
@@ -549,7 +567,22 @@ export default function App() {
             message: 'Semua barang di keranjang akan dikosongkan.',
             confirmLabel: 'Batalkan Transaksi',
             onConfirm: () => {
-                if (cart.length > 0) logCartEvent({ event: 'cancelled', item_count: cart.length, total: totals.total });
+                if (cart.length > 0) {
+                    reportCancellation({
+                        event: 'cancelled',
+                        item_count: cart.length,
+                        total: totals.total,
+                        customer_id: customer?.id || boot.default_customer?.id || null,
+                        items: priced.lines.map((l) => ({
+                            sku: l.sku,
+                            name: l.name,
+                            qty: l.qty,
+                            unit_price: l.unit_price,
+                            discount: l.discount || 0,
+                            line_total: Math.max(0, l.unit_price * l.qty - (l.discount || 0)),
+                        })),
+                    });
+                }
                 resetSale();
             },
         });
