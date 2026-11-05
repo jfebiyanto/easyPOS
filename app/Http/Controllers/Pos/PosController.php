@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Models\CustomerGroup;
 use App\Models\NumberingConfig;
 use App\Models\PaymentType;
+use App\Models\PosActiveCart;
 use App\Models\Product;
 use App\Models\Promotion;
 use App\Models\Sale;
@@ -207,6 +208,112 @@ class PosController extends Controller
         ]);
     }
 
+    /**
+     * Simpan otomatis keranjang yang sedang berjalan (satu per kasir). Keranjang kosong menghapus simpanan.
+     */
+    public function saveCart(Request $request): JsonResponse
+    {
+        $store = $this->store($request);
+        abort_unless($store, 422, 'Kasir belum ditugaskan ke gerai.');
+
+        $request->validate([
+            'payload' => ['required', 'array'],
+            'payload.cart' => ['present', 'array', 'max:300'],
+            'payload.cart.*.id' => ['required', 'string'],
+            'payload.cart.*.qty' => ['required', 'numeric', 'min:0'],
+            'payload.cart.*.unit_price' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $payload = $request->input('payload');
+        abort_if(strlen((string) json_encode($payload)) > 500_000, 413, 'Keranjang terlalu besar.');
+
+        $query = PosActiveCart::where('company_id', current_company_id())->where('cashier_id', $request->user()->id);
+
+        if ($payload['cart'] === []) {
+            $query->delete();
+
+            return response()->json(['data' => null]);
+        }
+
+        $cart = $query->first() ?? new PosActiveCart(['company_id' => current_company_id(), 'cashier_id' => $request->user()->id]);
+        $cart->fill([
+            'store_id' => $store->id,
+            'payload' => $payload,
+            'item_count' => count($payload['cart']),
+            'gross_total' => round(collect($payload['cart'])->sum(fn (array $line) => (float) $line['qty'] * (float) $line['unit_price']), 2),
+        ])->save();
+        $cart->touch();
+
+        return response()->json(['data' => ['saved_at' => $cart->updated_at->toIso8601String()]]);
+    }
+
+    /**
+     * Pulihkan keranjang tersimpan saat POS dibuka (mis. setelah refresh). Setiap pemulihan dicatat di Log
+     * Aktivitas; keranjang yang sudah kedaluwarsa dibuang dan dicatat.
+     */
+    public function restoreCart(Request $request): JsonResponse
+    {
+        $this->store($request) ?: abort(422, 'Kasir belum ditugaskan ke gerai.');
+
+        $cart = PosActiveCart::where('company_id', current_company_id())->where('cashier_id', $request->user()->id)->first();
+
+        if (! $cart) {
+            return response()->json(['data' => null]);
+        }
+
+        $summary = "{$cart->item_count} barang, Rp ".number_format((float) $cart->gross_total, 0, ',', '.');
+        $properties = ['item_count' => $cart->item_count, 'gross_total' => (float) $cart->gross_total, 'saved_at' => $cart->updated_at->toIso8601String()];
+
+        if ($cart->isExpired()) {
+            ActivityLogger::log('pos.cart_expired', "Keranjang POS tersimpan kedaluwarsa dibuang ({$summary})", null, $properties);
+            $cart->delete();
+
+            return response()->json(['data' => null]);
+        }
+
+        ActivityLogger::log('pos.cart_restored', "Keranjang POS dipulihkan setelah POS dibuka ulang ({$summary})", null, $properties);
+
+        return response()->json(['data' => $cart->payload, 'saved_at' => $cart->updated_at->toIso8601String()]);
+    }
+
+    /**
+     * Catat pembatalan di keranjang: batal transaksi, hapus item, atau qty dikurangi.
+     */
+    public function cartEvent(Request $request): JsonResponse
+    {
+        $store = $this->store($request);
+        abort_unless($store, 422, 'Kasir belum ditugaskan ke gerai.');
+
+        $data = $request->validate([
+            'event' => ['required', Rule::in(['cancelled', 'item_removed', 'qty_reduced'])],
+            'item_count' => ['nullable', 'integer', 'min:0'],
+            'total' => ['nullable', 'numeric', 'min:0'],
+            'sku' => ['nullable', 'string', 'max:60'],
+            'name' => ['nullable', 'string', 'max:255'],
+            'qty' => ['nullable', 'numeric', 'min:0'],
+            'amount' => ['nullable', 'numeric', 'min:0'],
+            'from_qty' => ['nullable', 'numeric', 'min:0'],
+            'to_qty' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $rupiah = fn ($n) => 'Rp '.number_format((float) $n, 0, ',', '.');
+        $item = trim(($data['sku'] ?? '').' '.($data['name'] ?? ''));
+
+        [$action, $description] = match ($data['event']) {
+            'cancelled' => ['pos.cart_cancelled', "Batal transaksi di {$store->code}: ".(int) ($data['item_count'] ?? 0).' barang, total '.$rupiah($data['total'] ?? 0)],
+            'item_removed' => ['pos.cart_item_removed', "Hapus item di {$store->code}: {$item} × ".($data['qty'] ?? 0).' ('.$rupiah($data['amount'] ?? 0).')'],
+            default => ['pos.cart_qty_reduced', "Qty dikurangi di {$store->code}: {$item} dari ".($data['from_qty'] ?? 0).' menjadi '.($data['to_qty'] ?? 0)],
+        };
+
+        ActivityLogger::log($action, $description, null, $data + ['store_id' => $store->id]);
+
+        if ($data['event'] === 'cancelled') {
+            PosActiveCart::where('company_id', current_company_id())->where('cashier_id', $request->user()->id)->delete();
+        }
+
+        return response()->json(['data' => ['logged' => true]], 201);
+    }
+
     public function storeSale(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -285,6 +392,12 @@ class PosController extends Controller
         }
 
         ActivityLogger::log('pos.sale_created', "Transaksi POS {$sale->number} sebesar {$sale->total}", $sale);
+
+        // Penjualan online selesai: keranjang tersimpan kasir ini tidak perlu dipulihkan lagi. Penjualan offline yang
+        // baru disinkronkan tidak menyentuhnya karena keranjang aktif bisa jadi transaksi lain.
+        if (($data['origin'] ?? 'online') === 'online') {
+            PosActiveCart::where('company_id', current_company_id())->where('cashier_id', $request->user()->id)->delete();
+        }
 
         if ($store->id !== $assignedStore?->id) {
             ActivityLogger::log(

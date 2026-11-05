@@ -32,6 +32,9 @@ Route::middleware('auth')->prefix('pos')->name('pos.')->group(function () {
         Route::post('/returns', [PosController::class, 'storeReturn'])->name('returns.store');
         Route::get('/customers', [PosController::class, 'customers'])->name('customers.index');
         Route::post('/customers', [PosController::class, 'storeCustomer'])->name('customers.store');
+        Route::put('/cart', [PosController::class, 'saveCart'])->name('cart.save');
+        Route::post('/cart/restore', [PosController::class, 'restoreCart'])->name('cart.restore');
+        Route::post('/cart/events', [PosController::class, 'cartEvent'])->name('cart.events');
         Route::get('/holds', [PosController::class, 'holds'])->name('holds.index');
         Route::post('/holds', [PosController::class, 'storeHold'])->name('holds.store');
         Route::delete('/holds/{draft}', [PosController::class, 'destroyHold'])->name('holds.destroy');

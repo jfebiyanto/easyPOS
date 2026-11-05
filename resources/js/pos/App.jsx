@@ -7,6 +7,7 @@ import { formatBusinessClock, formatIsoDate, serverOffset } from './businessCloc
 import { fitCartToStock, isOutOfStock, maxQty } from './stock.js';
 import { digitsOnly, parseQty } from './qty.js';
 import { approvalMissing, normalizePayments, requiresApproval } from './payment.js';
+import { buildCartPayload, clearCartBackup, pickNewestCart, readCartBackup, writeCartBackup } from './cartPersistence.js';
 import { customerPanel } from './customer.js';
 import { functionKeyStates, holdOrRecallAction, isFunctionKey, keyToAction, moveSelection, selectionAfterRemoval } from './functionKeys.js';
 
@@ -257,6 +258,11 @@ export default function App() {
         if (navigator.onLine) flushQueue();
     }, [flushQueue]);
 
+    // Pembatalan di keranjang (batal transaksi, hapus item, qty dikurangi) dicatat di server untuk diperiksa manajer.
+    const logCartEvent = (body) => {
+        if (navigator.onLine) api.logCartEvent(body).catch(() => {});
+    };
+
     const addProduct = (product, qty = 1) => {
         if (isOutOfStock(product, allowNegativeStock)) {
             setNotice({ type: 'error', text: `Stok "${product.name}" habis.` });
@@ -304,11 +310,67 @@ export default function App() {
             setNotice({ type: 'warning', text: `Stok "${line.name}" tersisa ${limit}.` });
         }
         const nextQty = Math.max(1, Math.min(qty, limit));
+        if (nextQty < line.qty) {
+            logCartEvent({ event: 'qty_reduced', sku: line.sku, name: line.name, from_qty: line.qty, to_qty: nextQty });
+        }
         setCart((prev) => prev.map((l) => (l.id === id ? { ...l, qty: nextQty } : l)));
     };
     const removeLine = (id) => setCart((prev) => prev.filter((l) => l.id !== id));
 
     const [delivery, setDelivery] = useState({ enabled: false, recipient_name: '', phone: '', address: '', note: '', cost: 0 });
+
+    // Keranjang yang sedang berjalan disimpan otomatis ke server (dan cadangan di browser) dan dipulihkan saat POS
+    // dibuka lagi (refresh, tab tertutup, login ulang), supaya transaksi tidak bisa hilang tanpa jejak.
+    const [cartReady, setCartReady] = useState(false);
+    const cartSnapshot = useRef(null);
+    cartSnapshot.current = { cart, delivery, customer, activeHold };
+
+    useEffect(() => {
+        if (!boot || cartReady) return;
+        (async () => {
+            let server = null;
+            if (navigator.onLine) {
+                try {
+                    server = (await api.restoreCart()).data;
+                } catch {
+                    /* pakai cadangan browser */
+                }
+            }
+            const found = pickNewestCart(server, readCartBackup(boot.cashier.id));
+            if (found) {
+                setCart(found.cart);
+                setDelivery(found.delivery ?? { enabled: false, recipient_name: '', phone: '', address: '', note: '', cost: 0 });
+                setCustomer(found.customer ?? null);
+                setActiveHold(found.active_hold ?? null);
+                setNotice({ type: 'info', text: `Transaksi sebelumnya dipulihkan (${found.cart.length} barang).` });
+            }
+            setCartReady(true);
+        })();
+    }, [boot, cartReady]);
+
+    useEffect(() => {
+        if (!cartReady || !boot) return undefined;
+        const payload = buildCartPayload({ cart, delivery, customer, activeHold });
+        if (cart.length === 0) clearCartBackup();
+        else writeCartBackup(boot.cashier.id, payload);
+        if (!online) return undefined;
+
+        const timer = setTimeout(() => { api.saveCart(payload).catch(() => {}); }, cart.length === 0 ? 0 : 300);
+        return () => clearTimeout(timer);
+    }, [cart, delivery, customer, activeHold, cartReady, online]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Perubahan terakhir yang belum sempat terkirim (debounce) dikirim saat halaman ditutup atau dimuat ulang.
+    useEffect(() => {
+        if (!cartReady) return undefined;
+        const flush = () => {
+            const snapshot = cartSnapshot.current;
+            if (snapshot.cart.length > 0 && navigator.onLine) {
+                api.saveCart(buildCartPayload(snapshot), { keepalive: true }).catch(() => {});
+            }
+        };
+        window.addEventListener('pagehide', flush);
+        return () => window.removeEventListener('pagehide', flush);
+    }, [cartReady]);
 
     // Diskon SAP dibatasi pelanggan (kode dan group) dan price list gerai; pelanggan kosong = pelanggan default gerai.
     const discountContext = useMemo(() => {
@@ -460,6 +522,13 @@ export default function App() {
             confirmLabel: 'Hapus',
             onConfirm: () => {
                 const remaining = cart.filter((l) => l.id !== selectedLine.id);
+                logCartEvent({
+                    event: 'item_removed',
+                    sku: selectedLine.sku,
+                    name: selectedLine.name,
+                    qty: selectedLine.qty,
+                    amount: Math.max(0, selectedLine.unit_price * selectedLine.qty - (selectedLine.discount || 0)),
+                });
                 removeLine(selectedLine.id);
                 setSelectedId(remaining[selectionAfterRemoval(index, remaining.length)]?.id ?? null);
             },
@@ -471,7 +540,10 @@ export default function App() {
             title: 'Batalkan transaksi?',
             message: 'Semua barang di keranjang akan dikosongkan.',
             confirmLabel: 'Batalkan Transaksi',
-            onConfirm: resetSale,
+            onConfirm: () => {
+                if (cart.length > 0) logCartEvent({ event: 'cancelled', item_count: cart.length, total: totals.total });
+                resetSale();
+            },
         });
     };
 
@@ -579,13 +651,14 @@ export default function App() {
         if (!modalOpen) scanRef.current?.focus();
     }, [modalOpen]);
 
-    // Keranjang belum disimpan: muat ulang tak sengaja akan menghapusnya.
+    // Online, keranjang tersimpan otomatis di server dan dipulihkan setelah muat ulang. Saat offline hanya ada
+    // cadangan di browser, jadi muat ulang tak sengaja tetap diperingatkan.
     useEffect(() => {
-        if (cart.length === 0) return undefined;
+        if (cart.length === 0 || online) return undefined;
         const guard = (e) => { e.preventDefault(); e.returnValue = ''; };
         window.addEventListener('beforeunload', guard);
         return () => window.removeEventListener('beforeunload', guard);
-    }, [cart.length]);
+    }, [cart.length, online]);
 
     useEffect(() => {
         document.querySelector('.pos-row.is-selected')?.scrollIntoView({ block: 'nearest' });

@@ -1,7 +1,8 @@
 const csrf = () => document.querySelector('meta[name="csrf-token"]')?.content || '';
 
-async function req(method, url, body) {
+async function req(method, url, body, init = {}) {
     const res = await fetch(url, {
+        ...init,
         method,
         credentials: 'same-origin',
         headers: {
@@ -31,6 +32,9 @@ export const api = {
     logout: () => req('POST', '/logout'),
     products: (q = '') => req('GET', '/pos/products' + (q ? `?q=${encodeURIComponent(q)}` : '')),
     promotions: () => req('GET', '/pos/promotions'),
+    saveCart: (payload, init) => req('PUT', '/pos/cart', { payload }, init),
+    restoreCart: () => req('POST', '/pos/cart/restore'),
+    logCartEvent: (body) => req('POST', '/pos/cart/events', body),
     createSale: (payload) => req('POST', '/pos/sales', payload),
     todaySales: () => req('GET', '/pos/sales'),
     showSale: (id) => req('GET', `/pos/sales/${id}`),
