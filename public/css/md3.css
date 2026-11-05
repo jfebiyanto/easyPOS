@@ -138,6 +138,8 @@ html, body {
 .icon-btn:hover { background: var(--md-surface-variant); }
 
 .content { padding: 24px; max-width: 1200px; width: 100%; }
+/* Halaman bertabel lebar (mis. Integration Monitor) memakai seluruh lebar layar. */
+.content.content-wide { max-width: none; }
 
 #menu-toggle { display: none; }
 @media (max-width: 900px) {

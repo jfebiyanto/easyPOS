@@ -183,7 +183,7 @@
                 </form>
             </div>
         </header>
-        <main class="content">
+        <main class="content @yield('content_class')">
             @include('partials.flash')
             @yield('content')
         </main>
