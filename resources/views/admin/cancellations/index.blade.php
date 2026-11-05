@@ -65,65 +65,100 @@
         <strong>{{ number_format($summary['count'], 0, ',', '.') }}</strong> pembatalan ·
         nilai <strong>{{ $rupiah($summary['total']) }}</strong>
     </div>
-    <a class="btn btn-outline" href="{{ route('admin.cancellations.export', $qs + ['from' => $from, 'to' => $to]) }}">
-        <span class="material-symbols-rounded">table_view</span> Excel
-    </a>
+    <div style="display:flex; gap:8px;">
+        <button type="button" class="btn btn-tonal btn-sm" data-cancel-toggle="open">Buka semua</button>
+        <button type="button" class="btn btn-tonal btn-sm" data-cancel-toggle="close">Tutup semua</button>
+        <a class="btn btn-outline" href="{{ route('admin.cancellations.export', $qs + ['from' => $from, 'to' => $to]) }}">
+            <span class="material-symbols-rounded">table_view</span> Excel
+        </a>
+    </div>
 </div>
 
-<div class="table-wrap">
-    <table class="md-table sap-monitor">
-        <thead>
-            <tr>
-                <th>Waktu</th>
-                <th>Jenis</th>
-                <th>Gerai</th>
-                <th>Kasir</th>
-                <th>Pelanggan</th>
-                <th>Barang</th>
-                <th style="text-align:right;">Total</th>
-                <th>IP</th>
-                <th>Perangkat</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse ($cancellations as $c)
-                <tr>
-                    <td class="mono" style="white-space:nowrap;">
-                        {{ $c->occurred_at->timezone($timezone)->format('d/m/Y H:i:s') }}
-                        @if ($c->isLate()) <div><span class="chip chip-neutral" title="Dicatat {{ $c->created_at->timezone($timezone)->format('d/m/Y H:i:s') }}">Offline</span></div> @endif
-                    </td>
-                    <td>
-                        <span class="chip {{ $c->type === 'sale_void' ? 'chip-danger' : 'chip-neutral' }}">{{ \App\Models\PosCancellation::TYPE_LABELS[$c->type] ?? $c->type }}</span>
-                        @if ($c->sale_number) <div class="hint mono">{{ $c->sale_number }}</div> @endif
-                    </td>
-                    <td>{{ $c->store_label ?? '-' }}</td>
-                    <td>{{ $c->cashier_name ?? '-' }}</td>
-                    <td>{{ $c->customer_label ?? '-' }}</td>
-                    <td style="min-width:220px;">
-                        @if (! empty($c->items))
-                            <details>
-                                <summary>{{ $c->item_count }} barang</summary>
-                                <ul style="margin:6px 0 0; padding-left:18px;">
-                                    @foreach ($c->items as $item)
-                                        <li>{{ $qty($item['qty']) }} × {{ $item['name'] ?? '-' }} @if (! empty($item['sku'])) <span class="hint mono">{{ $item['sku'] }}</span> @endif — {{ $rupiah($item['line_total']) }}</li>
-                                    @endforeach
-                                </ul>
-                            </details>
-                        @else
-                            {{ $c->item_count }} barang
-                        @endif
-                        @if ($c->reason) <div class="hint">Alasan: {{ $c->reason }}</div> @endif
-                    </td>
-                    <td style="text-align:right;" class="money">{{ $rupiah($c->total) }}</td>
-                    <td class="mono">{{ $c->ip_address ?? '-' }}</td>
-                    <td title="{{ $c->user_agent }}">{{ $c->browser ?? '-' }}</td>
-                </tr>
-            @empty
-                <tr><td colspan="9"><div class="empty-state"><span class="material-symbols-rounded">block</span><p>Tidak ada pembatalan pada periode ini.</p></div></td></tr>
-            @endforelse
-        </tbody>
-    </table>
-</div>
+@forelse ($groups as $group)
+    <details class="cancel-group" @if ($loop->first || $groups->count() === 1) open @endif>
+        <summary>
+            <span class="material-symbols-rounded cancel-chevron" aria-hidden="true">expand_more</span>
+            <strong>{{ $group->store_label ?? 'Gerai tidak diketahui' }}</strong>
+            <span class="cancel-stat">{{ number_format($group->total_count, 0, ',', '.') }} pembatalan</span>
+            <span class="cancel-stat">{{ $rupiah($group->total_value) }}</span>
+            @if ((int) $group->void_count > 0)
+                <span class="chip chip-danger">{{ (int) $group->void_count }} void</span>
+            @endif
+            @if ($group->total_count - (int) $group->void_count > 0)
+                <span class="chip chip-neutral">{{ $group->total_count - (int) $group->void_count }} batal sebelum bayar</span>
+            @endif
+        </summary>
 
-{{ $cancellations->links() }}
+        <div class="table-wrap">
+            <table class="md-table sap-monitor">
+                <thead>
+                    <tr>
+                        <th>Waktu</th>
+                        <th>Jenis</th>
+                        <th>Kasir</th>
+                        <th>Pelanggan</th>
+                        <th>Barang</th>
+                        <th style="text-align:right;">Total</th>
+                        <th>IP · Perangkat</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($group->rows as $c)
+                        <tr>
+                            <td class="mono" style="white-space:nowrap;">
+                                {{ $c->occurred_at->timezone($timezone)->format('d/m/Y H:i:s') }}
+                                @if ($c->isLate()) <div><span class="chip chip-neutral" title="Dicatat {{ $c->created_at->timezone($timezone)->format('d/m/Y H:i:s') }}">Offline</span></div> @endif
+                            </td>
+                            <td>
+                                <span class="chip {{ $c->type === 'sale_void' ? 'chip-danger' : 'chip-neutral' }}">{{ \App\Models\PosCancellation::TYPE_LABELS[$c->type] ?? $c->type }}</span>
+                                @if ($c->sale_number) <div class="hint mono">{{ $c->sale_number }}</div> @endif
+                            </td>
+                            <td>{{ $c->cashier_name ?? '-' }}</td>
+                            <td>{{ $c->customer_label ?? '-' }}</td>
+                            <td style="min-width:220px;">
+                                @if (! empty($c->items))
+                                    <details>
+                                        <summary>{{ $c->item_count }} barang</summary>
+                                        <ul style="margin:6px 0 0; padding-left:18px;">
+                                            @foreach ($c->items as $item)
+                                                <li>{{ $qty($item['qty']) }} × {{ $item['name'] ?? '-' }} @if (! empty($item['sku'])) <span class="hint mono">{{ $item['sku'] }}</span> @endif — {{ $rupiah($item['line_total']) }}</li>
+                                            @endforeach
+                                        </ul>
+                                    </details>
+                                @else
+                                    {{ $c->item_count }} barang
+                                @endif
+                                @if ($c->reason) <div class="hint">Alasan: {{ $c->reason }}</div> @endif
+                            </td>
+                            <td style="text-align:right;" class="money">{{ $rupiah($c->total) }}</td>
+                            <td title="{{ $c->user_agent }}">
+                                <span class="mono">{{ $c->ip_address ?? '-' }}</span>
+                                <div class="hint">{{ $c->browser ?? '-' }}</div>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+
+        @if ($group->total_count > $group->rows->count())
+            <p class="hint cancel-more">Menampilkan {{ $group->rows->count() }} terbaru dari {{ number_format($group->total_count, 0, ',', '.') }}. Persempit periode, filter kasir atau jenis, atau unduh Excel untuk data lengkap.</p>
+        @endif
+    </details>
+@empty
+    <div class="table-wrap">
+        <div class="empty-state"><span class="material-symbols-rounded">block</span><p>Tidak ada pembatalan pada periode ini.</p></div>
+    </div>
+@endforelse
 @endsection
+
+@push('scripts')
+<script>
+    document.querySelectorAll('[data-cancel-toggle]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const open = button.dataset.cancelToggle === 'open';
+            document.querySelectorAll('details.cancel-group').forEach((group) => { group.open = open; });
+        });
+    });
+</script>
+@endpush

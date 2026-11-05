@@ -242,4 +242,40 @@ class CancellationReportTest extends TestCase
         $response->assertOk();
         $this->assertStringContainsString('pembatalan_transaksi_', (string) $response->headers->get('content-disposition'));
     }
+
+    public function test_laporan_dikelompokkan_per_gerai_dengan_ringkasan_di_judul(): void
+    {
+        $this->seedCancellation($this->storeA, $this->cashierA, ['total' => 5000]);
+        $this->seedCancellation($this->storeA, $this->cashierA, ['total' => 7000, 'type' => PosCancellation::TYPE_SALE_VOID, 'sale_number' => 'SAL/0009']);
+        $this->seedCancellation($this->storeB, $this->cashierB, ['total' => 1000]);
+
+        $response = $this->actingAs($this->owner)->get(route('admin.cancellations.index'))->assertOk();
+
+        $response->assertSeeInOrder(['STR001 · Gerai A', '2 pembatalan', 'Rp 12.000', '1 void', '1 batal sebelum bayar', 'STR002 · Gerai B', '1 pembatalan', 'Rp 1.000']);
+        $this->assertSame(2, substr_count($response->getContent(), 'class="cancel-group"'));
+        $response->assertSee('Buka semua')->assertSee('Tutup semua');
+    }
+
+    public function test_gerai_dengan_banyak_pembatalan_menampilkan_terbaru_dan_catatan_batas(): void
+    {
+        foreach (range(1, 55) as $i) {
+            $this->seedCancellation($this->storeA, $this->cashierA, ['customer_label' => sprintf('CR%03d · PLG-%03d', $i, $i), 'occurred_at' => now()->subMinutes(60 - $i)]);
+        }
+
+        $response = $this->actingAs($this->owner)->get(route('admin.cancellations.index'))->assertOk();
+
+        $response->assertSee('PLG-055')->assertDontSee('PLG-005');
+        $response->assertSee('Menampilkan 50 terbaru dari 55');
+
+        // Memilih satu gerai menampilkan lebih banyak baris per gerai.
+        $this->get(route('admin.cancellations.index', ['store' => $this->storeA->id]))->assertOk()->assertSee('PLG-001')->assertDontSee('Menampilkan 50 terbaru');
+    }
+
+    public function test_pembatalan_tanpa_gerai_tercatat_masuk_kelompok_sendiri(): void
+    {
+        $this->seedCancellation($this->storeA, $this->cashierA);
+        $this->seedCancellation($this->storeA, $this->cashierA, ['store_id' => null, 'store_label' => null, 'customer_label' => 'CR9 · TANPA GERAI']);
+
+        $this->actingAs($this->owner)->get(route('admin.cancellations.index'))->assertOk()->assertSee('Gerai tidak diketahui')->assertSee('TANPA GERAI');
+    }
 }

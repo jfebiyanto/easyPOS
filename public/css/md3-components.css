@@ -71,6 +71,15 @@ table.md-table { width: 100%; border-collapse: collapse; font-size: 14px; }
     white-space: nowrap;
 }
 .md-table td { padding: 12px 16px; border-bottom: 1px solid var(--md-surface-variant); }
+/* Laporan per gerai yang dapat dilipat (mis. Pembatalan Transaksi). */
+.cancel-group { margin-bottom: 12px; border: 1px solid var(--md-outline-variant); border-radius: var(--md-radius); background: #fff; }
+.cancel-group > summary { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; cursor: pointer; list-style: none; }
+.cancel-group > summary::-webkit-details-marker { display: none; }
+.cancel-group > summary .cancel-chevron { transition: transform .15s; }
+.cancel-group:not([open]) > summary .cancel-chevron { transform: rotate(-90deg); }
+.cancel-group > .table-wrap { border: 0; border-top: 1px solid var(--md-outline-variant); border-radius: 0; }
+.cancel-stat { color: var(--md-on-surface-variant); }
+.cancel-more { margin: 0; padding: 10px 16px; }
 /* Tabel dengan banyak kolom (Integration Monitor): padding rapat agar kolom Aksi tidak terdorong keluar layar. */
 .md-table.sap-monitor th, .md-table.sap-monitor td { padding-left: 10px; padding-right: 10px; }
 .md-table tbody tr:hover { background: var(--md-surface-container-high); }

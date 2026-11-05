@@ -24,13 +24,32 @@ class CancellationReportController extends Controller
 {
     private const EXPORT_LIMIT = 5000;
 
+    /** Baris terbaru per gerai yang ditampilkan; satu gerai dipilih (filter) menampilkan lebih banyak. */
+    private const ROWS_PER_STORE = 50;
+
+    private const ROWS_SINGLE_STORE = 200;
+
     public function index(Request $request): View
     {
         [$from, $to] = $this->range($request);
         $query = $this->filtered($request, $from, $to);
+        $limit = $request->query('store') ? self::ROWS_SINGLE_STORE : self::ROWS_PER_STORE;
+
+        // Dikelompokkan per gerai: ringkasan per gerai dari agregat, lalu baris terbaru tiap gerai.
+        $groups = (clone $query)->reorder()
+            ->selectRaw('store_id, max(store_label) as store_label, count(*) as total_count, sum(total) as total_value, sum(case when type = ? then 1 else 0 end) as void_count', [PosCancellation::TYPE_SALE_VOID])
+            ->groupBy('store_id')
+            ->orderByRaw('max(store_label)')
+            ->get()
+            ->each(fn ($group) => $group->rows = (clone $query)
+                ->where(fn (Builder $q) => $group->store_id ? $q->where('store_id', $group->store_id) : $q->whereNull('store_id'))
+                ->latest('occurred_at')
+                ->limit($limit)
+                ->get());
 
         return view('admin.cancellations.index', [
-            'cancellations' => (clone $query)->latest('occurred_at')->paginate(20)->withQueryString(),
+            'groups' => $groups,
+            'rowLimit' => $limit,
             'summary' => ['count' => (clone $query)->count(), 'total' => (float) (clone $query)->sum('total')],
             'from' => $from,
             'to' => $to,
@@ -54,7 +73,7 @@ class CancellationReportController extends Controller
         $writer->openToFile($path);
         $writer->addRow(Row::fromValues(['Waktu', 'Jenis', 'Gerai', 'Kasir', 'Pelanggan', 'No. Penjualan', 'Alasan', 'Jumlah Barang', 'Isi Barang', 'Total', 'IP', 'Perangkat', 'Dicatat Terlambat']));
 
-        $this->filtered($request, $from, $to)->latest('occurred_at')->limit(self::EXPORT_LIMIT)->get()->each(function (PosCancellation $c) use ($writer, $timezone) {
+        $this->filtered($request, $from, $to)->reorder()->orderBy('store_label')->latest('occurred_at')->limit(self::EXPORT_LIMIT)->get()->each(function (PosCancellation $c) use ($writer, $timezone) {
             $writer->addRow(Row::fromValues([
                 $c->occurred_at->timezone($timezone)->format('d/m/Y H:i:s'),
                 PosCancellation::TYPE_LABELS[$c->type] ?? $c->type,
