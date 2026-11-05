@@ -606,7 +606,7 @@ export default function App() {
                 {boot.business?.locked_date && (
                     <div className="pos-ribbon" role="status">
                         <span className="material-symbols-rounded" aria-hidden="true">lock_clock</span>
-                        EOD {formatIsoDate(boot.business.locked_date)} belum diselesaikan — transaksi dicatat sebagai tanggal itu
+                        EOD {formatIsoDate(boot.business.locked_date)} belum dijalankan. Semua transaksi akan tercatat sebagai transaksi {formatIsoDate(boot.business.locked_date)}.
                     </div>
                 )}
             </div>
