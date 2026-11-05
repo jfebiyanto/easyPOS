@@ -27,7 +27,7 @@
                 <label for="type">Tipe *</label>
                 <select id="type" name="type" data-promo-type>
                     @foreach (\App\Models\Promotion::TYPES as $value => $label)
-                        <option value="{{ $value }}" @selected(old('type', $promotion->type ?? 'discount_percent') === $value)>{{ $label }}</option>
+                        <option value="{{ $value }}" @selected(old('type', $promotion->type ?? 'discount_amount') === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
                 @error('type') <div class="error">{{ $message }}</div> @enderror

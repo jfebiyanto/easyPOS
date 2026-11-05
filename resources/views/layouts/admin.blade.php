@@ -53,6 +53,7 @@
                         ['admin.bundles.index', 'workspaces', 'Produk Paket', true],
                         ['admin.price-lists.index', 'sell', 'Daftar Harga', true],
                         ['admin.promotions.index', 'percent', 'Promosi', true],
+                        ['admin.promotion-hierarchy.edit', 'low_priority', 'Hierarki Promosi', $isSuperuser],
                     ]],
                     'stok' => ['Stok', [
                         ['admin.stock.index', 'warehouse', 'Saldo Stok', true],

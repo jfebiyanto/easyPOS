@@ -40,11 +40,23 @@ class Promotion extends MasterModel
         'buy_x_get_y' => 'Beli X Gratis Y (easyPOS)',
     ];
 
+    /**
+     * Tipe yang dapat dibuat manual di easyPOS. Diskon persen dan harga bertingkat berasal dari SAP B1
+     * (Discount Group dan Period & Volume Discount), jadi tidak dibuat manual.
+     */
     public const TYPES = [
+        'discount_amount' => 'Diskon Nominal (Rp)',
+        'special_price' => 'Harga Khusus',
+        'buy_x_get_y' => 'Beli X Gratis Y',
+    ];
+
+    /** Label semua tipe untuk tampilan, termasuk tipe sumber SAP. */
+    public const TYPE_LABELS = [
         'discount_percent' => 'Diskon Persen (%)',
         'discount_amount' => 'Diskon Nominal (Rp)',
         'special_price' => 'Harga Khusus',
         'buy_x_get_y' => 'Beli X Gratis Y',
+        self::TYPE_VOLUME_PRICE => 'Harga Bertingkat',
     ];
 
     protected function casts(): array
@@ -140,6 +152,7 @@ class Promotion extends MasterModel
     {
         $summary = match ($this->type) {
             'discount_percent' => 'Diskon '.rtrim(rtrim((string) $this->value, '0'), '.').'%',
+            self::TYPE_VOLUME_PRICE => 'Bertingkat: '.collect($this->tiers ?? [])->filter(fn (array $t) => $t['min_qty'] > 1)->map(fn (array $t) => '≥'.rtrim(rtrim((string) $t['min_qty'], '0'), '.').' → Rp '.number_format((float) $t['price'], 0, ',', '.'))->implode(', '),
             'discount_amount' => 'Potongan Rp '.number_format((float) $this->value, 0, ',', '.').' /item',
             'special_price' => 'Harga Rp '.number_format((float) $this->value, 0, ',', '.'),
             'buy_x_get_y' => "Beli {$this->buy_qty} Gratis {$this->get_qty}".($this->bonusProduct ? " {$this->bonusProduct->name}" : ''),
@@ -151,6 +164,50 @@ class Promotion extends MasterModel
         }
 
         return $this->min_qty > 1 ? "{$summary} · min. {$this->min_qty}" : $summary;
+    }
+
+    /**
+     * Sasaran promosi untuk daftar: produk/brand/item group, dan pembatas pelanggan atau price list bila ada.
+     */
+    public function scopeLabel(): string
+    {
+        $target = $this->product?->name
+            ?? ($this->brand ? 'Brand '.$this->brand->name : null)
+            ?? ($this->productGroup ? 'Item group '.$this->productGroup->name : null)
+            ?? 'Semua produk';
+
+        $limits = array_filter([
+            match ($this->customer_scope) {
+                self::CUSTOMER_GROUP => 'customer group '.$this->customer_ref,
+                self::CUSTOMER_SPECIFIC => 'pelanggan '.$this->customer_ref,
+                default => null,
+            },
+            $this->price_list_code !== null ? 'price list '.$this->price_list_code : null,
+        ]);
+
+        return $limits === [] ? $target : $target.' · '.implode(', ', $limits);
+    }
+
+    /**
+     * Periode untuk daftar. Diskon SAP disimpan sebagai waktu UTC dari hari kalender SAP (zona waktu perusahaan),
+     * jadi ditampilkan dalam zona waktu perusahaan; promosi manual ditampilkan apa adanya.
+     */
+    public function periodLabel(): string
+    {
+        $timezone = $this->isFromSap() ? (CompanyDetail::current()->timezone ?: 'Asia/Jakarta') : null;
+        $format = fn (?CarbonInterface $date, string $empty) => $date ? ($timezone ? $date->copy()->timezone($timezone) : $date)->format('d/m/Y') : $empty;
+
+        return $format($this->starts_at, '-').' ~ '.$format($this->ends_at, '∞');
+    }
+
+    public function brand()
+    {
+        return $this->belongsTo(Brand::class);
+    }
+
+    public function productGroup()
+    {
+        return $this->belongsTo(ProductGroup::class);
     }
 
     public function product()

@@ -166,5 +166,7 @@ Route::prefix('admin')
             ->parameters(['price-lists' => 'priceList']);
         Route::post('price-lists/{priceList}/items', [Admin\PriceListController::class, 'storeItem'])->name('price-lists.items.store');
         Route::delete('price-lists/{priceList}/items/{item}', [Admin\PriceListController::class, 'destroyItem'])->name('price-lists.items.destroy');
+        Route::get('promotion-hierarchy', [Admin\PromotionHierarchyController::class, 'edit'])->name('promotion-hierarchy.edit');
+        Route::put('promotion-hierarchy', [Admin\PromotionHierarchyController::class, 'update'])->name('promotion-hierarchy.update');
         Route::resource('promotions', Admin\PromotionController::class)->except('show');
     });

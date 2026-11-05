@@ -179,8 +179,12 @@ class PromotionTest extends TestCase
     {
         $this->actingAs($this->owner);
 
-        $this->post(route('admin.promotions.store'), $this->buyXGetYPayload(['type' => 'discount_percent', 'value' => 101]))
+        $this->post(route('admin.promotions.store'), $this->buyXGetYPayload(['type' => 'discount_amount', 'value' => 0]))
             ->assertSessionHasErrors('value');
+
+        // Diskon persen berasal dari SAP B1 (Discount Group), tidak dibuat manual.
+        $this->post(route('admin.promotions.store'), $this->buyXGetYPayload(['type' => 'discount_percent', 'value' => 10]))
+            ->assertSessionHasErrors('type');
 
         $this->post(route('admin.promotions.store'), $this->buyXGetYPayload(['type' => 'special_price', 'value' => 15000, 'product_id' => '']))
             ->assertSessionHasErrors('product_id');
@@ -198,12 +202,12 @@ class PromotionTest extends TestCase
         ]);
 
         $this->actingAs($this->owner)
-            ->put(route('admin.promotions.update', $promotion), $this->buyXGetYPayload(['type' => 'discount_percent', 'value' => 10]))
+            ->put(route('admin.promotions.update', $promotion), $this->buyXGetYPayload(['type' => 'discount_amount', 'value' => 1000]))
             ->assertSessionHasNoErrors();
 
         $promotion->refresh();
 
-        $this->assertSame('discount_percent', $promotion->type);
+        $this->assertSame('discount_amount', $promotion->type);
         $this->assertNull($promotion->buy_qty);
         $this->assertNull($promotion->get_qty);
         $this->assertNull($promotion->get_product_id);
@@ -214,7 +218,7 @@ class PromotionTest extends TestCase
     {
         $promotion = $this->createPromotion('DISC10');
 
-        $payload = $this->buyXGetYPayload(['code' => 'DISC10', 'type' => 'discount_percent', 'value' => 10]);
+        $payload = $this->buyXGetYPayload(['code' => 'DISC10', 'type' => 'discount_amount', 'value' => 1000]);
         unset($payload['is_active']);
 
         $this->actingAs($this->owner)

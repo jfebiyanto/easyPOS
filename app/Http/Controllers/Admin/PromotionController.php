@@ -46,6 +46,7 @@ class PromotionController extends Controller
     public function edit(Promotion $promotion): View
     {
         $this->ensureCompany($promotion->company_id);
+        $this->denyIfFromSap($promotion);
 
         return view('admin.products.promotions.form', [
             'promotion' => $promotion,
@@ -56,6 +57,7 @@ class PromotionController extends Controller
     public function update(Request $request, Promotion $promotion)
     {
         $this->ensureCompany($promotion->company_id);
+        $this->denyIfFromSap($promotion);
 
         $promotion->update($this->validated($request, $promotion->id));
 
@@ -67,6 +69,7 @@ class PromotionController extends Controller
     public function destroy(Promotion $promotion)
     {
         $this->ensureCompany($promotion->company_id);
+        $this->denyIfFromSap($promotion);
 
         $label = $promotion->code.' · '.$promotion->name;
         $promotion->delete();
@@ -74,6 +77,14 @@ class PromotionController extends Controller
         ActivityLogger::log('promotion.deleted', "Menghapus promosi: {$label}", $promotion);
 
         return redirect()->route('admin.promotions.index')->with('success', 'Promosi berhasil dihapus.');
+    }
+
+    /**
+     * Diskon dari SAP B1 hanya-baca; ubah di SAP lalu sinkronkan.
+     */
+    private function denyIfFromSap(Promotion $promotion): void
+    {
+        abort_if($promotion->isFromSap(), 403, 'Diskon dari SAP B1 hanya-baca; ubah di SAP B1 lalu sinkronkan.');
     }
 
     private function validated(Request $request, ?string $id = null): array
