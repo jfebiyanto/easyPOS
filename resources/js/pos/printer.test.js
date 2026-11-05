@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { receiptHtml } from './printer.js';
+import { getAutoPrint, receiptHtml, setAutoPrint } from './printer.js';
+import { afterEach } from 'vitest';
 
 const sale = (overrides = {}) => ({
     number: 'INV-1',
@@ -34,5 +35,33 @@ describe('receiptHtml', () => {
 
         expect(html).not.toContain('Hemat');
         expect(html).not.toContain('Diskon');
+    });
+});
+
+describe('cetak struk tanpa jendela popup', () => {
+    it('versi iframe tidak membawa skrip cetak sendiri, versi jendela membawanya', () => {
+        expect(receiptHtml(sale(), {}, { embedded: true })).not.toContain('window.print');
+        expect(receiptHtml(sale(), {})).toContain('window.print');
+    });
+});
+
+describe('pengaturan cetak otomatis', () => {
+    afterEach(() => {
+        delete globalThis.localStorage;
+    });
+
+    it('aktif bawaan, termasuk saat penyimpanan browser tidak tersedia', () => {
+        expect(getAutoPrint()).toBe(true);
+        expect(() => setAutoPrint(false)).not.toThrow();
+    });
+
+    it('menyimpan pilihan kasir per perangkat', () => {
+        const store = {};
+        globalThis.localStorage = { getItem: (k) => store[k] ?? null, setItem: (k, v) => { store[k] = v; } };
+
+        setAutoPrint(false);
+        expect(getAutoPrint()).toBe(false);
+        setAutoPrint(true);
+        expect(getAutoPrint()).toBe(true);
     });
 });

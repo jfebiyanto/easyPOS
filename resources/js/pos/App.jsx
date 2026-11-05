@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, uuid } from './api.js';
-import { printReceipt, connectUsbPrinter, hasUsbPrinter } from './printer.js';
+import { printReceipt, connectUsbPrinter, hasUsbPrinter, getAutoPrint, setAutoPrint } from './printer.js';
 import { enqueue, readQueue, removeFromQueue, writeQueue } from './offline.js';
 import { activePromotions, applyPromotions, readCachedPromotions, writeCachedPromotions } from './promotions.js';
 import { formatBusinessClock, formatIsoDate, serverOffset } from './businessClock.js';
@@ -368,7 +368,7 @@ export default function App() {
             setDelivery({ enabled: false, recipient_name: '', phone: '', address: '', note: '', cost: 0 });
             setNotice({ type: 'success', text: `Transaksi ${res.data.number} tersimpan.` });
             loadProducts(query); // segarkan stok agar produk yang baru habis langsung nonaktif
-            printReceipt(res.data, meta());
+            if (getAutoPrint()) printReceipt(res.data, meta());
         } catch (e) {
             // 409: promosi di server berbeda (mis. baru diubah admin). Muat ulang promosi agar
             // keranjang dihitung ulang, lalu kasir memeriksa total baru sebelum membayar lagi.
@@ -1491,6 +1491,7 @@ function ReturnModal({ onClose, onDone, onError }) {
 
 function DeviceModal({ onClose }) {
     const [status, setStatus] = useState(hasUsbPrinter() ? 'Printer USB tersambung' : 'Belum ada printer USB');
+    const [autoPrint, setAutoPrintState] = useState(getAutoPrint());
 
     const connect = async () => {
         try {
@@ -1506,7 +1507,15 @@ function DeviceModal({ onClose }) {
             <div className="pos-modal-card">
                 <h2>Perangkat</h2>
                 <p className="card-subtitle">{status}</p>
-                <p className="card-subtitle">Jika WebUSB tidak tersedia, struk dicetak via dialog HTML (fallback).</p>
+                <p className="card-subtitle">Jika WebUSB tidak tersedia, struk dicetak lewat dialog cetak browser. Agar struk langsung keluar tanpa dialog, jalankan Chrome dengan opsi <code>--kiosk-printing</code>.</p>
+                <label className="pos-check">
+                    <input
+                        type="checkbox"
+                        checked={autoPrint}
+                        onChange={(e) => { setAutoPrintState(e.target.checked); setAutoPrint(e.target.checked); }}
+                    />
+                    Cetak struk otomatis setelah pembayaran
+                </label>
                 <div className="pos-modal-actions">
                     <button className="btn btn-outline" onClick={onClose}>Tutup</button>
                     <button className="btn btn-filled" onClick={connect}>Sambungkan Printer USB</button>

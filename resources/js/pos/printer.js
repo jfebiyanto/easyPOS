@@ -3,7 +3,10 @@ let usbDevice = null;
 const money = (n, currency = 'IDR') =>
     `${currency === 'IDR' ? 'Rp ' : currency + ' '}${Number(n || 0).toLocaleString('id-ID', { minimumFractionDigits: 0 })}`;
 
-export function receiptHtml(sale, meta) {
+/**
+ * @param {{ embedded?: boolean }} options embedded = dicetak lewat iframe tersembunyi (tanpa skrip cetak sendiri)
+ */
+export function receiptHtml(sale, meta, { embedded = false } = {}) {
     const lines = (sale.lines || [])
         .map(
             (l) => `
@@ -74,7 +77,7 @@ export function receiptHtml(sale, meta) {
         ${pendingNote}
         <hr>
         <div class="center small">Terima kasih</div>
-        <script>window.onload = function () { window.print(); setTimeout(function(){ window.close(); }, 400); };</script>
+        ${embedded ? '' : '<script>window.onload = function () { window.print(); setTimeout(function(){ window.close(); }, 400); };</script>'}
     </body></html>`;
 }
 
@@ -87,11 +90,56 @@ export async function printReceipt(sale, meta) {
         if (ok) return 'usb';
     }
 
-    const win = window.open('', '_blank', 'width=380,height=640');
-    if (!win) return 'blocked';
-    win.document.write(receiptHtml(sale, meta));
-    win.document.close();
-    return 'html';
+    return printInHiddenFrame(receiptHtml(sale, meta, { embedded: true })) ? 'html' : 'blocked';
+}
+
+/**
+ * Cetak lewat iframe tersembunyi: tidak membuka jendela popup (tidak diblokir browser, tidak ada jendela
+ * tambahan yang harus ditutup). Dengan Chrome `--kiosk-printing` struk langsung keluar tanpa dialog.
+ */
+function printInHiddenFrame(html) {
+    if (typeof document === 'undefined') return false;
+
+    const frame = document.createElement('iframe');
+    frame.setAttribute('aria-hidden', 'true');
+    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+    const cleanup = () => frame.remove();
+
+    frame.onload = () => {
+        const win = frame.contentWindow;
+        if (!win) {
+            cleanup();
+            return;
+        }
+        win.addEventListener('afterprint', cleanup);
+        win.focus();
+        win.print();
+        // Cadangan bila afterprint tidak terpicu (mis. dialog dibatalkan di sebagian browser).
+        setTimeout(cleanup, 60000);
+    };
+    frame.srcdoc = html;
+    document.body.appendChild(frame);
+
+    return true;
+}
+
+const AUTO_PRINT_KEY = 'pos_auto_print';
+
+/** Cetak struk otomatis setelah pembayaran (bawaan: aktif). Disimpan per perangkat. */
+export function getAutoPrint() {
+    try {
+        return localStorage.getItem(AUTO_PRINT_KEY) !== '0';
+    } catch {
+        return true;
+    }
+}
+
+export function setAutoPrint(enabled) {
+    try {
+        localStorage.setItem(AUTO_PRINT_KEY, enabled ? '1' : '0');
+    } catch {
+        // Penyimpanan tidak tersedia: pengaturan hanya berlaku sampai halaman dimuat ulang.
+    }
 }
 
 export async function connectUsbPrinter() {
