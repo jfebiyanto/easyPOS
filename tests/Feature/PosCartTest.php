@@ -180,6 +180,15 @@ class PosCartTest extends TestCase
         $this->assertSame(1, PosActiveCart::count(), 'Keranjang tetap tersimpan agar bisa dipulihkan.');
     }
 
+    public function test_tab_pos_kedua_yang_diblokir_dicatat(): void
+    {
+        $this->actingAs($this->cashier)->postJson('/pos/cart/events', ['event' => 'duplicate_tab'])->assertCreated();
+
+        $log = ActivityLog::where('action', 'pos.duplicate_tab_blocked')->firstOrFail();
+        $this->assertSame('Tab POS kedua diblokir di STR001: POS sudah terbuka di tab lain pada browser yang sama', $log->description);
+        $this->assertSame($this->cashier->id, $log->actor_id);
+    }
+
     public function test_peristiwa_keranjang_dan_penyimpanan_divalidasi(): void
     {
         $this->actingAs($this->cashier);
