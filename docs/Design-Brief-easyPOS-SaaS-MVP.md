@@ -4,7 +4,7 @@
 |---|---|
 | Produk | easyPOS SaaS |
 | Dokumen | Design Brief (pre-code) |
-| Versi | 1.0 |
+| Versi | 1.1 (layar POS mengikuti `docs/Design-Brief-Layar-POS.md`) |
 | Berdasarkan | PRD v1.5 baseline (`docs/PRD-easyPOS-SaaS-MVP.md`) |
 | Surface | Admin (backoffice) + POS (kasir) |
 | Stack | Laravel (backend), React JS (frontend) |
@@ -237,7 +237,7 @@ Wajib hormati `prefers-reduced-motion: reduce` → durasi 0.
 1. Kasir login → POS Main (field scan auto-fokus).
 2. Scan barcode / ketik SKU → baris masuk keranjang (qty 1).
 3. Ulangi; ubah qty via keypad jika perlu.
-4. Tekan `F2` / tombol **Bayar** → Payment.
+4. Tekan `F12` / tombol **Bayar** → Payment (atau `F11` **Bayar Cepat** untuk tunai sebesar total).
 5. Pilih **Tunai**; masukkan uang diterima (keypad besar atau quick-amount).
 6. Sistem menampilkan kembalian; tekan **Konfirmasi**.
 7. Transaksi disimpan; drawer kick; struk dicetak.
@@ -252,14 +252,14 @@ Wajib hormati `prefers-reduced-motion: reduce` → durasi 0.
 6. Manager melihat transaksi pending di Review/Reports sampai dikonfirmasi.
 
 ### F3 — Penjualan dengan pengiriman
-1. POS Main → tombol **Kirim**.
+1. POS Main → `F7` **Pengiriman**.
 2. Isi penerima, telepon, alamat, biaya kirim.
 3. Kembali ke keranjang; biaya kirim muncul sebagai baris terpisah dari subtotal produk.
 4. Bayar (F1/F2).
 5. Status pengiriman `pending`; Manager update ke `shipped`/`delivered` di admin.
 
 ### F4 — Retur penjualan
-1. POS Main → **Retur**.
+1. POS Main → `F1` **Retur**.
 2. Cari transaksi asal via nomor struk (wajib jika `return_require_receipt=true`).
 3. Sistem menampilkan baris + qty sisa yang bisa diretur.
 4. Pilih qty retur; sistem memvalidasi batas waktu 30 hari.
@@ -267,7 +267,7 @@ Wajib hormati `prefers-reduced-motion: reduce` → durasi 0.
 6. Stok bertambah; poin dari transaksi asal dikurangi; struk retur dicetak.
 
 ### F5 — Hold & lanjut lintas perangkat
-1. POS Main → **Hold** (`F4`) → transaksi jadi draft, tersinkron ke server bila online.
+1. POS Main → `F10` **Tahan / Daftar** → transaksi jadi draft, tersinkron ke server bila online.
 2. Di perangkat lain, kasir login → sistem menarik draft miliknya.
 3. Parked Sales menampilkan draft (perangkat & waktu terakhir) → **Lanjutkan**.
 4. Keranjang dipulihkan; finalisasi seperti F1.
@@ -361,25 +361,25 @@ Wajib hormati `prefers-reduced-motion: reduce` → durasi 0.
 - **Komponen**: `FilterBar`, `DataTable`, `ExportMenu`, `EmptyState`, `SkeletonTable`.
 
 ### P-02 POS Main (paling kritis)
-- **Sections**: (1) Top bar: store, kasir, indikator online/offline + antrean, jam, tombol device, (2) Kolom kiri: search/scan + grid produk, (3) Kolom kanan: keranjang + total + action bar.
-- **Hierarki**: total (display-xl mono) dan tombol **Bayar** paling dominan; search/scan auto-fokus; grid produk sekunder.
-- **Primary action**: **Bayar** (F2).
-- **Komponen**: `ScanInput`, `ProductGrid`, `ProductTile`, `CartList`, `CartLine`, `QuantityStepper`, `TotalsPanel`, `ActionBar`, `OfflineBanner`, `HoldButton`, `ReturnButton`, `CustomerButton`, `DeliveryButton`.
+Rincian lengkap (kolom, tombol fungsi, warna, responsif) ada di `docs/Design-Brief-Layar-POS.md`; bagian ini hanya ringkasannya.
+- **Sections**: (1) Header: logo, gerai, business date, jam, status online + antrean, menu kasir (Perangkat, Keluar), (2) Pita peringatan EOD bila ada, (3) Tabel barang (area terbesar) + panel kanan bertab (Pelanggan, Promo & Bonus, Produk), (4) Baris ringkasan (Item, Subtotal setelah diskon, Diskon, PPN, Ongkir, TOTAL) + kotak scan/cari, (5) 12 tombol fungsi F1–F12.
+- **Hierarki**: TOTAL (display mono, sel paling lebar) dan **F12 Bayar** paling dominan; kotak input selalu fokus; panel kanan sekunder.
+- **Primary action**: **Bayar** (F12).
+- **Komponen**: `ScanInput`, `CartTable`, `ProductTile`, `TotalsPanel`, `FunctionKeyBar`, `StatusChip`, `ConfirmDialog`.
 
 ```
-┌───────────────────────────────────────────────────────────┐
-│ STR001 · Sari   ● Online  ⟳0     [Device] 12:30          │
-├──────────────────────────────┬────────────────────────────┤
-│ [Scan / cari produk    ]     │ Keranjang                  │
-│                              │ ─ Aqua 600ml  2 x 4.000    │
-│  ┌────┐ ┌────┐ ┌────┐        │ ─ Roti Tawar  1 x 15.000   │
-│  │Aqua│ │Roti│ │Teh │        │ ─────────────────────────  │
-│  └────┘ └────┘ └────┘        │ Subtotal          Rp 23.000│
-│  ┌────┐ ┌────┐ ┌────┐        │ PPN 11%           Rp  2.530│
-│  │ ...│ │ ...│ │ ...│        │ Biaya kirim       Rp      0│
-│  └────┘ └────┘ └────┘        │ TOTAL        Rp 25.530     │
-│                              │ [ Hold ][ Retur ][ Bayar F2]│
-└──────────────────────────────┴────────────────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│ easyPOS  STR001 · Gerai  Business date  12:30  ● Online  Kasir▾│
+├──────────────────────────────────────────┬────────────────────┤
+│ Kode  Nama Barang  Diskon Qty Satuan ... │ Pelanggan│Promo│Produk
+│ ▌AQ01 Aqua 600ml     –     2  PCS   4.000│ Kode  CR-00001     │
+│  RT02 Roti Tawar     –     1  PCS  15.000│ Nama  Pelanggan..  │
+│                                          │ [Ganti]  [Hapus]   │
+├──────┬────────┬──────┬─────┬──────┬───────┼────────────────────┤
+│ Item │Subtotal│Diskon│ PPN │Ongkir│ TOTAL │ [Scan / cari produk]│
+├──┬──┬──┬──┬──┬──┬──┬──┬──┬───┬───┬───────┴────────────────────┤
+│F1│F2│F3│F4│F5│F6│F7│F8│F9│F10│F11│ F12 Bayar                  │
+└──┴──┴──┴──┴──┴──┴──┴──┴──┴───┴───┴────────────────────────────┘
 ```
 
 ### P-03 Payment
@@ -486,7 +486,7 @@ Aturan POS tablet: keranjang tidak pernah tersembunyi; total selalu terlihat (st
 - Urutan fokus logis (DOM order); POS: fokus awal di `ScanInput`; setelah tambah produk fokus kembali ke scan.
 - Skip link "Lewati ke konten" di Admin.
 - Dialog/Drawer: focus trap + `Esc` menutup + fokus kembali ke pemicu.
-- Shortcut POS (didokumentasikan di UI): `F2` Bayar, `F4` Hold, `F6` Retur, `Esc` batal, `Enter` tambah scan. Tidak ada shortcut satu-tombol untuk void/destruktif.
+- Shortcut POS (tampil sebagai 12 tombol di tepi bawah layar): `F1` Retur, `F2` Pelanggan, `F3` Cari Produk, `F5` Ubah Item, `F6` Transaksi, `F7` Pengiriman, `F8` Hapus Item, `F9` Batal Transaksi, `F10` Tahan / Daftar, `F11` Bayar Cepat, `F12` Bayar (`F4` kosong); panah atas/bawah memilih baris, `+`/`−` mengubah qty, `Delete` = `F8`, `Esc` menutup dialog atau mengosongkan kotak input, `Enter` menambah scan. Aksi hapus selalu lewat dialog konfirmasi.
 
 ### ARIA
 - Keranjang & total: `aria-live="polite"` saat berubah.

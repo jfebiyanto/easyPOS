@@ -6,6 +6,7 @@ import { activePromotions, applyPromotions, readCachedPromotions, writeCachedPro
 import { formatBusinessClock, formatIsoDate, serverOffset } from './businessClock.js';
 import { fitCartToStock, isOutOfStock, maxQty } from './stock.js';
 import { customerPanel } from './customer.js';
+import { functionKeyStates, holdOrRecallAction, isFunctionKey, keyToAction, moveSelection, selectionAfterRemoval } from './functionKeys.js';
 
 const fmt = (n, currency = 'IDR') =>
     (currency === 'IDR' ? 'Rp ' : currency + ' ') +
@@ -94,6 +95,13 @@ export default function App() {
     const [showDevice, setShowDevice] = useState(false);
     const [showCustomer, setShowCustomer] = useState(false);
     const [customer, setCustomer] = useState(null);
+    const [selectedId, setSelectedId] = useState(null);
+    const [panelTab, setPanelTab] = useState('customer');
+    const [panelOpen, setPanelOpen] = useState(false);
+    const [showDelivery, setShowDelivery] = useState(false);
+    const [showTransactions, setShowTransactions] = useState(false);
+    const [showEditItem, setShowEditItem] = useState(false);
+    const [confirm, setConfirm] = useState(null);
     const [receipt, setReceipt] = useState(null);
     const [promotions, setPromotions] = useState(readCachedPromotions);
     const scanRef = useRef(null);
@@ -249,9 +257,10 @@ export default function App() {
                 if (found) {
                     return prev.map((l) => (l.id === product.id ? { ...l, qty: nextQty, stock: product.stock } : l));
                 }
-                return [...prev, { id: product.id, sku: product.sku, name: product.name, unit_price: product.price, qty: nextQty, track_stock: product.track_stock, stock: product.stock }];
+                return [...prev, { id: product.id, sku: product.sku, name: product.name, unit: product.unit, unit_price: product.price, qty: nextQty, track_stock: product.track_stock, stock: product.stock }];
             });
         }
+        setSelectedId(product.id);
         setQuery('');
         scanRef.current?.focus();
     };
@@ -264,7 +273,9 @@ export default function App() {
         if (match) {
             addProduct(match);
         } else {
-            setNotice({ type: 'error', text: `Produk "${term}" tidak ditemukan.` });
+            // Kode tidak cocok: tampilkan hasil pencarian di tab Produk.
+            setPanelTab('products');
+            setPanelOpen(true);
         }
     };
 
@@ -320,11 +331,19 @@ export default function App() {
         };
     };
 
+    const customerInfoLabel = () => {
+        const info = customerPanel(customer, boot?.default_customer);
+        return info.code ? `${info.code} ${info.name}` : info.name;
+    };
+
     const finalizeSale = async (payments) => {
         const payload = buildPayload(online ? 'online' : 'offline', payments);
 
         if (!online) {
-            enqueue(payload);
+            enqueue({
+                ...payload,
+                local_summary: { customer_name: customerInfoLabel(), total: totals.total, tax_total: totals.taxTotal },
+            });
             setQueue(readQueue());
             const receiptLines = priced.lines.map((l, i) => ({ ...l, line_total: totals.lineTotals[i] }));
             setReceipt({ number: 'OFFLINE', total: totals.total, paid_total: payments.reduce((s, p) => s + Number(p.amount || 0), 0), change_total: 0, lines: receiptLines, subtotal: totals.subtotal, discount_total: totals.discountTotal, tax_total: totals.taxTotal, shipping_cost: payload.shipping_cost, currency, origin: 'offline' });
@@ -388,6 +407,154 @@ export default function App() {
         }
     };
 
+    // ---- Tombol fungsi F1–F12, keyboard, dan dialog (docs/Design-Brief-Layar-POS.md) ----
+    const cashMethod = boot?.payment_types?.find((pt) => pt.code === 'CASH');
+    const promptOpen = Boolean(boot?.prompt?.greeting || boot?.prompt?.backdate_date);
+    const modalOpen = showPayment || showHolds || showReturn || showDevice || showCustomer || showDelivery
+        || showTransactions || showEditItem || Boolean(confirm) || Boolean(receipt) || promptOpen || Boolean(storeChangeMessage);
+    const keyStates = functionKeyStates({ cartEmpty: cart.length === 0, modalOpen, hasCashMethod: Boolean(cashMethod), heldCount });
+    const selectedLine = priced.lines.find((l) => l.id === selectedId) || priced.lines[priced.lines.length - 1] || null;
+
+    const resetSale = () => {
+        setCart([]);
+        setCustomer(null);
+        setSelectedId(null);
+        setDelivery({ enabled: false, recipient_name: '', phone: '', address: '', note: '', cost: 0 });
+    };
+
+    const askRemoveItem = () => {
+        if (!selectedLine) return;
+        const index = cart.findIndex((l) => l.id === selectedLine.id);
+        setConfirm({
+            title: 'Hapus item?',
+            message: `Hapus "${selectedLine.name}" dari keranjang?`,
+            confirmLabel: 'Hapus',
+            onConfirm: () => {
+                const remaining = cart.filter((l) => l.id !== selectedLine.id);
+                removeLine(selectedLine.id);
+                setSelectedId(remaining[selectionAfterRemoval(index, remaining.length)]?.id ?? null);
+            },
+        });
+    };
+
+    const askCancelSale = () => {
+        setConfirm({
+            title: 'Batalkan transaksi?',
+            message: 'Semua barang di keranjang akan dikosongkan.',
+            confirmLabel: 'Batalkan Transaksi',
+            onConfirm: resetSale,
+        });
+    };
+
+    const quickPay = () => {
+        if (!cashMethod || cart.length === 0) return;
+        finalizeSale([{ payment_type_id: cashMethod.id, amount: totals.total, status: 'confirmed' }]);
+    };
+
+    const runAction = (action) => {
+        switch (action) {
+            case 'return': setShowReturn(true); break;
+            case 'customer': setShowCustomer(true); break;
+            case 'searchProduct': setPanelTab('products'); setPanelOpen(true); scanRef.current?.focus(); break;
+            case 'editItem': setShowEditItem(true); break;
+            case 'transactions': setShowTransactions(true); break;
+            case 'delivery': setShowDelivery(true); break;
+            case 'removeItem': askRemoveItem(); break;
+            case 'cancelSale': askCancelSale(); break;
+            case 'holdOrRecall':
+                if (holdOrRecallAction(cart.length === 0) === 'hold') { hold(); scanRef.current?.focus(); } else { setShowHolds(true); }
+                break;
+            case 'quickPay': quickPay(); break;
+            case 'pay': setShowPayment(true); break;
+            default: break;
+        }
+    };
+
+    const runIfEnabled = (action) => {
+        const state = keyStates.find((k) => k.action === action);
+        if (state && !state.disabled) runAction(action);
+    };
+
+    const moveSelected = (delta) => {
+        const index = priced.lines.findIndex((l) => l.id === selectedLine?.id);
+        setSelectedId(priced.lines[moveSelection(index, delta, priced.lines.length)]?.id ?? null);
+    };
+
+    const closeTopDialog = () => {
+        if (confirm) setConfirm(null);
+        else if (showEditItem) setShowEditItem(false);
+        else if (showDelivery) setShowDelivery(false);
+        else if (showTransactions) setShowTransactions(false);
+        else if (showPayment) setShowPayment(false);
+        else if (showHolds) { setShowHolds(false); refreshHeldCount(); }
+        else if (showReturn) setShowReturn(false);
+        else if (showDevice) setShowDevice(false);
+        else if (showCustomer) setShowCustomer(false);
+        else if (receipt) setReceipt(null);
+    };
+
+    // Handler keyboard membaca state terbaru lewat ref agar listener cukup dipasang sekali.
+    const latest = useRef(null);
+    latest.current = {
+        keyStates,
+        modalOpen,
+        query,
+        runIfEnabled,
+        move: moveSelected,
+        adjustQty: (delta) => { if (selectedLine) setQty(selectedLine.id, selectedLine.qty + delta); },
+        escape: () => {
+            if (modalOpen) { closeTopDialog(); } else if (query) { setQuery(''); loadProducts(''); }
+        },
+    };
+
+    useEffect(() => {
+        const onKeyDown = (e) => {
+            const a = latest.current;
+            // F1–F12 selalu dicegat agar tidak memicu fungsi bawaan browser (bantuan, muat ulang, layar penuh, dll.).
+            if (isFunctionKey(e)) {
+                e.preventDefault();
+                if (!e.repeat) {
+                    const action = keyToAction(e);
+                    if (action) a.runIfEnabled(action);
+                }
+                return;
+            }
+            if (e.key === 'Escape') { a.escape(); return; }
+            if (a.modalOpen) return;
+
+            const free = document.activeElement === scanRef.current || document.activeElement === document.body;
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                a.move(e.key === 'ArrowDown' ? 1 : -1);
+            } else if ((e.key === '+' || e.key === '-') && a.query === '' && free) {
+                e.preventDefault();
+                a.adjustQty(e.key === '+' ? 1 : -1);
+            } else if (e.key === 'Delete' && a.query === '' && free) {
+                e.preventDefault();
+                a.runIfEnabled('removeItem');
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, []);
+
+    // Fokus kembali ke kotak input setelah dialog tertutup, agar kasir bisa langsung memindai barang berikutnya.
+    useEffect(() => {
+        if (!modalOpen) scanRef.current?.focus();
+    }, [modalOpen]);
+
+    // Keranjang belum disimpan: muat ulang tak sengaja akan menghapusnya.
+    useEffect(() => {
+        if (cart.length === 0) return undefined;
+        const guard = (e) => { e.preventDefault(); e.returnValue = ''; };
+        window.addEventListener('beforeunload', guard);
+        return () => window.removeEventListener('beforeunload', guard);
+    }, [cart.length]);
+
+    useEffect(() => {
+        document.querySelector('.pos-row.is-selected')?.scrollIntoView({ block: 'nearest' });
+    }, [selectedLine?.id, cart.length]);
+
     if (!boot) {
         return (
             <div className="pos-loading">
@@ -402,150 +569,271 @@ export default function App() {
     }
 
     const customerInfo = customerPanel(customer, boot.default_customer);
+    const totalQty = priced.lines.reduce((sum, l) => sum + l.qty, 0);
+    const availableBonuses = bonusHints.filter((h) => h.product);
+    const appliedPromotions = [...new Map(priced.lines.filter((l) => l.promotion_id).map((l) => [l.promotion_id, l])).values()];
 
     return (
         <div className="pos">
-            <header className="pos-topbar">
-                <div className="pos-store">
-                    <strong>{boot.store?.code}</strong>
-                    <span>{boot.store?.name}</span>
-                </div>
-                <div className="pos-status">
-                    <span className={`chip ${online ? 'chip-success' : 'chip-offline'}`}>
-                        <span className="material-symbols-rounded">{online ? 'wifi' : 'wifi_off'}</span>
-                        {online ? 'Online' : 'Offline'}
-                    </span>
-                    {queue.length > 0 && <span className="chip chip-pending">{queue.length} tertunda</span>}
-                </div>
-                <div className="pos-actions">
-                    <button className="btn btn-tonal btn-sm" onClick={() => setShowCustomer(true)}>Pelanggan</button>
-                    <button className="btn btn-tonal btn-sm" onClick={() => setShowHolds(true)}>
-                        Daftar Tahan{heldCount > 0 ? ` (${heldCount})` : ''}
-                    </button>
-                    <button className="btn btn-tonal btn-sm" onClick={() => setShowReturn(true)}>Retur</button>
-                    <button className="btn btn-outline btn-sm" onClick={() => setShowDevice(true)}>Perangkat</button>
-                    <span className="pos-cashier">{boot.cashier?.name}</span>
-                    <LogoutForm />
-                </div>
-            </header>
+            <div className="pos-unsupported">
+                <h2>Gunakan tablet atau desktop</h2>
+                <p>POS tidak didukung di ponsel agar transaksi, printer, pemindai, dan laci kas tetap andal. Buka POS di perangkat dengan layar minimal 768 px.</p>
+            </div>
+
+            <PosHeader
+                boot={boot}
+                online={online}
+                queueCount={queue.length}
+                onOpenDevice={() => setShowDevice(true)}
+                panelOpen={panelOpen}
+                onTogglePanel={() => setPanelOpen((open) => !open)}
+            />
+
+            <div className="pos-ribbons">
+                {boot.business?.closed && (
+                    <div className="pos-ribbon" role="status">
+                        <span className="material-symbols-rounded" aria-hidden="true">lock</span>
+                        EOD tanggal ini sudah ditutup — transaksi online terkunci
+                    </div>
+                )}
+                {boot.business?.locked_date && (
+                    <div className="pos-ribbon" role="status">
+                        <span className="material-symbols-rounded" aria-hidden="true">lock_clock</span>
+                        EOD {formatIsoDate(boot.business.locked_date)} belum diselesaikan — transaksi dicatat sebagai tanggal itu
+                    </div>
+                )}
+            </div>
 
             {notice && (
-                <div className={`md-snackbar ${notice.type === 'success' ? 'success' : notice.type === 'error' ? 'error' : 'info'}`} onClick={() => setNotice(null)}>
+                <div
+                    className={`md-snackbar pos-notice ${notice.type === 'success' ? 'success' : notice.type === 'error' ? 'error' : 'info'}`}
+                    role={notice.type === 'error' ? 'alert' : 'status'}
+                    onClick={() => setNotice(null)}
+                >
                     {notice.text}
                 </div>
             )}
 
-            <div className="pos-body">
-                <section className="pos-catalog">
-                    <input
-                        ref={scanRef}
-                        className="pos-scan"
-                        autoFocus
-                        placeholder="Scan barcode / cari nama atau SKU lalu Enter…"
-                        value={query}
-                        onChange={(e) => { setQuery(e.target.value); loadProducts(e.target.value); }}
-                        onKeyDown={onScan}
-                    />
-                    <div className="pos-grid">
-                        {products.map((p) => {
-                            const outOfStock = isOutOfStock(p, allowNegativeStock);
-                            return (
-                                <button key={p.id} className="pos-tile" onClick={() => addProduct(p)} disabled={outOfStock} title={outOfStock ? 'Stok habis' : undefined}>
-                                    <ProductThumb product={p} />
-                                    <span className="pos-tile-name">{p.name}</span>
-                                    <span className="pos-tile-sku sku">{p.sku}</span>
-                                    <span className="pos-tile-price money">{fmt(p.price, currency)}</span>
-                                    {p.track_stock && <span className="pos-tile-stock">{outOfStock ? 'Stok habis' : `stok ${p.stock}`}</span>}
-                                </button>
-                            );
-                        })}
-                        {products.length === 0 && <div className="empty-state">Tidak ada produk.</div>}
+            <div className="pos-main">
+                <section className="pos-items" aria-label="Daftar barang">
+                    <div className="pos-table-wrap" aria-live="polite">
+                        <table className="pos-table">
+                            <caption className="sr-only">Barang dalam transaksi</caption>
+                            <thead>
+                                <tr>
+                                    <th className="col-code">Kode</th>
+                                    <th className="col-name">Nama Barang</th>
+                                    <th className="col-num">Diskon</th>
+                                    <th className="col-qty">Qty</th>
+                                    <th className="col-unit">Satuan</th>
+                                    <th className="col-num">Harga</th>
+                                    <th className="col-num">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {priced.lines.map((l) => (
+                                    <tr
+                                        key={l.id}
+                                        className={`pos-row ${l.id === selectedLine?.id ? 'is-selected' : ''}`}
+                                        aria-selected={l.id === selectedLine?.id}
+                                        onClick={() => { setSelectedId(l.id); scanRef.current?.focus(); }}
+                                    >
+                                        <td className="col-code sku">{l.sku}</td>
+                                        <td className="col-name">
+                                            <span className="pos-row-name">{l.name}</span>
+                                            {l.promotion_id && (
+                                                <span className="pos-line-promo">
+                                                    <span className="material-symbols-rounded" aria-hidden="true">sell</span>
+                                                    {l.promotion_name}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="col-num money">{l.discount > 0 ? `−${fmt(l.discount, currency)}` : '–'}</td>
+                                        <td className="col-qty money">{l.qty}</td>
+                                        <td className="col-unit">{l.unit || '–'}</td>
+                                        <td className="col-num money">{fmt(l.unit_price, currency)}</td>
+                                        <td className="col-num money">{fmt(l.unit_price * l.qty - l.discount, currency)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        {cart.length === 0 && <div className="empty-state">Keranjang kosong. Scan atau cari produk lalu tekan Enter.</div>}
+                        {availableBonuses.map((hint) => (
+                            <div key={hint.promotion_id} className="pos-bonus-hint">
+                                <span>
+                                    <span className="material-symbols-rounded" aria-hidden="true">redeem</span>
+                                    Bonus tersedia: {hint.qty} × {hint.product.name} <small>({hint.promotion_name})</small>
+                                </span>
+                                <button className="btn btn-tonal btn-sm" onClick={() => addProduct(hint.product, hint.qty)}>Tambah</button>
+                            </div>
+                        ))}
                     </div>
                 </section>
 
-                <aside className="pos-cart">
-                    <div className="pos-customer">
-                        <span className="material-symbols-rounded">person</span>
-                        <div className="pos-customer-info">
-                            {customerInfo.code && <span className="pos-customer-code sku">{customerInfo.code}</span>}
-                            <strong title={customerInfo.name}>{customerInfo.name}</strong>
-                            {customerInfo.isDefault && <span className="chip">Default</span>}
-                        </div>
-                        <button className="btn btn-tonal btn-sm" onClick={() => setShowCustomer(true)}>
-                            {customerInfo.isSelected ? 'Ganti' : 'Pilih'}
-                        </button>
-                        {customerInfo.isSelected && (
-                            <button className="pos-line-remove" onClick={() => setCustomer(null)} title="Hapus pelanggan">
-                                <span className="material-symbols-rounded">close</span>
+                <aside className={`pos-panel ${panelOpen ? 'is-open' : ''}`} aria-label="Panel samping">
+                    <div className="pos-tabs" role="tablist">
+                        {[
+                            { id: 'customer', label: 'Pelanggan' },
+                            { id: 'promo', label: 'Promo & Bonus', badge: availableBonuses.length },
+                            { id: 'products', label: 'Produk' },
+                        ].map((tab) => (
+                            <button
+                                key={tab.id}
+                                role="tab"
+                                aria-selected={panelTab === tab.id}
+                                className={`pos-tab ${panelTab === tab.id ? 'is-active' : ''}`}
+                                onClick={() => { setPanelTab(tab.id); scanRef.current?.focus(); }}
+                            >
+                                {tab.label}
+                                {tab.badge > 0 && <span className="pos-badge" aria-label={`${tab.badge} bonus tersedia`}>{tab.badge}</span>}
                             </button>
+                        ))}
+                    </div>
+
+                    <div className="pos-tab-body" role="tabpanel">
+                        {panelTab === 'customer' && (
+                            <div className="pos-customer-panel">
+                                <dl className="pos-facts">
+                                    <div><dt>Kode</dt><dd className="sku">{customerInfo.code || '–'}</dd></div>
+                                    <div><dt>Nama</dt><dd>{customerInfo.name}{customerInfo.isDefault && <span className="chip">Default</span>}</dd></div>
+                                    <div><dt>HP</dt><dd className="mono">{customer?.phone || '–'}</dd></div>
+                                    <div><dt>Level</dt><dd>{customer?.level || '–'}</dd></div>
+                                    <div><dt>Poin</dt><dd className="money">{customer ? Number(customer.points_balance || 0).toLocaleString('id-ID') : '–'}</dd></div>
+                                </dl>
+                                <div className="pos-panel-actions">
+                                    <button className="btn btn-outline" onClick={() => setShowCustomer(true)}>Ganti</button>
+                                    <button className="btn btn-outline" onClick={() => { setCustomer(null); scanRef.current?.focus(); }} disabled={!customerInfo.isSelected}>Hapus</button>
+                                </div>
+                            </div>
                         )}
-                    </div>
-                    <div className="pos-cart-lines">
-                        {cart.length === 0 && <div className="empty-state">Keranjang kosong. Scan atau pilih produk.</div>}
-                        {priced.lines.map((l) => (
-                            <div key={l.id} className="pos-line">
-                                <div className="pos-line-info">
-                                    <strong>{l.name}</strong>
-                                    <span className="money">{fmt(l.unit_price, currency)}</span>
-                                    {l.promotion_id && (
-                                        <span className="pos-line-promo">
-                                            <span className="material-symbols-rounded">sell</span>
-                                            {l.promotion_name} <span className="money">−{fmt(l.discount, currency)}</span>
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="pos-line-qty">
-                                    <button onClick={() => setQty(l.id, l.qty - 1)}>−</button>
-                                    <input value={l.qty} onChange={(e) => setQty(l.id, Number(e.target.value) || 1)} />
-                                    <button onClick={() => setQty(l.id, l.qty + 1)}>+</button>
-                                </div>
-                                <div className="pos-line-total money">{fmt(l.unit_price * l.qty - l.discount, currency)}</div>
-                                <button className="pos-line-remove" onClick={() => removeLine(l.id)} title="Hapus">
-                                    <span className="material-symbols-rounded">close</span>
-                                </button>
-                            </div>
-                        ))}
-                        {bonusHints.map((hint) => (
-                            <div key={hint.promotion_id} className="pos-bonus-hint">
-                                <span>
-                                    <span className="material-symbols-rounded">redeem</span>
-                                    Bonus tersedia: {hint.qty} × {hint.product?.name || 'produk bonus'} <small>({hint.promotion_name})</small>
-                                </span>
-                                {hint.product && (
-                                    <button className="btn btn-tonal btn-sm" onClick={() => addProduct(hint.product, hint.qty)}>Tambah</button>
+
+                        {panelTab === 'promo' && (
+                            <div className="pos-promo-panel">
+                                {appliedPromotions.length === 0 && availableBonuses.length === 0 && (
+                                    <div className="empty-state">Tidak ada promosi pada keranjang ini.</div>
                                 )}
+                                {appliedPromotions.map((l) => (
+                                    <div key={l.promotion_id} className="pos-promo-row">
+                                        <span className="pos-line-promo">
+                                            <span className="material-symbols-rounded" aria-hidden="true">sell</span>
+                                            {l.promotion_name}
+                                        </span>
+                                        <span className="money">−{fmt(l.discount, currency)}</span>
+                                    </div>
+                                ))}
+                                {availableBonuses.map((hint) => (
+                                    <div key={hint.promotion_id} className="pos-bonus-hint">
+                                        <span>
+                                            <span className="material-symbols-rounded" aria-hidden="true">redeem</span>
+                                            {hint.qty} × {hint.product.name} <small>({hint.promotion_name})</small>
+                                        </span>
+                                        <button className="btn btn-tonal btn-sm" onClick={() => addProduct(hint.product, hint.qty)}>Tambah</button>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
-                    </div>
+                        )}
 
-                    <div className="pos-totals">
-                        {totals.discountTotal > 0 && <div className="pos-saving"><span>Hemat</span><span className="money">−{fmt(totals.discountTotal, currency)}</span></div>}
-                        <div><span>Subtotal</span><span className="money">{fmt(totals.subtotal, currency)}</span></div>
-                        <div><span>PPN{boot?.company?.tax_group_code ? ` (${boot.company.tax_group_code})` : ''}</span><span className="money">{fmt(totals.taxTotal, currency)}</span></div>
-                        {delivery.enabled && <div><span>Kirim</span><span className="money">{fmt(delivery.cost, currency)}</span></div>}
-                        <div className="pos-grand"><span>TOTAL</span><span className="money">{fmt(totals.total, currency)}</span></div>
-                    </div>
-
-                    <div className="pos-cart-actions">
-                        <button className="btn btn-tonal" onClick={hold} disabled={cart.length === 0}>Tahan</button>
-                        <button className="btn btn-filled pos-pay" onClick={() => setShowPayment(true)} disabled={cart.length === 0}>
-                            Bayar
-                        </button>
+                        {panelTab === 'products' && (
+                            <div className="pos-grid">
+                                {products.map((p) => {
+                                    const outOfStock = isOutOfStock(p, allowNegativeStock);
+                                    return (
+                                        <button key={p.id} className="pos-tile" onClick={() => addProduct(p)} disabled={outOfStock} title={outOfStock ? 'Stok habis' : undefined}>
+                                            <ProductThumb product={p} />
+                                            <span className="pos-tile-name">{p.name}</span>
+                                            <span className="pos-tile-sku sku">{p.sku}</span>
+                                            <span className="pos-tile-price money">{fmt(p.price, currency)}</span>
+                                            {p.track_stock && <span className="pos-tile-stock">{outOfStock ? 'Stok habis' : `stok ${p.stock}`}</span>}
+                                        </button>
+                                    );
+                                })}
+                                {products.length === 0 && <div className="empty-state">Tidak ada produk.</div>}
+                            </div>
+                        )}
                     </div>
                 </aside>
             </div>
 
-            <BusinessBar business={boot.business} />
+            <div className="pos-bottom">
+                <div className="pos-summary" aria-live="polite">
+                    <div className="pos-cell"><span className="pos-cell-label">Item</span><span className="pos-cell-value money">{priced.lines.length} / {totalQty}</span></div>
+                    <div className="pos-cell"><span className="pos-cell-label">Subtotal setelah diskon</span><span className="pos-cell-value money">{fmt(totals.subtotal, currency)}</span></div>
+                    <div className="pos-cell"><span className="pos-cell-label">Diskon</span><span className="pos-cell-value money">{fmt(totals.discountTotal, currency)}</span></div>
+                    <div className="pos-cell"><span className="pos-cell-label">PPN{boot.company?.tax_group_code ? ` (${boot.company.tax_group_code})` : ''}</span><span className="pos-cell-value money">{fmt(totals.taxTotal, currency)}</span></div>
+                    <div className="pos-cell"><span className="pos-cell-label">Ongkir</span><span className="pos-cell-value money">{fmt(delivery.enabled ? Number(delivery.cost || 0) : 0, currency)}</span></div>
+                    <div className="pos-cell pos-cell-total"><span className="pos-cell-label">TOTAL</span><span className="pos-cell-value money">{fmt(totals.total, currency)}</span></div>
+                </div>
+                <div className="pos-input-box">
+                    <input
+                        ref={scanRef}
+                        className="pos-scan"
+                        autoFocus
+                        aria-label="Scan barcode atau cari produk"
+                        placeholder="Scan / cari produk"
+                        value={query}
+                        onChange={(e) => { setQuery(e.target.value); loadProducts(e.target.value); }}
+                        onKeyDown={onScan}
+                    />
+                </div>
+            </div>
+
+            <nav className="pos-fkeys" aria-label="Tombol fungsi">
+                {keyStates.map((k) => (
+                    <button
+                        key={k.key}
+                        className={`pos-fkey ${k.primary ? 'is-primary' : ''}`}
+                        disabled={k.disabled}
+                        aria-keyshortcuts={k.key}
+                        onClick={() => { runAction(k.action); }}
+                    >
+                        <span className="pos-fkey-name">{k.key}</span>
+                        <span className="pos-fkey-label">{k.label || 'kosong'}</span>
+                        {k.badge && <span className="pos-badge pos-fkey-badge" aria-label={`${k.badge} transaksi ditahan`}>{k.badge}</span>}
+                    </button>
+                ))}
+            </nav>
 
             {showPayment && (
                 <PaymentModal
                     boot={boot}
                     currency={currency}
                     totals={totals}
-                    delivery={delivery}
-                    setDelivery={setDelivery}
                     onClose={() => setShowPayment(false)}
                     onConfirm={finalizeSale}
+                />
+            )}
+
+            {showDelivery && (
+                <DeliveryModal
+                    delivery={delivery}
+                    onClose={() => setShowDelivery(false)}
+                    onSave={(next) => { setDelivery(next); setShowDelivery(false); }}
+                />
+            )}
+
+            {showEditItem && selectedLine && (
+                <EditItemModal
+                    line={selectedLine}
+                    onClose={() => setShowEditItem(false)}
+                    onSave={(qty) => { setQty(selectedLine.id, qty); setShowEditItem(false); }}
+                />
+            )}
+
+            {showTransactions && (
+                <TransactionsModal
+                    online={online}
+                    boot={boot}
+                    currency={currency}
+                    meta={meta()}
+                    onClose={() => setShowTransactions(false)}
+                />
+            )}
+
+            {confirm && (
+                <ConfirmDialog
+                    {...confirm}
+                    onCancel={() => setConfirm(null)}
+                    onConfirm={() => { const run = confirm.onConfirm; setConfirm(null); run(); }}
                 />
             )}
 
@@ -566,6 +854,7 @@ export default function App() {
                         const { lines, adjustments } = fitCartToStock(heldCart, knownStock, allowNegativeStock);
                         setActiveHold(item.local ? { local: true, client_uuid: item.client_uuid, payload: item.payload } : { id: item.id, client_uuid: item.client_uuid });
                         setCart(lines);
+                        setSelectedId(lines[lines.length - 1]?.id ?? null);
                         if (adjustments.length > 0) {
                             setNotice({
                                 type: 'warning',
@@ -586,7 +875,7 @@ export default function App() {
 
             {showDevice && <DeviceModal onClose={() => setShowDevice(false)} />}
 
-            {(boot.prompt?.greeting || boot.prompt?.backdate_date) && (
+            {promptOpen && (
                 <SessionPromptModal
                     prompt={boot.prompt}
                     name={boot.cashier?.name}
@@ -606,9 +895,9 @@ export default function App() {
             )}
 
             {storeChangeMessage && (
-                <div className="pos-modal">
+                <div className="pos-modal" role="dialog" aria-modal="true" aria-labelledby="pos-store-change-title">
                     <div className="pos-modal-card">
-                        <h2>Penugasan gerai berubah</h2>
+                        <h2 id="pos-store-change-title">Penugasan gerai berubah</h2>
                         <p>{storeChangeMessage} Muat ulang POS untuk melanjutkan. Keranjang yang belum selesai tidak disimpan, sedangkan transaksi offline yang tertunda tetap tercatat di gerai asalnya.</p>
                         <div className="pos-modal-actions">
                             <button className="btn btn-filled" onClick={() => window.location.reload()}>Muat Ulang</button>
@@ -627,10 +916,13 @@ export default function App() {
     );
 }
 
-// Status bar bawah: tanggal bisnis + jam (zona waktu perusahaan) dan peringatan bila EOD tertunda.
-function BusinessBar({ business }) {
+// Header: logo, gerai, business date (tanggal posting), jam zona waktu perusahaan, status online/antrean, dan menu kasir.
+function PosHeader({ boot, online, queueCount, onOpenDevice, panelOpen, onTogglePanel }) {
+    const business = boot.business;
     const offset = useMemo(() => serverOffset(business?.server_time), [business?.server_time]);
     const [now, setNow] = useState(() => new Date(Date.now() + offset));
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuRef = useRef(null);
 
     useEffect(() => {
         const tick = () => setNow(new Date(Date.now() + offset));
@@ -639,33 +931,238 @@ function BusinessBar({ business }) {
         return () => clearInterval(timer);
     }, [offset]);
 
-    if (!business) return null;
+    useEffect(() => {
+        if (!menuOpen) return undefined;
+        const close = (e) => { if (!menuRef.current?.contains(e.target)) setMenuOpen(false); };
+        document.addEventListener('mousedown', close);
+        return () => document.removeEventListener('mousedown', close);
+    }, [menuOpen]);
 
-    const clock = formatBusinessClock(now, business.timezone);
+    const clock = business ? formatBusinessClock(now, business.timezone) : null;
+    const businessDate = business?.posting_date && business.posting_date !== clock?.isoDate ? formatIsoDate(business.posting_date) : clock?.date;
 
     return (
-        <footer className="pos-statusbar">
-            <span className="pos-statusbar-item">
-                <span className="material-symbols-rounded">event</span>
-                Business Date: <strong>{business.posting_date && business.posting_date !== clock.isoDate ? formatIsoDate(business.posting_date) : clock.date}</strong>
-            </span>
-            <span className="pos-statusbar-item">
-                <span className="material-symbols-rounded">schedule</span>
-                <strong className="money">{clock.time}</strong>
-            </span>
-            {business.closed && (
-                <span className="pos-statusbar-item pos-statusbar-warning">
-                    <span className="material-symbols-rounded">lock</span>
-                    EOD hari ini sudah ditutup — transaksi online terkunci
-                </span>
+        <header className="pos-header">
+            <span className="pos-brand"><span className="material-symbols-rounded" aria-hidden="true">point_of_sale</span>easyPOS</span>
+            <span className="pos-header-item">{boot.store?.code} · {boot.store?.name}</span>
+            {clock && (
+                <>
+                    <span className="pos-header-item">Business date: <strong>{businessDate}</strong></span>
+                    <span className="pos-header-item pos-clock money">{clock.time}</span>
+                </>
             )}
-            {business.locked_date && (
-                <span className="pos-statusbar-item pos-statusbar-warning">
-                    <span className="material-symbols-rounded">lock</span>
-                    EOD {formatIsoDate(business.locked_date)} belum diselesaikan — transaksi dicatat sebagai tanggal itu
+            <span className="pos-header-status">
+                <span className={`chip ${online ? 'chip-success' : 'chip-offline'}`} role="status">
+                    <span className="material-symbols-rounded" aria-hidden="true">{online ? 'wifi' : 'wifi_off'}</span>
+                    {online ? 'Online' : 'Offline'}
                 </span>
-            )}
-        </footer>
+                {queueCount > 0 && (
+                    <span className="chip chip-pending" role="status">
+                        <span className="material-symbols-rounded" aria-hidden="true">schedule</span>
+                        {queueCount} tertunda
+                    </span>
+                )}
+            </span>
+            <div className="pos-header-end">
+                <button className="pos-header-btn pos-panel-toggle" onClick={onTogglePanel} aria-expanded={panelOpen}>
+                    <span className="material-symbols-rounded" aria-hidden="true">side_navigation</span>Panel
+                </button>
+                <div className="pos-menu-wrap" ref={menuRef}>
+                    <button className="pos-header-btn" onClick={() => setMenuOpen((open) => !open)} aria-haspopup="menu" aria-expanded={menuOpen}>
+                        <span className="material-symbols-rounded" aria-hidden="true">account_circle</span>
+                        {boot.cashier?.name}
+                        <span className="material-symbols-rounded" aria-hidden="true">expand_more</span>
+                    </button>
+                    {menuOpen && (
+                        <div className="pos-menu" role="menu">
+                            <button role="menuitem" className="pos-menu-item" onClick={() => { setMenuOpen(false); onOpenDevice(); }}>
+                                <span className="material-symbols-rounded" aria-hidden="true">print</span>Perangkat
+                            </button>
+                            <form method="POST" action="/logout">
+                                <input type="hidden" name="_token" value={document.querySelector('meta[name="csrf-token"]')?.content} />
+                                <button role="menuitem" type="submit" className="pos-menu-item">
+                                    <span className="material-symbols-rounded" aria-hidden="true">logout</span>Keluar
+                                </button>
+                            </form>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </header>
+    );
+}
+
+function ConfirmDialog({ title, message, confirmLabel, onConfirm, onCancel }) {
+    return (
+        <div className="pos-modal" role="dialog" aria-modal="true" aria-labelledby="pos-confirm-title">
+            <div className="pos-modal-card pos-modal-sm">
+                <h2 id="pos-confirm-title">{title}</h2>
+                <p>{message}</p>
+                <div className="pos-modal-actions">
+                    <button className="btn btn-outline" onClick={onCancel}>Batal</button>
+                    <button className="btn pos-btn-danger" autoFocus onClick={onConfirm}>{confirmLabel}</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// F5: ubah qty baris terpilih (tahap ini qty saja; diskon baris manual belum ada).
+function EditItemModal({ line, onClose, onSave }) {
+    const [qty, setQty] = useState(String(line.qty));
+    const limit = maxQty(line, false);
+    const value = Number(qty);
+    const valid = Number.isFinite(value) && value >= 1;
+
+    return (
+        <div className="pos-modal" role="dialog" aria-modal="true" aria-labelledby="pos-edit-title">
+            <div className="pos-modal-card pos-modal-sm">
+                <h2 id="pos-edit-title">Ubah Item</h2>
+                <p><strong>{line.name}</strong> <span className="sku">{line.sku}</span></p>
+                <label className="pos-field">
+                    Qty{limit !== Infinity ? ` (stok ${limit})` : ''}
+                    <input
+                        className="mono"
+                        inputMode="numeric"
+                        autoFocus
+                        value={qty}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setQty(e.target.value.replace(/[^\d]/g, ''))}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && valid) onSave(value); }}
+                    />
+                </label>
+                <div className="pos-modal-actions">
+                    <button className="btn btn-outline" onClick={onClose}>Batal</button>
+                    <button className="btn btn-filled" disabled={!valid} onClick={() => onSave(value)}>Simpan</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// F7: data penerima dan biaya kirim (dulu bagian dari dialog bayar).
+function DeliveryModal({ delivery, onClose, onSave }) {
+    const [draft, setDraft] = useState({ ...delivery, cost: delivery.cost || '' });
+    const valid = draft.recipient_name.trim() !== '' && draft.address.trim() !== '';
+
+    return (
+        <div className="pos-modal" role="dialog" aria-modal="true" aria-labelledby="pos-delivery-title">
+            <div className="pos-modal-card">
+                <h2 id="pos-delivery-title">Pengiriman</h2>
+                <div className="pos-delivery">
+                    <input autoFocus aria-label="Nama penerima" placeholder="Nama penerima *" value={draft.recipient_name} onChange={(e) => setDraft({ ...draft, recipient_name: e.target.value })} />
+                    <input aria-label="Telepon" placeholder="Telepon" value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} />
+                    <input aria-label="Alamat" placeholder="Alamat *" value={draft.address} onChange={(e) => setDraft({ ...draft, address: e.target.value })} />
+                    <input aria-label="Catatan" placeholder="Catatan" value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
+                    <input aria-label="Biaya kirim" inputMode="numeric" placeholder="Biaya kirim" value={draft.cost} onChange={(e) => setDraft({ ...draft, cost: Number(e.target.value.replace(/[^\d]/g, '')) || '' })} />
+                </div>
+                <div className="pos-modal-actions">
+                    {delivery.enabled && (
+                        <button className="btn btn-outline" onClick={() => onSave({ enabled: false, recipient_name: '', phone: '', address: '', note: '', cost: 0 })}>Hapus Pengiriman</button>
+                    )}
+                    <button className="btn btn-outline" onClick={onClose}>Batal</button>
+                    <button className="btn btn-filled" disabled={!valid} onClick={() => onSave({ ...draft, enabled: true, cost: Number(draft.cost || 0) })}>Simpan</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// F6: transaksi gerai pada business date aktif. Transaksi offline yang belum tersinkron hanya ada di perangkat ini.
+function TransactionsModal({ online, boot, currency, meta, onClose }) {
+    const [rows, setRows] = useState([]);
+    const [businessDate, setBusinessDate] = useState(boot.business?.posting_date);
+    const [error, setError] = useState(null);
+    const [loading, setLoading] = useState(online);
+    const [printing, setPrinting] = useState(null);
+
+    useEffect(() => {
+        if (!online) return;
+        (async () => {
+            try {
+                const res = await api.todaySales();
+                setRows(res.data);
+                setBusinessDate(res.business_date);
+            } catch (e) {
+                setError(e.message);
+            }
+            setLoading(false);
+        })();
+    }, [online]);
+
+    const reprint = async (row) => {
+        setError(null);
+        setPrinting(row.id);
+        try {
+            const res = await api.showSale(row.id);
+            printReceipt(res.data, meta);
+        } catch (e) {
+            setError(e.message);
+        }
+        setPrinting(null);
+    };
+
+    const waiting = readQueue().map((item) => ({
+        key: item.client_uuid,
+        number: 'Belum tersinkron',
+        customer: item.local_summary?.customer_name || '–',
+        total: item.local_summary?.total ?? 0,
+        tax_total: item.local_summary?.tax_total ?? 0,
+    }));
+
+    return (
+        <div className="pos-modal" role="dialog" aria-modal="true" aria-labelledby="pos-trx-title">
+            <div className="pos-modal-card pos-modal-wide">
+                <h2 id="pos-trx-title">Transaksi {businessDate ? formatIsoDate(businessDate) : ''}</h2>
+                <p className="card-subtitle" style={{ marginTop: 0 }}>
+                    Hanya transaksi {boot.store?.code} pada business date ini.{!online && ' Offline: hanya transaksi di perangkat ini yang tampil.'}
+                </p>
+                {error && <div className="md-snackbar error" role="alert">{error}</div>}
+                {loading && <div className="empty-state">Memuat transaksi…</div>}
+                <table className="pos-table pos-mini-table">
+                    <caption className="sr-only">Transaksi pada business date aktif</caption>
+                    <thead>
+                        <tr>
+                            <th>Nomor</th>
+                            <th>Pelanggan</th>
+                            <th className="col-num">Penjualan</th>
+                            <th className="col-num">Pajak</th>
+                            <th>Status</th>
+                            <th><span className="sr-only">Aksi</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {waiting.map((r) => (
+                            <tr key={r.key}>
+                                <td className="sku">{r.number}</td>
+                                <td>{r.customer}</td>
+                                <td className="col-num money">{fmt(r.total, currency)}</td>
+                                <td className="col-num money">{fmt(r.tax_total, currency)}</td>
+                                <td><span className="chip chip-pending"><span className="material-symbols-rounded" aria-hidden="true">schedule</span>Offline · tertunda</span></td>
+                                <td />
+                            </tr>
+                        ))}
+                        {rows.map((r) => (
+                            <tr key={r.id}>
+                                <td className="sku">{r.number}</td>
+                                <td>{r.customer ? `${r.customer.code || ''} ${r.customer.name}`.trim() : '–'}</td>
+                                <td className="col-num money">{fmt(r.total, currency)}</td>
+                                <td className="col-num money">{fmt(r.tax_total, currency)}</td>
+                                <td>
+                                    {r.status === 'void' && <span className="chip chip-danger"><span className="material-symbols-rounded" aria-hidden="true">block</span>Void</span>}
+                                    {r.status !== 'void' && r.origin === 'offline' && <span className="chip chip-offline"><span className="material-symbols-rounded" aria-hidden="true">wifi_off</span>Offline</span>}
+                                </td>
+                                <td><button className="btn btn-tonal btn-sm" disabled={printing === r.id} onClick={() => reprint(r)}>Cetak Ulang</button></td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+                {!loading && rows.length === 0 && waiting.length === 0 && <div className="empty-state">Belum ada transaksi pada business date ini.</div>}
+                <div className="pos-modal-actions">
+                    <button className="btn btn-outline" onClick={onClose}>Tutup</button>
+                </div>
+            </div>
+        </div>
     );
 }
 
@@ -687,7 +1184,7 @@ function ProductThumb({ product }) {
     return <span className="pos-tile-thumb">{(product.name || '?').charAt(0).toUpperCase()}</span>;
 }
 
-function PaymentModal({ boot, currency, totals, delivery, setDelivery, onClose, onConfirm }) {
+function PaymentModal({ boot, currency, totals, onClose, onConfirm }) {
     const [rows, setRows] = useState([{ payment_type_id: boot.payment_types[0]?.id || '', amount: totals.total, status: 'confirmed' }]);
     const paid = rows.reduce((s, r) => s + Number(r.amount || 0), 0);
     const change = Math.max(0, paid - totals.total);
@@ -727,20 +1224,6 @@ function PaymentModal({ boot, currency, totals, delivery, setDelivery, onClose, 
                     <div><span>Dibayar</span><span className="money">{fmt(paid, currency)}</span></div>
                     <div><span>Kembali</span><span className="money">{fmt(change, currency)}</span></div>
                 </div>
-
-                <label className="pos-checkbox">
-                    <input type="checkbox" checked={delivery.enabled} onChange={(e) => setDelivery({ ...delivery, enabled: e.target.checked })} />
-                    Kirim ke alamat pelanggan
-                </label>
-
-                {delivery.enabled && (
-                    <div className="pos-delivery">
-                        <input placeholder="Nama penerima" value={delivery.recipient_name} onChange={(e) => setDelivery({ ...delivery, recipient_name: e.target.value })} />
-                        <input placeholder="Telepon" value={delivery.phone} onChange={(e) => setDelivery({ ...delivery, phone: e.target.value })} />
-                        <input placeholder="Alamat" value={delivery.address} onChange={(e) => setDelivery({ ...delivery, address: e.target.value })} />
-                        <input type="number" placeholder="Biaya kirim" value={delivery.cost} onChange={(e) => setDelivery({ ...delivery, cost: Number(e.target.value) })} />
-                    </div>
-                )}
 
                 {hasPending && <div className="pos-pending-note">Ada pembayaran pending — akan dikonfirmasi setelah tersinkron.</div>}
 

@@ -13,6 +13,7 @@ use App\Models\Sale;
 use App\Models\SaleDraft;
 use App\Models\StockLedger;
 use App\Models\Store;
+use App\Models\StoreClosure;
 use App\Models\TaxGroup;
 use App\Models\Unit;
 use App\Models\User;
@@ -155,6 +156,55 @@ class PosTest extends TestCase
             ->assertJsonPath('business.business_date', company_today())
             ->assertJsonPath('business.timezone', 'Asia/Jakarta')
             ->assertJsonPath('business.locked_date', $yesterday);
+    }
+
+    public function test_daftar_transaksi_hanya_gerai_kasir_pada_business_date_aktif(): void
+    {
+        $retail = Customer::create(['company_id' => $this->company->id, 'code' => 'C-RTL', 'name' => 'Pelanggan Retail', 'is_member' => false, 'is_active' => true]);
+        $this->store->update(['default_customer_id' => $retail->id]);
+
+        $payload = $this->salePayload();
+        $this->actingAs($this->cashier)->postJson('/pos/sales', $payload)->assertCreated();
+        $today = Sale::where('client_uuid', $payload['client_uuid'])->first();
+
+        $otherDay = $this->salePayload();
+        $this->actingAs($this->cashier)->postJson('/pos/sales', $otherDay)->assertCreated();
+        $yesterdaySale = Sale::where('client_uuid', $otherDay['client_uuid'])->first();
+        $yesterdaySale->update(['business_date' => now('Asia/Jakarta')->subDay()->toDateString()]);
+        StoreClosure::create(['company_id' => $this->company->id, 'store_id' => $this->store->id, 'business_date' => now('Asia/Jakarta')->subDay()->toDateString(), 'closed_at' => now()]);
+
+        $otherStore = Store::create(['company_id' => $this->company->id, 'code' => 'STR002', 'name' => 'Gerai B', 'pic_name' => 'PIC', 'currency' => 'IDR']);
+        $foreign = Sale::create(['company_id' => $this->company->id, 'store_id' => $otherStore->id, 'number' => 'S-LAIN', 'client_uuid' => (string) Str::uuid(), 'business_date' => company_today(), 'sold_at' => now(), 'cashier_id' => $this->cashier->id]);
+
+        $res = $this->actingAs($this->cashier)->getJson('/pos/sales')->assertOk();
+
+        $res->assertJsonPath('business_date', company_today());
+        $this->assertSame([$today->id], collect($res->json('data'))->pluck('id')->all());
+        $res->assertJsonPath('data.0.number', $today->number)
+            ->assertJsonPath('data.0.customer', ['code' => 'C-RTL', 'name' => 'Pelanggan Retail'])
+            ->assertJsonPath('data.0.total', 8880)
+            ->assertJsonPath('data.0.tax_total', 880);
+        $this->assertNotContains($foreign->id, collect($res->json('data'))->pluck('id')->all());
+    }
+
+    public function test_daftar_transaksi_memakai_tanggal_posting_saat_eod_tertunda(): void
+    {
+        $this->travelTo(now('Asia/Jakarta')->subDay()->setTime(10, 0));
+        $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload())->assertCreated();
+        $yesterday = company_today();
+        $this->travelBack();
+
+        $this->actingAs($this->cashier)->getJson('/pos/sales')
+            ->assertOk()
+            ->assertJsonPath('business_date', $yesterday)
+            ->assertJsonCount(1, 'data');
+    }
+
+    public function test_daftar_transaksi_ditolak_untuk_kasir_tanpa_gerai(): void
+    {
+        $user = User::create(['company_id' => $this->company->id, 'store_id' => null, 'name' => 'Staf', 'username' => 'staf1', 'role' => User::ROLE_CASHIER, 'is_active' => true, 'password' => 'password']);
+
+        $this->actingAs($user)->getJson('/pos/sales')->assertStatus(422);
     }
 
     public function test_bootstrap_mengirim_pelanggan_default_dari_master_gerai(): void

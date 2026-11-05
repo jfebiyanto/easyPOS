@@ -278,6 +278,41 @@ class PosController extends Controller
         return response()->json(['data' => $this->salePayload($sale)], 201);
     }
 
+    /**
+     * Daftar transaksi gerai kasir pada business date aktif (tanggal posting). Transaksi gerai atau tanggal lain
+     * tidak ditampilkan; transaksi offline yang belum tersinkron hanya ada di perangkat dan digabung di client.
+     */
+    public function todaySales(Request $request): JsonResponse
+    {
+        $store = $this->store($request);
+        abort_unless($store, 422, 'Kasir belum ditugaskan ke gerai.');
+
+        $postingDate = store_business_status($store->id)['posting_date'];
+
+        $sales = Sale::with('customer')
+            ->where('company_id', current_company_id())
+            ->where('store_id', $store->id)
+            ->whereDate('business_date', $postingDate)
+            ->latest('sold_at')
+            ->limit(200)
+            ->get();
+
+        return response()->json([
+            'business_date' => $postingDate,
+            'data' => $sales->map(fn (Sale $sale) => [
+                'id' => $sale->id,
+                'number' => $sale->number,
+                'status' => $sale->status,
+                'origin' => $sale->origin,
+                'sync_status' => $sale->sync_status,
+                'customer' => $sale->customer ? ['code' => $sale->customer->code, 'name' => $sale->customer->name] : null,
+                'total' => (float) $sale->total,
+                'tax_total' => (float) $sale->tax_total,
+                'sold_at' => $sale->sold_at?->toIso8601String(),
+            ]),
+        ]);
+    }
+
     public function showSale(Request $request, Sale $sale): JsonResponse
     {
         abort_unless($sale->company_id === current_company_id(), 404);

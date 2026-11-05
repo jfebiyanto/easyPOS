@@ -25,6 +25,7 @@ Route::middleware('auth')->prefix('pos')->name('pos.')->group(function () {
         Route::get('/products', [PosController::class, 'products'])->name('products');
         Route::get('/promotions', [PosController::class, 'promotions'])->name('promotions');
         Route::get('/sales-lookup', [PosController::class, 'lookupSale'])->name('sales.lookup');
+        Route::get('/sales', [PosController::class, 'todaySales'])->name('sales.index');
         Route::post('/sales', [PosController::class, 'storeSale'])->name('sales.store');
         Route::get('/sales/{sale}', [PosController::class, 'showSale'])->name('sales.show');
         Route::post('/sales/{sale}/void', [PosController::class, 'voidSale'])->name('sales.void');

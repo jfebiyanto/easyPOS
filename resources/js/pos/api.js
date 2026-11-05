@@ -32,6 +32,8 @@ export const api = {
     products: (q = '') => req('GET', '/pos/products' + (q ? `?q=${encodeURIComponent(q)}` : '')),
     promotions: () => req('GET', '/pos/promotions'),
     createSale: (payload) => req('POST', '/pos/sales', payload),
+    todaySales: () => req('GET', '/pos/sales'),
+    showSale: (id) => req('GET', `/pos/sales/${id}`),
     lookupSale: (number) => req('GET', '/pos/sales-lookup?number=' + encodeURIComponent(number)),
     createReturn: (payload) => req('POST', '/pos/returns', payload),
     holds: () => req('GET', '/pos/holds'),
