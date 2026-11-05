@@ -137,9 +137,9 @@ html, body {
 }
 .icon-btn:hover { background: var(--md-surface-variant); }
 
-.content { padding: 24px; max-width: 1200px; width: 100%; }
-/* Halaman bertabel lebar (mis. Integration Monitor) memakai seluruh lebar layar. */
-.content.content-wide { max-width: none; }
+/* Semua halaman admin memakai seluruh lebar layar; hanya kartu formulir yang dibatasi agar isian tidak melar. */
+.content { padding: 24px; width: 100%; }
+.content .card:has(> form .form-grid) { max-width: 1200px; }
 
 #menu-toggle { display: none; }
 @media (max-width: 900px) {

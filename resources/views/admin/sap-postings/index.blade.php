@@ -2,7 +2,6 @@
 
 @section('title', 'Integration Monitor')
 @section('page_title', 'Integration Monitor')
-@section('content_class', 'content-wide')
 
 @php
     $canManage = auth()->user()->isOwner();
