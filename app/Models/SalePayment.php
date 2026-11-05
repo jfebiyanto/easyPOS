@@ -10,7 +10,7 @@ class SalePayment extends Model
     use HasUuid7;
 
     protected $fillable = [
-        'sale_id', 'payment_type_id', 'amount', 'status', 'provider', 'provider_ref', 'confirmed_at',
+        'sale_id', 'payment_type_id', 'amount', 'status', 'provider', 'provider_ref', 'approval_code', 'confirmed_at',
     ];
 
     protected function casts(): array

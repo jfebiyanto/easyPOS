@@ -6,6 +6,7 @@ import { activePromotions, applyPromotions, readCachedPromotions, writeCachedPro
 import { formatBusinessClock, formatIsoDate, serverOffset } from './businessClock.js';
 import { fitCartToStock, isOutOfStock, maxQty } from './stock.js';
 import { digitsOnly, parseQty } from './qty.js';
+import { approvalMissing, normalizePayments, requiresApproval } from './payment.js';
 import { customerPanel } from './customer.js';
 import { functionKeyStates, holdOrRecallAction, isFunctionKey, keyToAction, moveSelection, selectionAfterRemoval } from './functionKeys.js';
 
@@ -1244,6 +1245,7 @@ function PaymentModal({ boot, currency, totals, onClose, onConfirm }) {
     const paid = rows.reduce((s, r) => s + Number(r.amount || 0), 0);
     const change = Math.max(0, paid - totals.total);
     const hasPending = rows.some((r) => r.status === 'pending');
+    const needsApproval = approvalMissing(rows, boot.payment_types);
 
     const setRow = (i, patch) => setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
 
@@ -1267,6 +1269,16 @@ function PaymentModal({ boot, currency, totals, onClose, onConfirm }) {
                                 <option value="pending">Pending</option>
                             </select>
                             {rows.length > 1 && <button className="icon-btn" onClick={() => setRows(rows.filter((_, idx) => idx !== i))}>×</button>}
+                            {requiresApproval(boot.payment_types, r.payment_type_id) && (
+                                <input
+                                    className="pos-approval"
+                                    aria-label="Kode approval"
+                                    placeholder={r.status === 'confirmed' ? 'Kode approval *' : 'Kode approval'}
+                                    maxLength={50}
+                                    value={r.approval_code || ''}
+                                    onChange={(e) => setRow(i, { approval_code: e.target.value })}
+                                />
+                            )}
                         </div>
                     ))}
                 </div>
@@ -1284,7 +1296,7 @@ function PaymentModal({ boot, currency, totals, onClose, onConfirm }) {
 
                 <div className="pos-modal-actions">
                     <button className="btn btn-outline" onClick={onClose}>Batal</button>
-                    <button className="btn btn-filled" onClick={() => onConfirm(rows)} disabled={paid <= 0}>Konfirmasi</button>
+                    <button className="btn btn-filled" onClick={() => onConfirm(normalizePayments(rows, boot.payment_types))} disabled={paid <= 0 || needsApproval}>Konfirmasi</button>
                 </div>
             </div>
         </div>

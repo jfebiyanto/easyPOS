@@ -179,6 +179,7 @@ class SaleService
                     'amount' => (float) $pay['amount'],
                     'status' => $pay['status'] ?? 'confirmed',
                     'provider' => $pay['provider'] ?? null,
+                    'approval_code' => filled($pay['approval_code'] ?? null) ? trim((string) $pay['approval_code']) : null,
                 ]);
             }
 

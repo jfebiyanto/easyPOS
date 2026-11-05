@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\CompanyDetail;
+use App\Models\CreditCard;
 use App\Models\Customer;
 use App\Models\PaymentType;
 use App\Models\PriceList;
@@ -142,6 +143,33 @@ class PosTest extends TestCase
         $res->assertJsonPath('store.code', 'STR001');
         $res->assertJsonPath('company.ppn_rate', 11);
         $this->assertCount(1, $res->json('payment_types'));
+    }
+
+    public function test_tipe_pembayaran_yang_dipetakan_ke_kartu_kredit_meminta_kode_approval_dan_menyimpannya(): void
+    {
+        $card = CreditCard::factory()->create(['company_id' => $this->company->id]);
+        $edc = PaymentType::create([
+            'company_id' => $this->company->id, 'code' => 'EDC', 'order_number' => 2, 'count_type' => 'summary',
+            'is_active' => true, 'credit_card_id' => $card->id,
+        ]);
+        $edc->stores()->sync([$this->store->id]);
+
+        $types = collect($this->actingAs($this->cashier)->getJson('/pos/bootstrap')->assertOk()->json('payment_types'))->keyBy('code');
+        $this->assertTrue($types['EDC']['requires_approval']);
+        $this->assertFalse($types['CASH']['requires_approval']);
+
+        $this->postJson('/pos/sales', $this->salePayload(['payments' => [
+            ['payment_type_id' => $edc->id, 'amount' => 8880, 'status' => 'confirmed', 'approval_code' => ' 123456 '],
+        ]]))->assertCreated()->assertJsonPath('data.payments.0.approval_code', '123456');
+
+        $this->assertSame('123456', Sale::firstOrFail()->payments()->value('approval_code'));
+    }
+
+    public function test_kode_approval_dibatasi_50_karakter(): void
+    {
+        $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload(['payments' => [
+            ['payment_type_id' => $this->cash->id, 'amount' => 8880, 'status' => 'confirmed', 'approval_code' => str_repeat('9', 51)],
+        ]]))->assertUnprocessable();
     }
 
     public function test_bootstrap_menampilkan_tanggal_bisnis_dan_tanggal_eod_yang_tertunda(): void

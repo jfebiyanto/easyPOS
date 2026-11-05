@@ -50,7 +50,9 @@ class PosController extends Controller
             ->where('is_active', true)
             ->whereHas('stores', fn ($q) => $q->where('stores.id', $store->id))
             ->orderBy('order_number')
-            ->get(['id', 'code', 'description', 'count_type', 'is_offline_allowed']);
+            ->get(['id', 'code', 'description', 'count_type', 'is_offline_allowed', 'credit_card_id'])
+            // Tipe yang dipetakan ke kartu kredit SAP (QRIS, EDC/kartu) mencatat kode approval.
+            ->map(fn (PaymentType $type) => $type->only(['id', 'code', 'description', 'count_type', 'is_offline_allowed']) + ['requires_approval' => $type->credit_card_id !== null]);
 
         return response()->json([
             'company' => [
@@ -207,6 +209,7 @@ class PosController extends Controller
             'payments.*.payment_type_id' => ['nullable', Rule::exists('payment_types', 'id')->where('company_id', current_company_id())],
             'payments.*.amount' => ['required', 'numeric', 'min:0'],
             'payments.*.status' => ['nullable', Rule::in(['pending', 'confirmed'])],
+            'payments.*.approval_code' => ['nullable', 'string', 'max:50'],
             'delivery' => ['nullable', 'array'],
             'delivery.recipient_name' => ['required_with:delivery', 'string', 'max:150'],
             'delivery.address' => ['required_with:delivery', 'string', 'max:500'],
@@ -703,6 +706,7 @@ class PosController extends Controller
             'payments' => $sale->payments->map(fn ($p) => [
                 'amount' => (float) $p->amount,
                 'status' => $p->status,
+                'approval_code' => $p->approval_code,
             ]),
             'delivery' => $sale->delivery ? [
                 'recipient_name' => $sale->delivery->recipient_name,

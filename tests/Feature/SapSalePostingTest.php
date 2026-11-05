@@ -234,6 +234,18 @@ class SapSalePostingTest extends TestCase
             && $request['PaymentInvoices'] === [['DocEntry' => 4, 'InvoiceType' => 'it_Invoice', 'SumApplied' => 8880.0]]);
     }
 
+    public function test_kode_approval_hanya_dicatat_di_easypos_dan_tidak_dikirim_ke_sap(): void
+    {
+        $this->fakeSap();
+
+        $sale = $this->sellWith([['EDC', 8880]]);
+        $sale->payments()->update(['approval_code' => 'APPR-778899']);
+        $sale->forceFill(['sap_post_status' => Sale::SAP_FAILED, 'sap_payment_doc_entry' => null, 'sap_invoice_doc_entry' => null])->saveQuietly();
+        SapSalePosting::queue($sale->fresh());
+
+        Http::assertNotSent(fn (Request $request) => str_contains($request->body(), 'APPR-778899') || str_contains($request->body(), 'approval'));
+    }
+
     public function test_pembayaran_edc_memakai_kartu_dan_akun_edc_warehouse(): void
     {
         $this->fakeSap();
