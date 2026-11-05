@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Jobs\PostSaleToSap;
 use App\Models\CompanyDetail;
+use App\Models\CreditCard;
 use App\Models\Customer;
 use App\Models\PaymentType;
 use App\Models\Product;
@@ -109,7 +110,6 @@ class SapSalePostingTest extends TestCase
             return match (true) {
                 str_ends_with($url, '/Login') => Http::response(['SessionId' => 'abc']),
                 str_ends_with($url, '/Logout') => Http::response('', 204),
-                $get && str_contains($url, '/CreditCards') => Http::response(['value' => $this->creditCardsFor(urldecode($url))]),
                 $get && str_contains($url, '/Invoices(') => Http::response(['DocTotal' => $options['docTotal'] ?? 8880]),
                 $get && str_contains($url, '/Invoices') => Http::response(['value' => array_filter([$options['invoice'] ?? null])]),
                 $get && str_contains($url, '/IncomingPayments') => Http::response(['value' => array_filter([$options['payment'] ?? null])]),
@@ -121,21 +121,27 @@ class SapSalePostingTest extends TestCase
     }
 
     /**
-     * Kartu kredit SAP demo: QRIS (1) dan EDC BANK (2), akun GL-nya sama dengan UDF warehouse.
-     *
-     * @return list<array{CreditCardCode: int, GLAccount: string}>
+     * Kartu kredit SAP demo yang sudah disinkronkan: QRIS (1) dan EDC BANK (2).
      */
-    private function creditCardsFor(string $url): array
+    private function creditCard(string $code): CreditCard
     {
-        $cards = ['1100-2002-0004' => 1, '1100-2002-0003' => 2];
+        return CreditCard::firstOrCreate(
+            ['company_id' => $this->company->id, 'code' => $code],
+            ['name' => $code === '1' ? 'QRIS' : 'EDC BANK', 'gl_account' => $code === '1' ? '1100-2002-0004' : '1100-2002-0003'],
+        );
+    }
 
-        foreach ($cards as $account => $code) {
-            if (str_contains($url, "GLAccount eq '{$account}'")) {
-                return [['CreditCardCode' => $code, 'GLAccount' => $account]];
-            }
-        }
+    /**
+     * Tipe pembayaran uji; QRIS dan EDC dipetakan ke kartu kredit SAP, CASH dan lainnya tidak.
+     */
+    private function paymentType(string $code): PaymentType
+    {
+        $card = ['QRIS' => '1', 'EDC' => '2'][$code] ?? null;
 
-        return [];
+        return PaymentType::firstOrCreate(
+            ['company_id' => $this->company->id, 'code' => $code],
+            ['count_type' => 'summary', 'order_number' => 1, 'is_active' => true, 'credit_card_id' => $card ? $this->creditCard($card)->id : null],
+        );
     }
 
     /**
@@ -148,7 +154,7 @@ class SapSalePostingTest extends TestCase
             'client_uuid' => (string) Str::uuid(),
             'lines' => [['product_id' => $this->product->id, 'qty' => 2]],
             'payments' => array_map(fn (array $p) => [
-                'payment_type_id' => PaymentType::firstOrCreate(['company_id' => $this->company->id, 'code' => $p[0]], ['count_type' => 'summary', 'order_number' => 1, 'is_active' => true])->id,
+                'payment_type_id' => $this->paymentType($p[0])->id,
                 'amount' => $p[1],
                 'status' => $p[2] ?? 'confirmed',
             ], $payments),
@@ -161,7 +167,7 @@ class SapSalePostingTest extends TestCase
             'store_id' => $this->store->id,
             'client_uuid' => (string) Str::uuid(),
             'lines' => [['product_id' => $this->product->id, 'qty' => 2]],
-            'payments' => [['payment_type_id' => PaymentType::firstOrCreate(['company_id' => $this->company->id, 'code' => 'CASH'], ['count_type' => 'summary', 'order_number' => 1, 'is_active' => true])->id, 'amount' => 10000]],
+            'payments' => [['payment_type_id' => $this->paymentType('CASH')->id, 'amount' => 10000]],
         ], $this->cashier)->fresh();
     }
 
@@ -293,25 +299,32 @@ class SapSalePostingTest extends TestCase
         $this->assertSame(Sale::SAP_POSTED, $sale->fresh()->sap_post_status);
     }
 
-    public function test_tipe_pembayaran_lain_belum_didukung_posting_sap(): void
+    public function test_tipe_pembayaran_tanpa_pemetaan_credit_card_menahan_posting(): void
     {
         $this->fakeSap();
 
         $sale = $this->sellWith([['CARD', 8880]]);
 
         $this->assertSame(Sale::SAP_FAILED, $sale->sap_post_status);
-        $this->assertStringContainsString('Tipe pembayaran CARD belum didukung', $sale->sap_post_error);
+        $this->assertStringContainsString('Tipe pembayaran CARD belum dipetakan ke Credit Card SAP B1', $sale->sap_post_error);
+        $this->assertNull($sale->sap_invoice_doc_entry);
     }
 
-    public function test_kartu_kredit_sap_dengan_akun_warehouse_harus_ada(): void
+    public function test_tipe_pembayaran_lain_yang_dipetakan_memakai_kartu_dan_akun_gl_kartu_sap(): void
     {
         $this->fakeSap();
-        $this->store->warehouse->update(['qris_account' => '1100-9999-9999']);
+        PaymentType::create([
+            'company_id' => $this->company->id, 'code' => 'CARD', 'count_type' => 'summary', 'order_number' => 3,
+            'is_active' => true, 'credit_card_id' => $this->creditCard('2')->id,
+        ]);
 
-        $sale = $this->sellWith([['QRIS', 8880]]);
+        $sale = $this->sellWith([['CARD', 8880]]);
 
-        $this->assertSame(Sale::SAP_FAILED, $sale->sap_post_status);
-        $this->assertStringContainsString('Kartu kredit SAP B1 dengan akun 1100-9999-9999', $sale->sap_post_error);
+        $this->assertSame(Sale::SAP_POSTED, $sale->sap_post_status);
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/IncomingPayments')
+            && $request['PaymentCreditCards'][0]['CreditCard'] === 2
+            && $request['PaymentCreditCards'][0]['CreditAcct'] === '1100-2002-0003'
+            && $request['PaymentCreditCards'][0]['CreditSum'] === 8880.0);
     }
 
     public function test_profit_center_warehouse_dicatat_di_baris_invoice(): void

@@ -18,8 +18,10 @@ use Throwable;
  * Posting penjualan POS ke SAP B1: A/R Invoice lalu satu Incoming Payment yang menunjuk
  * invoice tersebut (otomatis terekonsiliasi).
  *
- * - Pembayaran tunai = CashAccount/CashSum (akun kas warehouse). QRIS dan EDC dicatat sebagai
- *   Credit Card (PaymentCreditCards) dengan akun QRIS/EDC warehouse dan nomor kartu default.
+ * - Pembayaran tunai (tipe berkode CASH) = CashAccount/CashSum (akun kas warehouse). Tipe lain wajib
+ *   dipetakan ke kartu kredit SAP (menu Tipe Pembayaran) dan dicatat sebagai Credit Card
+ *   (PaymentCreditCards) dengan nomor kartu default; akun: UDF QRIS/EDC warehouse untuk tipe QRIS/EDC,
+ *   selain itu akun GL kartu kredit SAP.
  * - Baris invoice memakai profit center warehouse (CostingCode/COGSCostingCode di Service Layer) bila terisi, dan harga satuan di GrossPrice (PPN inklusif) atau Price (eksklusif).
  *
  * - Header dokumen: U_SOL_FRST = 'Y', U_SOL_TRKY = UUID penjualan, U_SOL_STID = UUID gerai.
@@ -38,6 +40,10 @@ class SapSalePosting
 
     /** Nomor kartu bawaan untuk pembayaran QRIS/EDC (kartu sebenarnya tidak diketahui easyPOS). */
     private const DEFAULT_CARD_NUMBER = '1234';
+
+    private const METHOD_CASH = 'CASH';
+
+    private const METHOD_CARD = 'CARD';
 
     /**
      * Antrekan posting bila integrasi aktif dan penjualan belum terposting.
@@ -59,7 +65,7 @@ class SapSalePosting
 
     public function post(Sale $sale): void
     {
-        $sale->loadMissing(['lines', 'customer', 'store.warehouse', 'payments.paymentType']);
+        $sale->loadMissing(['lines', 'customer', 'store.warehouse', 'payments.paymentType.creditCard']);
         $client = new SapServiceLayer($this->company);
 
         try {
@@ -117,8 +123,8 @@ class SapSalePosting
     }
 
     /**
-     * Setiap pembayaran harus bertipe CASH, QRIS, atau EDC dengan akun warehouse yang terisi;
-     * QRIS/EDC harus sudah terkonfirmasi (pembayaran pending menahan posting).
+     * Setiap pembayaran harus bertipe CASH atau dipetakan ke kartu kredit SAP, dengan akun yang terisi;
+     * pembayaran non-tunai harus sudah terkonfirmasi (pembayaran pending menahan posting).
      */
     private function assertPaymentsPostable(Sale $sale): void
     {
@@ -126,52 +132,64 @@ class SapSalePosting
 
         foreach ($sale->payments as $payment) {
             $method = $this->method($payment);
+            $code = $payment->paymentType?->code ?? '-';
 
             if ($method === null) {
-                $code = $payment->paymentType?->code ?? '-';
-                throw new RuntimeException("Tipe pembayaran {$code} belum didukung posting SAP B1 (hanya CASH, QRIS, dan EDC).");
+                throw new RuntimeException("Tipe pembayaran {$code} belum dipetakan ke Credit Card SAP B1 (menu Tipe Pembayaran); posting menunggu pemetaan.");
             }
 
-            if ($method !== PaymentType::CODE_CASH && $payment->status !== 'confirmed') {
-                throw new RuntimeException("Pembayaran {$method} belum terkonfirmasi; posting menunggu konfirmasi.");
-            }
-
-            if ($method === PaymentType::CODE_CASH) {
+            if ($method === self::METHOD_CASH) {
                 continue;
             }
 
-            if (blank($this->account($warehouse, $method))) {
-                throw new RuntimeException("Akun {$method} warehouse {$warehouse->code} belum diisi (UDF {$this->udf($method)} di SAP B1).");
+            if ($payment->status !== 'confirmed') {
+                throw new RuntimeException("Pembayaran {$code} belum terkonfirmasi; posting menunggu konfirmasi.");
+            }
+
+            if (blank($this->account($warehouse, $payment))) {
+                throw new RuntimeException($this->missingAccountMessage($warehouse, $payment));
             }
         }
 
-        if ($sale->payments->contains(fn (SalePayment $payment) => $this->method($payment) === PaymentType::CODE_CASH) && blank($warehouse->cash_account)) {
+        if ($sale->payments->contains(fn (SalePayment $payment) => $this->method($payment) === self::METHOD_CASH) && blank($warehouse->cash_account)) {
             throw new RuntimeException("Akun kas warehouse {$warehouse->code} belum diisi (UDF U_SOL_CASH_ACC di SAP B1).");
         }
     }
 
     /**
-     * @return ?string CASH, QRIS, EDC, atau null bila tipe pembayaran tidak dikenali
+     * @return ?string METHOD_CASH (tipe berkode CASH), METHOD_CARD (dipetakan ke kartu kredit SAP), atau null
      */
     private function method(SalePayment $payment): ?string
     {
-        $code = strtoupper((string) $payment->paymentType?->code);
+        $type = $payment->paymentType;
 
-        return in_array($code, [PaymentType::CODE_CASH, PaymentType::CODE_QRIS, PaymentType::CODE_EDC], true) ? $code : null;
+        if (strtoupper((string) $type?->code) === PaymentType::CODE_CASH) {
+            return self::METHOD_CASH;
+        }
+
+        return $type?->creditCard ? self::METHOD_CARD : null;
     }
 
-    private function account(Warehouse $warehouse, string $method): ?string
+    /**
+     * Akun GL pembayaran kartu: tipe QRIS/EDC memakai akun per warehouse (UDF OWHS); tipe lain memakai
+     * akun GL kartu kredit SAP yang dipetakan.
+     */
+    private function account(Warehouse $warehouse, SalePayment $payment): ?string
     {
-        return match ($method) {
+        return match (strtoupper((string) $payment->paymentType?->code)) {
             PaymentType::CODE_QRIS => $warehouse->qris_account,
             PaymentType::CODE_EDC => $warehouse->edc_account,
-            default => $warehouse->cash_account,
+            default => $payment->paymentType?->creditCard?->gl_account,
         };
     }
 
-    private function udf(string $method): string
+    private function missingAccountMessage(Warehouse $warehouse, SalePayment $payment): string
     {
-        return $method === PaymentType::CODE_QRIS ? 'U_SOL_QRIS_ACC' : 'U_SOL_EDC_ACC';
+        return match (strtoupper((string) $payment->paymentType?->code)) {
+            PaymentType::CODE_QRIS => "Akun QRIS warehouse {$warehouse->code} belum diisi (UDF U_SOL_QRIS_ACC di SAP B1).",
+            PaymentType::CODE_EDC => "Akun EDC warehouse {$warehouse->code} belum diisi (UDF U_SOL_EDC_ACC di SAP B1).",
+            default => "Akun GL kartu kredit {$payment->paymentType?->creditCard?->name} belum diisi di SAP B1 (menu Credit Cards).",
+        };
     }
 
     private function postInvoice(SapServiceLayer $client, Sale $sale): void
@@ -252,7 +270,7 @@ class SapSalePosting
                     'InvoiceType' => 'it_Invoice',
                     'SumApplied' => $docTotal,
                 ]],
-            ] + $this->paymentMeans($client, $sale, $docTotal));
+            ] + $this->paymentMeans($sale, $docTotal));
 
         $sale->forceFill([
             'sap_payment_obj_type' => self::OBJ_INCOMING_PAYMENT,
@@ -267,10 +285,10 @@ class SapSalePosting
      *
      * @return array<string, mixed>
      */
-    private function paymentMeans(SapServiceLayer $client, Sale $sale, float $docTotal): array
+    private function paymentMeans(Sale $sale, float $docTotal): array
     {
         $warehouse = $sale->store->warehouse;
-        $cards = $sale->payments->filter(fn (SalePayment $payment) => $this->method($payment) !== PaymentType::CODE_CASH);
+        $cards = $sale->payments->filter(fn (SalePayment $payment) => $this->method($payment) !== self::METHOD_CASH);
         $cashSum = round($docTotal - round((float) $cards->sum('amount'), 2), 2);
 
         if ($cashSum < -self::TOTAL_TOLERANCE) {
@@ -290,7 +308,7 @@ class SapSalePosting
 
         if ($cards->isNotEmpty()) {
             $means['PaymentCreditCards'] = $cards
-                ->map(fn (SalePayment $payment) => $this->creditCardLine($client, $sale, $payment))
+                ->map(fn (SalePayment $payment) => $this->creditCardLine($sale, $payment))
                 ->values()
                 ->all();
         }
@@ -301,33 +319,17 @@ class SapSalePosting
     /**
      * @return array<string, mixed>
      */
-    private function creditCardLine(SapServiceLayer $client, Sale $sale, SalePayment $payment): array
+    private function creditCardLine(Sale $sale, SalePayment $payment): array
     {
-        $account = (string) $this->account($sale->store->warehouse, (string) $this->method($payment));
-
         return [
-            'CreditCard' => $this->creditCardCode($client, $account),
+            'CreditCard' => (int) $payment->paymentType->creditCard->code,
             'CreditCardNumber' => self::DEFAULT_CARD_NUMBER,
             'CardValidUntil' => $sale->business_date->copy()->addYear()->endOfMonth()->toDateString(),
             'VoucherNum' => Str::limit((string) $sale->number, 20, ''),
             'CreditSum' => round((float) $payment->amount, 2),
             'CreditCur' => $sale->currency_code ?: 'IDR',
-            'CreditAcct' => $account,
+            'CreditAcct' => (string) $this->account($sale->store->warehouse, $payment),
         ];
-    }
-
-    /**
-     * Kode kartu kredit SAP (OCRC) yang akun GL-nya sama dengan akun QRIS/EDC warehouse.
-     */
-    private function creditCardCode(SapServiceLayer $client, string $account): int
-    {
-        $found = $client->find('CreditCards', [
-            '$select' => 'CreditCardCode,GLAccount',
-            '$filter' => "GLAccount eq '".str_replace("'", "''", $account)."'",
-        ]);
-
-        return (int) ($found['value'][0]['CreditCardCode']
-            ?? throw new RuntimeException("Kartu kredit SAP B1 dengan akun {$account} belum dibuat (menu Credit Cards)."));
     }
 
     /**

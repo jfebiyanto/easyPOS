@@ -19,6 +19,7 @@
                 <th>Deskripsi</th>
                 <th>{!! sort_link('Order', 'order_number') !!}</th>
                 <th>{!! sort_link('Count Type', 'count_type') !!}</th>
+                <th>Kartu Kredit SAP</th>
                 <th>Digunakan di Gerai</th>
                 <th>{!! sort_link('Status', 'is_active') !!}</th>
                 <th style="text-align:right;">Aksi</th>
@@ -32,6 +33,7 @@
                     <td>{{ $paymentType->description }}</td>
                     <td>{{ $paymentType->order_number }}</td>
                     <td>{{ ucfirst($paymentType->count_type) }}</td>
+                    <td>{{ $paymentType->creditCard ? $paymentType->creditCard->code.' · '.$paymentType->creditCard->name : '—' }}</td>
                     <td>
                         @forelse ($gerai->take(3) as $store)
                             <span class="badge active">{{ $store->code }}</span>
@@ -54,7 +56,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="7"><div class="empty-state"><span class="material-symbols-rounded">credit_card</span><p>Belum ada tipe pembayaran.</p></div></td></tr>
+                <tr><td colspan="8"><div class="empty-state"><span class="material-symbols-rounded">credit_card</span><p>Belum ada tipe pembayaran.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>

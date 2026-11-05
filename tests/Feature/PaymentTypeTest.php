@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\CompanyDetail;
+use App\Models\CreditCard;
 use App\Models\PaymentType;
 use App\Models\Store;
 use App\Models\User;
@@ -100,6 +101,32 @@ class PaymentTypeTest extends TestCase
             [$this->storeA->id, $this->storeB->id],
             $paymentType->stores()->orderBy('code')->pluck('stores.id')->all()
         );
+    }
+
+    public function test_tipe_pembayaran_dipetakan_ke_kartu_kredit_sap(): void
+    {
+        $card = CreditCard::factory()->create(['company_id' => $this->company->id, 'code' => '2', 'name' => 'EDC BANK']);
+
+        $this->actingAs($this->admin)->get(route('admin.payment-types.create'))->assertOk()->assertSee('2 · EDC BANK');
+        $this->post(route('admin.payment-types.store'), $this->validPayload(['code' => 'EDC', 'credit_card_id' => $card->id]))
+            ->assertRedirect(route('admin.payment-types.index'));
+
+        $this->assertSame($card->id, PaymentType::where('code', 'EDC')->value('credit_card_id'));
+
+        $paymentType = PaymentType::where('code', 'EDC')->firstOrFail();
+        $this->put(route('admin.payment-types.update', $paymentType), $this->validPayload(['code' => 'EDC', 'credit_card_id' => '']))
+            ->assertRedirect(route('admin.payment-types.index'));
+        $this->assertNull($paymentType->fresh()->credit_card_id);
+    }
+
+    public function test_kartu_kredit_perusahaan_lain_tidak_dapat_dipetakan(): void
+    {
+        $other = CompanyDetail::create(['name' => 'Other Co']);
+        $foreign = CreditCard::factory()->create(['company_id' => $other->id]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.payment-types.store'), $this->validPayload(['credit_card_id' => $foreign->id]))
+            ->assertSessionHasErrors('credit_card_id');
     }
 
     public function test_kode_tipe_pembayaran_harus_unik(): void

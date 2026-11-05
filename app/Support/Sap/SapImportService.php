@@ -4,6 +4,7 @@ namespace App\Support\Sap;
 
 use App\Models\Brand;
 use App\Models\CompanyDetail;
+use App\Models\CreditCard;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
 use App\Models\PriceList;
@@ -49,6 +50,7 @@ class SapImportService
     public const ENTITIES = [
         'tax_group' => ['Tax Group (Output Tax)', 'OVTG'],
         'warehouse' => ['Warehouse', 'OWHS'],
+        'credit_card' => ['Credit Card', 'OCRC'],
         'item_category' => ['Item Category', 'OITB'],
         'manufacturer' => ['Manufacturer', 'OMRC'],
         'unit' => ['Satuan (Unit of Measurement)', 'OUOM'],
@@ -135,6 +137,7 @@ class SapImportService
             // Urutan mengikuti ketergantungan data.
             $this->importTaxGroups($client);       // OVTG (Output Tax, aktif)
             $this->importWarehouses($client);       // OWHS (semua; U_SOL_RETAIL = Y → retail)
+            $this->importCreditCards($client);      // OCRC (dipetakan ke Tipe Pembayaran)
             $this->importItemGroups($client);       // OITB
             $this->importManufacturers($client);    // OMRC
             $this->importUnits($client);            // OUOM
@@ -256,6 +259,29 @@ class SapImportService
                 'edc_account' => $edcAccount !== '' ? $edcAccount : null,
                 'is_retail' => ($row['U_SOL_RETAIL'] ?? null) === 'Y',
                 'is_active' => ($row['Inactive'] ?? 'tNO') !== 'tYES',
+            ]);
+
+            return $outcome;
+        });
+    }
+
+    /**
+     * Kartu kredit SAP (QRIS, EDC bank, dll.). OCRC tidak punya penanda waktu perubahan, jadi diambil
+     * utuh seperti Warehouse; baris yang tidak berubah tidak ditulis ulang.
+     */
+    private function importCreditCards(SapServiceLayer $client): void
+    {
+        $this->each('credit_card', $client, 'CreditCards', ['$select' => 'CreditCardCode,CreditCardName,GLAccount'], function (array $row) {
+            $code = $this->cut($row['CreditCardCode'] ?? '', 20);
+            if ($code === '') {
+                return null;
+            }
+
+            $account = $this->cut($row['GLAccount'] ?? '', 25);
+
+            [, $outcome] = $this->store(CreditCard::class, ['code' => $code], [
+                'name' => $this->cut($row['CreditCardName'] ?? '', 255) ?: $code,
+                'gl_account' => $account !== '' ? $account : null,
             ]);
 
             return $outcome;

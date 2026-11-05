@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Jobs\RunSapImport;
 use App\Models\Brand;
 use App\Models\CompanyDetail;
+use App\Models\CreditCard;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
 use App\Models\PriceList;
@@ -91,6 +92,11 @@ class SapImportTest extends TestCase
                 ['WarehouseCode' => 'WH-02', 'WarehouseName' => 'Gudang Retail 2', 'Inactive' => 'tYES', 'U_SOL_RETAIL' => 'Y', 'U_SOL_PRFC' => ''],
                 ['WarehouseCode' => 'GL99', 'WarehouseName' => 'Gudang Load', 'Inactive' => 'tNO', 'U_SOL_RETAIL' => 'N', 'U_SOL_PRFC' => null],
             ]]),
+            '*/CreditCards*' => Http::response(['value' => [
+                ['CreditCardCode' => 1, 'CreditCardName' => 'QRIS', 'GLAccount' => '1100-2002-0004'],
+                ['CreditCardCode' => 2, 'CreditCardName' => 'EDC BANK', 'GLAccount' => '1100-2002-0003'],
+                ['CreditCardCode' => 3, 'CreditCardName' => 'TANPA AKUN', 'GLAccount' => ''],
+            ]]),
             "*/SQLQueries('EPOS_STOCK_MUTATION')/List" => $mutationQueryFails ? Http::response(['error' => ['message' => ['value' => 'timeout']]], 504) : Http::response(['value' => [
                 ['TransSeq' => 1, 'TransType' => 20, 'CreatedBy' => 1, 'BASE_REF' => '1', 'DocLineNum' => 0, 'ItemCode' => 'ITM-001', 'LocCode' => 'WH-01', 'InQty' => 25, 'OutQty' => 0, 'DocDate' => '20261101'],
             ]]),
@@ -168,6 +174,10 @@ class SapImportTest extends TestCase
         $this->assertTrue(Warehouse::where('code', 'WH-01')->value('is_retail'));
         $this->assertSame('PC-JKT', Warehouse::where('code', 'WH-01')->value('profit_center'));
         $this->assertSame('1100-1001-0002', Warehouse::where('code', 'WH-01')->value('cash_account'));
+        $this->assertSame(3, CreditCard::count());
+        $this->assertSame('EDC BANK', CreditCard::where('code', '2')->value('name'));
+        $this->assertSame('1100-2002-0003', CreditCard::where('code', '2')->value('gl_account'));
+        $this->assertNull(CreditCard::where('code', '3')->value('gl_account'));
         $this->assertSame('1100-2002-0004', Warehouse::where('code', 'WH-01')->value('qris_account'));
         $this->assertSame('1100-2002-0003', Warehouse::where('code', 'WH-01')->value('edc_account'));
         $this->assertNull(Warehouse::where('code', 'WH-02')->value('qris_account'));
@@ -219,7 +229,7 @@ class SapImportTest extends TestCase
         $this->assertSame(1, $run->summary['item_master']['created']);
 
         $this->assertSame(
-            ['tax_group', 'warehouse', 'item_category', 'manufacturer', 'unit', 'customer_group', 'customer', 'item_master', 'price_list', 'price_list_detail', 'stock_mutation', 'warehouse_stock'],
+            ['tax_group', 'warehouse', 'credit_card', 'item_category', 'manufacturer', 'unit', 'customer_group', 'customer', 'item_master', 'price_list', 'price_list_detail', 'stock_mutation', 'warehouse_stock'],
             array_keys($run->summary)
         );
         foreach ($run->summary as $progress) {
@@ -301,6 +311,7 @@ class SapImportTest extends TestCase
             '*/Logout' => Http::response('', 204),
             '*/VatGroups*' => Http::response(['value' => []]),
             '*/Warehouses*' => Http::response(['value' => []]),
+            '*/CreditCards*' => Http::response(['value' => []]),
             '*/ItemGroups*' => Http::response(['value' => [['Number' => 100, 'GroupName' => 'Minuman']]]),
             '*/Manufacturers*' => Http::response(['error' => ['message' => 'boom']], 500),
         ]);
@@ -327,6 +338,9 @@ class SapImportTest extends TestCase
 
         $deltaRun = SapSyncRun::where('mode', SapSyncRun::MODE_DELTA)->firstOrFail();
         $this->assertSame(1, $deltaRun->summary['item_master']['updated']);
+        // OCRC diambil utuh, tetapi baris yang tidak berubah tidak ditulis ulang.
+        $this->assertSame(3, $deltaRun->summary['credit_card']['unchanged']);
+        $this->assertSame(0, $deltaRun->summary['credit_card']['updated']);
 
         // Hanya yang berubah sejak penanda waktu terakhir (jam SAP) yang diminta.
         $this->assertEquals(['items' => '2026-11-04 14:49:42', 'business_partners' => '2026-11-04 16:20:14'], $this->company->fresh()->sap_sync_watermarks);

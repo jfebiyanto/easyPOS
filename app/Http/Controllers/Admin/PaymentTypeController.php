@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Admin\Concerns\AuthorizesSuperuser;
 use App\Http\Controllers\Concerns\AuthorizesCompany;
 use App\Http\Controllers\Controller;
+use App\Models\CreditCard;
 use App\Models\PaymentType;
 use App\Models\Store;
 use App\Support\ActivityLogger;
@@ -14,7 +15,7 @@ use Illuminate\View\View;
 
 class PaymentTypeController extends Controller
 {
-    use AuthorizesSuperuser, AuthorizesCompany;
+    use AuthorizesCompany, AuthorizesSuperuser;
 
     public function index(): View
     {
@@ -22,7 +23,7 @@ class PaymentTypeController extends Controller
 
         return view('admin.payment-types.index', [
             'paymentTypes' => apply_sort(
-                PaymentType::with('stores:id,code,name'),
+                PaymentType::with(['stores:id,code,name', 'creditCard:id,code,name']),
                 request('sort'), request('dir'),
                 ['code', 'order_number', 'count_type', 'is_active', 'created_at'],
                 'order_number', 'asc'
@@ -35,7 +36,8 @@ class PaymentTypeController extends Controller
         $this->ensureSuperuser(request());
 
         return view('admin.payment-types.form', [
-            'paymentType' => new PaymentType(),
+            'paymentType' => new PaymentType,
+            'creditCards' => CreditCard::forCompany()->orderBy('code')->get(),
             'stores' => Store::where('company_id', current_company_id())->orderBy('code')->get(['id', 'code', 'name']),
         ]);
     }
@@ -62,6 +64,7 @@ class PaymentTypeController extends Controller
 
         return view('admin.payment-types.form', [
             'paymentType' => $paymentType->load('stores:id,code,name'),
+            'creditCards' => CreditCard::forCompany()->orderBy('code')->get(),
             'stores' => Store::where('company_id', current_company_id())->orderBy('code')->get(['id', 'code', 'name']),
         ]);
     }
@@ -101,6 +104,7 @@ class PaymentTypeController extends Controller
             'description' => ['nullable', 'string', 'max:500'],
             'order_number' => ['required', 'integer', 'min:1'],
             'count_type' => ['required', Rule::in(array_keys(PaymentType::COUNT_TYPES))],
+            'credit_card_id' => ['nullable', 'string', Rule::exists('credit_cards', 'id')->where('company_id', current_company_id())],
             'store_ids' => ['required', 'array', 'min:1'],
             'store_ids.*' => ['string', Rule::exists('stores', 'id')->where('company_id', current_company_id())],
             'is_active' => ['sometimes', 'boolean'],

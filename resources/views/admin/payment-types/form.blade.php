@@ -32,6 +32,17 @@
                 </select>
                 @error('count_type') <div class="error">{{ $message }}</div> @enderror
             </div>
+            <div class="field @error('credit_card_id') has-error @enderror">
+                <label for="credit_card_id">Kartu Kredit SAP B1</label>
+                <select id="credit_card_id" name="credit_card_id">
+                    <option value="">— Tidak dipetakan —</option>
+                    @foreach ($creditCards as $card)
+                        <option value="{{ $card->id }}" @selected(old('credit_card_id', $paymentType->credit_card_id) === $card->id)>{{ $card->label() }}</option>
+                    @endforeach
+                </select>
+                @error('credit_card_id') <div class="error">{{ $message }}</div> @enderror
+                <div class="hint">Diisi untuk pembayaran non-tunai (QRIS, EDC/kartu): posting Incoming Payment SAP memakai kartu ini. Tipe berkode CASH dicatat sebagai tunai. Daftar kartu berasal dari sinkronisasi SAP.</div>
+            </div>
             <div class="field">
                 <div class="checkbox-row">
                     <input type="checkbox" id="is_active" name="is_active" value="1" @checked(old('is_active', $paymentType->exists ? $paymentType->is_active : true))>
