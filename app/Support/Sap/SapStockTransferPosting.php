@@ -6,6 +6,7 @@ use App\Jobs\PostStockTransferToSap;
 use App\Models\CompanyDetail;
 use App\Models\StockTransferReceipt;
 use App\Models\StockTransferReceiptLine;
+use App\Models\StockTransferReturn;
 use App\Models\StockTransferShipment;
 use App\Models\StockTransferShipmentLine;
 use App\Models\Warehouse;
@@ -31,7 +32,7 @@ class SapStockTransferPosting
     /**
      * Antrekan posting bila integrasi aktif dan dokumen belum terposting (juga untuk kirim ulang dokumen failed).
      */
-    public static function queue(StockTransferShipment|StockTransferReceipt $doc): void
+    public static function queue(StockTransferShipment|StockTransferReceipt|StockTransferReturn $doc): void
     {
         $company = CompanyDetail::find($doc->company_id);
 

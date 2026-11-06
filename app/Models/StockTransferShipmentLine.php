@@ -12,11 +12,11 @@ class StockTransferShipmentLine extends Model
     /** @use HasFactory<StockTransferShipmentLineFactory> */
     use HasFactory, HasUuid7;
 
-    protected $fillable = ['shipment_id', 'product_id', 'qty', 'qty_received'];
+    protected $fillable = ['shipment_id', 'product_id', 'qty', 'qty_received', 'qty_returned'];
 
     protected function casts(): array
     {
-        return ['qty' => 'decimal:3', 'qty_received' => 'decimal:3'];
+        return ['qty' => 'decimal:3', 'qty_received' => 'decimal:3', 'qty_returned' => 'decimal:3'];
     }
 
     public function shipment()
@@ -30,10 +30,10 @@ class StockTransferShipmentLine extends Model
     }
 
     /**
-     * Sisa yang belum diterima: dikirim dikurangi sudah diterima.
+     * Sisa yang masih in-transit: dikirim dikurangi sudah diterima dan sudah dikembalikan.
      */
     public function remaining(): float
     {
-        return round((float) $this->qty - (float) $this->qty_received, 3);
+        return round((float) $this->qty - (float) $this->qty_received - (float) $this->qty_returned, 3);
     }
 }

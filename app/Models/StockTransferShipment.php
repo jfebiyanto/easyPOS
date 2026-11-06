@@ -46,6 +46,11 @@ class StockTransferShipment extends Model
         return $this->hasMany(StockTransferReceipt::class, 'shipment_id');
     }
 
+    public function returns()
+    {
+        return $this->hasMany(StockTransferReturn::class, 'shipment_id');
+    }
+
     public function fromStore()
     {
         return $this->belongsTo(Store::class, 'from_store_id');
@@ -84,10 +89,12 @@ class StockTransferShipment extends Model
         $shipped = round((float) $lines->sum('qty'), 3);
         $received = round((float) $lines->sum('qty_received'), 3);
 
-        if ($received <= 0) {
+        $returned = round((float) $lines->sum('qty_returned'), 3);
+
+        if ($received <= 0 && $returned <= 0) {
             return 'In Transit';
         }
 
-        return $received >= $shipped ? 'Completed' : 'Partially Received';
+        return round($received + $returned, 3) >= $shipped ? 'Completed' : 'Partially Received';
     }
 }

@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\CompanyDetail;
 use App\Models\NumberingConfig;
 use App\Models\StockTransferReceipt;
+use App\Models\StockTransferReturn;
 use App\Models\StockTransferShipment;
 use App\Models\StockTransferShipmentLine;
 use App\Models\Store;
@@ -28,6 +29,8 @@ class StockTransferService
     public const REF_SHIPMENT = 'stock_transfer_shipment';
 
     public const REF_RECEIPT = 'stock_transfer_receipt';
+
+    public const REF_RETURN = 'stock_transfer_return';
 
     /**
      * Post Shipment Draft: validasi syarat, pindahkan stok ke in-transit, beri nomor, antrekan SAP.
@@ -175,6 +178,91 @@ class StockTransferService
             SapStockTransferPosting::queue($receipt);
 
             return $receipt->refresh();
+        });
+    }
+
+    /**
+     * Kembalikan barang yang masih in-transit ke gudang pengirim: in-transit → gudang pengirim.
+     *
+     * @param  array<string, float|int|string>  $quantities  shipment_line_id => qty dikembalikan
+     */
+    public function returnToSender(StockTransferShipment $shipment, array $quantities, User $by, ?string $note = null): StockTransferReturn
+    {
+        return DB::transaction(function () use ($shipment, $quantities, $by, $note) {
+            $locked = StockTransferShipment::whereKey($shipment->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->status !== StockTransferShipment::STATUS_POSTED) {
+                throw new StockTransferException("Shipment {$this->label($locked)} is not posted.");
+            }
+
+            if ($quantities === []) {
+                throw new StockTransferException('A return must have at least one line.');
+            }
+
+            $lines = StockTransferShipmentLine::query()
+                ->where('shipment_id', $locked->id)
+                ->whereIn('id', array_map('strval', array_keys($quantities)))
+                ->with('product')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            $returned = [];
+
+            foreach ($quantities as $lineId => $rawQty) {
+                $line = $lines->get((string) $lineId);
+
+                if (! $line) {
+                    throw new StockTransferException("Line {$lineId} does not belong to shipment {$this->label($locked)}.");
+                }
+
+                $qty = round((float) $rawQty, 3);
+                $sku = $line->product?->sku ?? $line->product_id;
+
+                if ($qty <= 0) {
+                    throw new StockTransferException("Returned quantity for {$sku} must be greater than zero.");
+                }
+
+                if ($qty > $line->remaining()) {
+                    throw new StockTransferException("Returned quantity for {$sku} ({$qty}) exceeds remaining {$line->remaining()} on shipment {$this->label($locked)}.");
+                }
+
+                $returned[] = [$line, $qty];
+            }
+
+            $transit = $locked->transit_warehouse_id ? Warehouse::find($locked->transit_warehouse_id) : null;
+            $source = $locked->from_warehouse_id ? Warehouse::find($locked->from_warehouse_id) : null;
+
+            if (! $transit || ! $source) {
+                throw new StockTransferException("Shipment {$this->label($locked)} has no in-transit or source warehouse.");
+            }
+
+            $return = StockTransferReturn::create([
+                'company_id' => $locked->company_id,
+                'shipment_id' => $locked->id,
+                'number' => NumberingConfig::nextNumber(self::REF_RETURN, null, $locked->company_id),
+                'store_id' => $locked->from_store_id,
+                'note' => $note,
+                'returned_at' => now(),
+                'created_by' => $by->id,
+            ]);
+
+            $options = ['ref_type' => self::REF_RETURN, 'ref_id' => $return->id, 'created_by' => $by->id];
+
+            usort($returned, fn (array $a, array $b) => strcmp($a[0]->product_id, $b[0]->product_id));
+
+            foreach ($returned as [$line, $qty]) {
+                $return->lines()->create(['shipment_line_id' => $line->id, 'qty' => $qty]);
+
+                WarehouseStockService::record($transit, $line->product_id, WarehouseStockLedger::TYPE_TRANSFER_OUT, -$qty, $options);
+                WarehouseStockService::record($source, $line->product_id, WarehouseStockLedger::TYPE_TRANSFER_IN, $qty, $options);
+
+                $line->forceFill(['qty_returned' => round((float) $line->qty_returned + $qty, 3)])->save();
+            }
+
+            SapStockTransferPosting::queue($return);
+
+            return $return->refresh();
         });
     }
 
