@@ -78,6 +78,9 @@
                                     <button type="submit" class="btn btn-outline btn-sm">Delete</button>
                                 </form>
                             @endif
+                            @if (in_array($display, ['In Transit', 'Partially Received'], true) && ($isOwner || in_array($shipment->to_store_id, $allowedStoreIds, true)))
+                                <a href="{{ route('admin.stock-transfer-receipts.create', ['shipment' => $shipment->id]) }}" class="btn btn-filled btn-sm">Receive</a>
+                            @endif
                             @if ($isOwner && $shipment->sap_post_status === 'failed')
                                 <form method="POST" action="{{ route('admin.stock-transfer-shipments.retry', $shipment) }}">
                                     @csrf
