@@ -43,6 +43,7 @@
 .ts-accent-green .ts-card-icon { background: rgba(52, 195, 143, .14); color: var(--ts-green); }
 .ts-accent-amber .ts-card-icon { background: rgba(249, 185, 42, .18); color: #C98A00; }
 .ts-accent-blue .ts-card-icon { background: rgba(30, 156, 255, .14); color: var(--ts-blue); }
+.ts-accent-red .ts-card-icon { background: rgba(224, 36, 94, .12); color: var(--ts-red); }
 
 .ts-menu-btn { border: none; background: transparent; color: var(--ts-label); width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; }
 .ts-menu-btn:hover { background: var(--ts-bg); color: var(--ts-text); }
@@ -69,18 +70,6 @@
 
 .ts-chart { margin: 8px -20px 4px; min-height: 110px; }
 
-.ts-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.ts-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--ts-track); font-size: 13px; }
-.ts-row:last-child { border-bottom: none; }
-.ts-row-name { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ts-row-name small { display: block; font-weight: 500; font-size: 11px; color: var(--ts-label); }
-.ts-row-value { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
-.ts-pill { padding: 3px 9px; border-radius: 999px; background: #2F3542; color: #fff; font-size: 11px; font-weight: 600; white-space: nowrap; }
-.ts-avatar { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: #fff; background: linear-gradient(135deg, var(--ts-blue), #6C5CE7); }
-.ts-chevron { color: var(--ts-amber); font-size: 20px; }
-.ts-empty { padding: 14px 0; font-size: 13px; color: var(--ts-label); text-align: center; }
-.ts-list + .ts-label, .ts-chart + .ts-label { margin-top: 8px; }
-.ts-row:not(:has(.ts-chevron)) { grid-template-columns: auto minmax(0, 1fr) auto auto; }
 
 /* Donut ring persentase */
 .ts-ring { --p: 0; --size: 36px; --hole: 7px; position: relative; width: var(--size); height: var(--size); border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; }
@@ -99,20 +88,12 @@
 .ts-value-income { color: var(--ts-green); }
 .ts-value-expense { color: var(--ts-red); }
 
-.ts-segmented { display: flex; margin: 14px 0 6px; padding: 4px; border-radius: 12px; background: rgba(30, 156, 255, .12); }
-.ts-segmented button { flex: 1; padding: 8px 10px; border: none; border-radius: 9px; background: transparent; color: var(--ts-blue); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .2s, color .2s; }
-.ts-segmented button[aria-pressed="true"] { background: var(--ts-blue); color: #fff; box-shadow: 0 2px 8px rgba(30, 156, 255, .35); }
 
-.ts-target-head h4 { margin: 10px 0 0; font-size: 14px; font-weight: 700; color: var(--ts-title); }
-.ts-target-head p { margin: 2px 0 0; font-size: 12px; color: var(--ts-label); }
-.ts-target-chart { margin: 0 -8px; min-height: 230px; }
 
 /* Loading: angka & daftar diganti shimmer sampai data pertama tiba */
 .today-sales.is-loading .ts-value,
 .today-sales.is-loading .ts-delta,
-.today-sales.is-loading .ts-sub,
-.today-sales.is-loading .ts-list { color: transparent; border-radius: 6px; background: linear-gradient(90deg, #EEF1F5 25%, #F7F8FA 50%, #EEF1F5 75%); background-size: 200% 100%; animation: ts-shimmer 1.2s infinite; }
-.today-sales.is-loading .ts-list { min-height: 80px; }
+.today-sales.is-loading .ts-sub { color: transparent; border-radius: 6px; background: linear-gradient(90deg, #EEF1F5 25%, #F7F8FA 50%, #EEF1F5 75%); background-size: 200% 100%; animation: ts-shimmer 1.2s infinite; }
 @keyframes ts-shimmer { to { background-position: -200% 0; } }
 
 @media (max-width: 1100px) {
@@ -121,8 +102,16 @@
 @media (max-width: 600px) {
     .today-sales { padding: 14px; margin-left: -4px; margin-right: -4px; }
     .ts-value { font-size: 22px; }
-    .ts-row { grid-template-columns: auto minmax(0, 1fr) auto; }
-    .ts-row .ts-pill { display: none; }
-    .ts-row:not(:has(.ts-chevron)) { grid-template-columns: auto minmax(0, 1fr) auto; }
-    .ts-chevron { display: none; }
+}
+
+/* Ringkasan semua gerai (widget hitungan + perbandingan antar gerai) */
+.ov-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 20px; }
+.ov-grid-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ov-chart-card { grid-column: 2; grid-row: 1 / span 2; }
+.ov-grid-counts .ov-chart-card { display: none; }
+.ov-number { font-size: 40px; line-height: 1.1; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ov-chart { min-height: 260px; margin: 0 -8px; }
+@media (max-width: 1100px) {
+    .ov-grid, .ov-grid-counts { grid-template-columns: 1fr; }
+    .ov-chart-card { grid-column: auto; grid-row: auto; }
 }

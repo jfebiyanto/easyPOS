@@ -14,3 +14,18 @@ export async function fetchTodaySales(url) {
 
     return body.data;
 }
+
+// Ringkasan hari ini (jumlah transaksi penjualan/retur dan penjualan per gerai); bentuk data = DashboardService::overview().
+export async function fetchOverview(url) {
+    const res = await fetch(url, {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    const body = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+        throw new Error(body.message || 'Gagal memuat ringkasan hari ini.');
+    }
+
+    return body.data;
+}

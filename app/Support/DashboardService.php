@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Sale;
 use App\Models\SalesReturn;
+use App\Models\Store;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -104,6 +105,49 @@ class DashboardService
                 'expense_hourly' => self::add(self::hourly($returns, 'total'), self::hourly($todaySales, 'discount_total')),
                 'target_hourly' => $targetHourly,
             ],
+        ];
+    }
+
+    /**
+     * Ringkasan hari ini untuk sekumpulan gerai: jumlah transaksi penjualan selesai (tanggal bisnis hari ini),
+     * jumlah transaksi retur (dibuat pada tanggal lokal hari ini), dan penjualan per gerai untuk perbandingan.
+     *
+     * @param  Collection<int, Store>  $stores
+     * @return array{date: string, stores: array<int, array{code: string, name: string, total: float, transactions: int}>, sales_transactions: int, returns_transactions: int}
+     */
+    public static function overview(Collection $stores): array
+    {
+        $timezone = company_timezone();
+        $today = company_today();
+        $storeIds = $stores->pluck('id')->all();
+        $start = Carbon::parse($today, $timezone)->startOfDay();
+
+        $perStore = Sale::query()
+            ->whereIn('store_id', $storeIds)
+            ->where('status', Sale::STATUS_COMPLETED)
+            ->whereDate('business_date', $today)
+            ->selectRaw('store_id, count(*) as transactions, coalesce(sum(total), 0) as total')
+            ->groupBy('store_id')
+            ->get()
+            ->keyBy('store_id');
+
+        $returnsCount = SalesReturn::query()
+            ->whereIn('store_id', $storeIds)
+            ->whereBetween('created_at', [$start->copy()->utc(), $start->copy()->endOfDay()->utc()])
+            ->count();
+
+        $rows = $stores->map(fn (Store $store) => [
+            'code' => $store->code,
+            'name' => $store->name,
+            'total' => (float) ($perStore->get($store->id)->total ?? 0),
+            'transactions' => (int) ($perStore->get($store->id)->transactions ?? 0),
+        ])->sort(fn (array $a, array $b) => [$b['total'], $a['code']] <=> [$a['total'], $b['code']])->values()->all();
+
+        return [
+            'date' => $today,
+            'stores' => $rows,
+            'sales_transactions' => array_sum(array_column($rows, 'transactions')),
+            'returns_transactions' => $returnsCount,
         ];
     }
 

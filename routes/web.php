@@ -53,6 +53,7 @@ Route::prefix('admin')
     ->group(function () {
         Route::get('/', [Admin\DashboardController::class, 'index'])->name('dashboard');
         Route::get('/dashboard/today', [Admin\DashboardController::class, 'today'])->name('dashboard.today');
+        Route::get('/dashboard/overview', [Admin\DashboardController::class, 'overview'])->name('dashboard.overview');
 
         // Store management (HO can manage multiple stores)
         Route::post('/stores/switch/{store}', [Admin\StoreController::class, 'switch'])->name('stores.switch');

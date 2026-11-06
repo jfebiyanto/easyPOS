@@ -41,8 +41,6 @@
                 </div>
                 <div class="ts-sub" data-ts-sales-count>&nbsp;</div>
                 <div class="ts-chart" data-ts-chart="sales"></div>
-                <div class="ts-label">Top Sales</div>
-                <ul class="ts-list" data-ts-list="cashiers"></ul>
             </article>
 
             <article class="ts-card ts-accent-amber">
@@ -58,8 +56,6 @@
                 </div>
                 <div class="ts-sub" data-ts-product-qty>&nbsp;</div>
                 <div class="ts-chart" data-ts-chart="products"></div>
-                <div class="ts-label">Top Performing</div>
-                <ul class="ts-list" data-ts-list="products"></ul>
             </article>
 
             <article class="ts-card ts-accent-blue">
@@ -84,16 +80,51 @@
                         <span class="ts-delta" data-ts-deductions-delta>&nbsp;</span>
                     </div>
                 </div>
-                <div class="ts-segmented" role="group" aria-label="Jenis grafik">
-                    <button type="button" data-ts-mode="income" aria-pressed="true">Pemasukan</button>
-                    <button type="button" data-ts-mode="expense" aria-pressed="false">Pengeluaran</button>
-                </div>
-                <div class="ts-target-head">
-                    <h4>Target Penjualan</h4>
-                    <p>Total performa hari ini · <span data-ts-target-note></span></p>
-                </div>
-                <div class="ts-target-chart" data-ts-chart="target"></div>
             </article>
+        </div>
+    </section>
+
+    @php
+        $isOwner = auth()->user()->isOwner();
+    @endphp
+    {{-- Ringkasan semua gerai (Owner) atau gerai sendiri (Store Manager); diisi oleh resources/js/admin/dashboard/overview.js. --}}
+    <section class="today-sales ov-section is-loading" id="store-overview" data-ov-url="{{ route('admin.dashboard.overview') }}" aria-busy="true" aria-label="Ringkasan Hari Ini">
+        <div class="ts-heading">
+            <h2>{{ $isOwner ? 'Ringkasan Semua Gerai Hari Ini' : 'Ringkasan Gerai '.$store->code.' Hari Ini' }}</h2>
+            <span class="ts-date" data-ov-date></span>
+        </div>
+
+        <div class="ts-error" data-ov-error hidden role="alert">
+            <span class="material-symbols-rounded">error</span>
+            <span data-ov-error-text></span>
+        </div>
+
+        <div class="ov-grid {{ $isOwner ? '' : 'ov-grid-counts' }}">
+            <article class="ts-card ts-accent-green ov-count">
+                <header class="ts-card-head">
+                    <span class="ts-card-icon"><span class="material-symbols-rounded">receipt_long</span></span>
+                    <h3>Transaksi Penjualan Hari Ini</h3>
+                </header>
+                <div class="ts-value ov-number" data-ov-sales-count>0</div>
+            </article>
+
+            <article class="ts-card ts-accent-red ov-count">
+                <header class="ts-card-head">
+                    <span class="ts-card-icon"><span class="material-symbols-rounded">assignment_return</span></span>
+                    <h3>Transaksi Retur Hari Ini</h3>
+                </header>
+                <div class="ts-value ov-number" data-ov-returns-count>0</div>
+            </article>
+
+            @if ($isOwner)
+                <article class="ts-card ts-accent-blue ov-chart-card">
+                    <header class="ts-card-head">
+                        <span class="ts-card-icon"><span class="material-symbols-rounded">bar_chart</span></span>
+                        <h3>Perbandingan Penjualan Antar Gerai</h3>
+                    </header>
+                    <div class="ov-chart" data-ov-chart="stores"></div>
+                </article>
+            @endif
         </div>
     </section>
 
