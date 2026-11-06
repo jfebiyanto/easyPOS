@@ -20,8 +20,10 @@
             <label>SAP</label>
             <div>
                 {{ $receipt->sap_post_status ? ucfirst($receipt->sap_post_status) : '-' }}
-                @if ($receipt->sap_post_status === 'posted' && $receipt->sap_doc_num)
+                @if ($receipt->sap_post_status === \App\Models\StockTransferReceipt::SAP_POSTED && $receipt->sap_doc_num)
                     <span class="mono">{{ \App\Support\Sap\SapStockTransferPosting::OBJ_STOCK_TRANSFER }} {{ $receipt->sap_doc_num }}</span>
+                @elseif ($receipt->shipment && $receipt->shipment->sap_post_status !== \App\Models\StockTransferShipment::SAP_POSTED)
+                    <div class="hint">Waits for shipment {{ $receipt->shipment->number }} to be posted to SAP.</div>
                 @endif
             </div>
         </div>

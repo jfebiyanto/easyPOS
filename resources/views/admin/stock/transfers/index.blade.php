@@ -16,10 +16,10 @@
 @php
     $chips = [
         'draft' => ['chip-neutral', 'Draft'],
-        'requested' => ['chip-info', 'Diminta'],
-        'shipped' => ['chip-pending', 'Dikirim'],
-        'received' => ['chip-success', 'Diterima'],
-        'cancelled' => ['chip-danger', 'Dibatalkan'],
+        'requested' => ['chip-info', 'Requested'],
+        'shipped' => ['chip-pending', 'Shipped'],
+        'received' => ['chip-success', 'Received'],
+        'cancelled' => ['chip-danger', 'Cancelled'],
     ];
 @endphp
 

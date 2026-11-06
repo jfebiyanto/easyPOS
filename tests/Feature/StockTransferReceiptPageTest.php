@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\PostStockTransferToSap;
 use App\Models\CompanyDetail;
 use App\Models\Product;
 use App\Models\ProductGroup;
@@ -267,11 +268,68 @@ class StockTransferReceiptPageTest extends TestCase
         $this->actingAs($this->owner)->get(route('admin.stock-transfer-receipts.index'))->assertSee('Retry');
         $this->actingAs($this->managerB)->get(route('admin.stock-transfer-receipts.index'))->assertDontSee('Retry');
 
+        $shipment->forceFill(['sap_post_status' => StockTransferShipment::SAP_POSTED])->save();
         $this->actingAs($this->owner)->post(route('admin.stock-transfer-receipts.retry', $receipt))
             ->assertRedirect()->assertSessionHas('success');
         $this->assertSame(StockTransferReceipt::SAP_PENDING, $receipt->fresh()->sap_post_status);
 
+        $receipt->forceFill(['sap_post_status' => StockTransferReceipt::SAP_POSTED])->save();
         $this->actingAs($this->owner)->post(route('admin.stock-transfer-receipts.retry', $receipt))->assertStatus(422);
+    }
+
+    public function test_owner_retry_receipt_null_dan_pending_macet_mengantrekan_ulang(): void
+    {
+        $shipment = $this->postedShipment('A', 'B');
+        $shipment->forceFill(['sap_post_status' => StockTransferShipment::SAP_POSTED])->save();
+
+        foreach ([null, StockTransferReceipt::SAP_PENDING] as $sapStatus) {
+            $receipt = (new StockTransferService)->receive($shipment, [$this->lineFor($shipment, 'INDF-0001')->id => 1], $this->owner);
+            $receipt->forceFill(['sap_post_status' => $sapStatus])->save();
+
+            $this->actingAs($this->owner)->get(route('admin.stock-transfer-receipts.index'))->assertSee('Retry');
+
+            $this->actingAs($this->owner)->post(route('admin.stock-transfer-receipts.retry', $receipt))
+                ->assertRedirect()->assertSessionHas('success');
+
+            $this->assertSame(StockTransferReceipt::SAP_PENDING, $receipt->fresh()->sap_post_status);
+            Queue::assertPushed(PostStockTransferToSap::class, fn (PostStockTransferToSap $job) => $job->documentId === $receipt->id);
+            $receipt->forceFill(['sap_post_status' => StockTransferReceipt::SAP_POSTED])->save();
+        }
+    }
+
+    public function test_retry_receipt_menunggu_shipment_terposting_ke_sap(): void
+    {
+        $shipment = $this->postedShipment('A', 'B');
+        $shipment->forceFill(['sap_post_status' => StockTransferShipment::SAP_FAILED])->save();
+        $receipt = (new StockTransferService)->receive($shipment, [$this->lineFor($shipment, 'INDF-0001')->id => 1], $this->owner);
+        $receipt->forceFill(['sap_post_status' => null])->save();
+
+        $this->actingAs($this->owner)->post(route('admin.stock-transfer-receipts.retry', $receipt))
+            ->assertRedirect()->assertSessionHas('error', "Receipt waits for shipment {$shipment->number} to be posted to SAP.");
+
+        $this->assertSame(StockTransferReceipt::SAP_PENDING, $receipt->fresh()->sap_post_status);
+    }
+
+    public function test_create_dengan_parameter_shipment_array_menampilkan_pemilih(): void
+    {
+        $shipment = $this->postedShipment('A', 'B');
+
+        $this->actingAs($this->managerB)->get(route('admin.stock-transfer-receipts.create').'?shipment[]='.$shipment->id)
+            ->assertOk()->assertSee($shipment->number);
+    }
+
+    public function test_show_shipment_menampilkan_receipt_terkait(): void
+    {
+        $shipment = $this->postedShipment('A', 'B');
+        $shipment->forceFill(['sap_post_status' => StockTransferShipment::SAP_FAILED])->save();
+        $receipt = (new StockTransferService)->receive($shipment, [$this->lineFor($shipment, 'INDF-0001')->id => 2], $this->owner);
+        $receipt->forceFill(['sap_post_status' => StockTransferReceipt::SAP_PENDING])->save();
+
+        $this->actingAs($this->managerA)->get(route('admin.stock-transfer-shipments.show', $shipment))
+            ->assertOk()
+            ->assertSee('Receipts')
+            ->assertSee($receipt->number)
+            ->assertSee('Waits for this shipment to be posted to SAP.');
     }
 
     public function test_retry_saat_integrasi_mati_menampilkan_error(): void

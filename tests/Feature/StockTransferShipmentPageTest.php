@@ -17,6 +17,7 @@ use App\Models\WarehouseStockLedger;
 use App\Support\WarehouseStockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class StockTransferShipmentPageTest extends TestCase
@@ -238,13 +239,189 @@ class StockTransferShipmentPageTest extends TestCase
         Queue::assertPushed(PostStockTransferToSap::class);
     }
 
-    public function test_retry_hanya_untuk_status_failed(): void
+    public function test_retry_ditolak_untuk_sap_posted_dan_draft(): void
+    {
+        $postedToSap = $this->draft('A', 'B');
+        $postedToSap->forceFill(['status' => StockTransferShipment::STATUS_POSTED, 'number' => 'STS-1', 'sap_post_status' => StockTransferShipment::SAP_POSTED])->save();
+        $draft = $this->draft('A', 'B');
+
+        $this->actingAs($this->owner)->post(route('admin.stock-transfer-shipments.retry', $postedToSap))->assertStatus(422);
+        $this->actingAs($this->owner)->post(route('admin.stock-transfer-shipments.retry', $draft))->assertStatus(422);
+        Queue::assertNotPushed(PostStockTransferToSap::class);
+    }
+
+    public function test_owner_retry_shipment_null_dan_pending_macet_mengantrekan_ulang(): void
+    {
+        foreach ([null, StockTransferShipment::SAP_PENDING] as $i => $sapStatus) {
+            $shipment = $this->draft('A', 'B');
+            $shipment->forceFill(['status' => StockTransferShipment::STATUS_POSTED, 'number' => "STS-{$i}", 'sap_post_status' => $sapStatus])->save();
+
+            $this->actingAs($this->owner)->get(route('admin.stock-transfer-shipments.index'))->assertOk()->assertSee('Retry');
+
+            $this->actingAs($this->owner)->post(route('admin.stock-transfer-shipments.retry', $shipment))
+                ->assertRedirect()->assertSessionHas('success');
+
+            $this->assertSame(StockTransferShipment::SAP_PENDING, $shipment->fresh()->sap_post_status);
+            Queue::assertPushed(PostStockTransferToSap::class, fn (PostStockTransferToSap $job) => $job->documentId === $shipment->id);
+            $shipment->delete();
+        }
+    }
+
+    public function test_retry_shipment_saat_integrasi_mati_menampilkan_error(): void
     {
         $shipment = $this->draft('A', 'B');
-        $shipment->forceFill(['status' => StockTransferShipment::STATUS_POSTED, 'sap_post_status' => StockTransferShipment::SAP_PENDING])->save();
+        $shipment->forceFill(['status' => StockTransferShipment::STATUS_POSTED, 'number' => 'STS-1', 'sap_post_status' => StockTransferShipment::SAP_FAILED])->save();
+        $this->company->update(['sap_enabled' => false]);
 
-        $this->actingAs($this->owner)->post(route('admin.stock-transfer-shipments.retry', $shipment))->assertStatus(422);
+        $this->actingAs($this->owner)->post(route('admin.stock-transfer-shipments.retry', $shipment))
+            ->assertRedirect()->assertSessionHas('error', 'SAP integration is inactive.')->assertSessionMissing('success');
+
+        $this->assertSame(StockTransferShipment::SAP_FAILED, $shipment->fresh()->sap_post_status);
         Queue::assertNotPushed(PostStockTransferToSap::class);
+    }
+
+    public function test_owner_memilih_gerai_asal_lain_lalu_post_memindahkan_stok_gerai_itu(): void
+    {
+        WarehouseStockService::record($this->warehouses['B'], $this->product->id, WarehouseStockLedger::TYPE_OPENING, 8, ['created_by' => null]);
+
+        $this->actingAs($this->owner)->get(route('admin.stock-transfer-shipments.create'))
+            ->assertOk()->assertSee('name="from_store_id"', false);
+        $this->actingAs($this->managerA)->get(route('admin.stock-transfer-shipments.create'))
+            ->assertOk()->assertDontSee('name="from_store_id"', false);
+
+        $this->actingAs($this->owner)->post(route('admin.stock-transfer-shipments.store'), [
+            'from_store_id' => $this->stores['B']->id,
+            'to_store_id' => $this->stores['C']->id,
+            'lines' => [['product_id' => $this->product->id, 'qty' => 3]],
+        ])->assertRedirect(route('admin.stock-transfer-shipments.index'));
+
+        $shipment = StockTransferShipment::firstOrFail();
+        $this->assertSame($this->stores['B']->id, $shipment->from_store_id);
+
+        $this->actingAs($this->owner)->post(route('admin.stock-transfer-shipments.post', $shipment))->assertSessionHas('success');
+
+        $this->assertSame(5.0, $this->onHand('B'));
+        $this->assertSame(10.0, $this->onHand('A'));
+    }
+
+    public function test_owner_tidak_bisa_memilih_gerai_asal_perusahaan_lain(): void
+    {
+        $otherCompany = CompanyDetail::create(['name' => 'Other Co']);
+        $foreign = Store::create(['company_id' => $otherCompany->id, 'code' => 'XSTR', 'name' => 'Foreign', 'pic_name' => 'PIC', 'currency' => 'IDR']);
+
+        $this->actingAs($this->owner)->post(route('admin.stock-transfer-shipments.store'), [
+            'from_store_id' => $foreign->id,
+            'to_store_id' => $this->stores['B']->id,
+            'lines' => [['product_id' => $this->product->id, 'qty' => 1]],
+        ])->assertStatus(422);
+
+        $this->assertSame(0, StockTransferShipment::count());
+    }
+
+    public function test_update_tanpa_baris_valid_mempertahankan_baris_draft(): void
+    {
+        $shipment = $this->draft('A', 'B', 5);
+
+        $this->actingAs($this->owner)->put(route('admin.stock-transfer-shipments.update', $shipment), [
+            'to_store_id' => $this->stores['C']->id,
+            'lines' => [['product_id' => '', 'qty' => '']],
+        ])->assertRedirect()->assertSessionHas('error', 'There are no valid lines to save.');
+
+        $shipment->refresh();
+        $this->assertSame($this->stores['B']->id, $shipment->to_store_id);
+        $this->assertSame([5.0], $shipment->lines()->pluck('qty')->map(fn ($qty) => (float) $qty)->all());
+    }
+
+    public function test_store_tanpa_baris_valid_tidak_membuat_shipment(): void
+    {
+        $this->actingAs($this->owner)->post(route('admin.stock-transfer-shipments.store'), [
+            'to_store_id' => $this->stores['B']->id,
+            'lines' => [['product_id' => $this->product->id, 'qty' => 0]],
+        ])->assertRedirect()->assertSessionHas('error', 'There are no valid lines to save.');
+
+        $this->assertSame(0, StockTransferShipment::count());
+    }
+
+    public function test_produk_tanpa_track_stock_ditolak(): void
+    {
+        $untracked = Product::create([
+            'company_id' => $this->company->id, 'product_group_id' => $this->product->product_group_id, 'unit_id' => $this->product->unit_id,
+            'sku' => 'SVC-0001', 'name' => 'Service', 'base_price' => 1000, 'track_stock' => false, 'is_active' => true,
+        ]);
+
+        $this->actingAs($this->owner)->post(route('admin.stock-transfer-shipments.store'), [
+            'to_store_id' => $this->stores['B']->id,
+            'lines' => [['product_id' => $untracked->id, 'qty' => 1]],
+        ])->assertSessionHasErrors('lines.0.product_id');
+
+        $this->assertSame(0, StockTransferShipment::count());
+    }
+
+    public function test_gerai_penerima_tidak_melihat_draft_pengirim(): void
+    {
+        $managerB = $this->makeUser('managerb', User::ROLE_STORE_MANAGER, 'B');
+        $shipment = $this->draft('A', 'B');
+
+        $this->assertCount(0, $this->actingAs($managerB)->get(route('admin.stock-transfer-shipments.index'))->assertOk()->viewData('shipments'));
+        $this->actingAs($managerB)->get(route('admin.stock-transfer-shipments.show', $shipment))->assertForbidden();
+
+        $this->actingAs($this->owner)->post(route('admin.stock-transfer-shipments.post', $shipment))->assertSessionHas('success');
+
+        $this->assertCount(1, $this->actingAs($managerB)->get(route('admin.stock-transfer-shipments.index'))->assertOk()->viewData('shipments'));
+        $this->actingAs($managerB)->get(route('admin.stock-transfer-shipments.show', $shipment))->assertOk();
+    }
+
+    public function test_gerai_penerima_ditolak_mengubah_memposting_dan_menghapus(): void
+    {
+        $managerB = $this->makeUser('managerb', User::ROLE_STORE_MANAGER, 'B');
+        $shipment = $this->draft('A', 'B');
+
+        $this->actingAs($managerB)->get(route('admin.stock-transfer-shipments.edit', $shipment))->assertForbidden();
+        $this->actingAs($managerB)->put(route('admin.stock-transfer-shipments.update', $shipment), [
+            'to_store_id' => $this->stores['C']->id, 'lines' => [['product_id' => $this->product->id, 'qty' => 1]],
+        ])->assertForbidden();
+        $this->actingAs($managerB)->post(route('admin.stock-transfer-shipments.post', $shipment))->assertForbidden();
+        $this->actingAs($managerB)->delete(route('admin.stock-transfer-shipments.destroy', $shipment))->assertForbidden();
+
+        $shipment->refresh();
+        $this->assertSame(StockTransferShipment::STATUS_DRAFT, $shipment->status);
+        $this->assertSame($this->stores['B']->id, $shipment->to_store_id);
+    }
+
+    public function test_saldo_stok_menampilkan_gudang_in_transit(): void
+    {
+        $shipment = $this->draft('A', 'B', 4);
+        $this->actingAs($this->owner)->post(route('admin.stock-transfer-shipments.post', $shipment))->assertSessionHas('success');
+
+        $response = $this->actingAs($this->owner)->get(route('admin.stock.index', ['store' => $this->stores['A']->id]))
+            ->assertOk()->assertSee('In-Transit Warehouse G.000.IT');
+
+        $this->assertSame(4.0, (float) $response->viewData('transitBalances')[$this->product->id]->on_hand);
+
+        $mutations = $this->actingAs($this->owner)
+            ->get(route('admin.stock.mutations', ['product' => $this->product, 'store' => $this->stores['A']->id, 'transit' => 1]))
+            ->assertOk()->assertSee('G.000.IT');
+        $this->assertSame(4.0, (float) $mutations->viewData('stock')->on_hand);
+
+        $this->warehouses['D']->update(['transit_warehouse_code' => null]);
+        $this->actingAs($this->owner)->get(route('admin.stock.index', ['store' => $this->stores['D']->id]))
+            ->assertOk()->assertDontSee('In-Transit Warehouse');
+    }
+
+    public function test_store_dengan_dokumen_transfer_tidak_bisa_dihapus(): void
+    {
+        $this->draft('C', 'D');
+
+        foreach (['C', 'D'] as $key) {
+            $this->actingAs($this->owner)->delete(route('admin.stores.destroy', $this->stores[$key]))
+                ->assertRedirect()->assertSessionHas('error', 'Store has stock transfer documents and cannot be deleted.');
+            $this->assertDatabaseHas('stores', ['id' => $this->stores[$key]->id]);
+        }
+
+        Sanctum::actingAs($this->owner);
+        $this->deleteJson("/api/stores/{$this->stores['C']->id}")
+            ->assertStatus(422)->assertJson(['message' => 'Store has stock transfer documents and cannot be deleted.']);
+        $this->assertDatabaseHas('stores', ['id' => $this->stores['C']->id]);
     }
 
     public function test_index_menampilkan_docnum_tanpa_docentry(): void

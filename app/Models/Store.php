@@ -62,4 +62,13 @@ class Store extends Model
     {
         return $this->belongsTo(Currency::class, 'currency', 'code');
     }
+
+    /**
+     * Store yang menjadi asal/tujuan Shipment atau penerima Receipt tidak boleh dihapus (riwayat transfer stok).
+     */
+    public function hasStockTransferDocuments(): bool
+    {
+        return StockTransferShipment::where('from_store_id', $this->id)->orWhere('to_store_id', $this->id)->exists()
+            || StockTransferReceipt::where('store_id', $this->id)->exists();
+    }
 }

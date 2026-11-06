@@ -52,10 +52,16 @@ class StockTransferService
             $transit = $source->transitWarehouse();
 
             if (! $transit) {
-                throw new StockTransferException("Source warehouse {$source->code} has no in-transit warehouse (U_SOL_WHTR).");
+                throw new StockTransferException(blank($source->transit_warehouse_code)
+                    ? "Source warehouse {$source->code} has no in-transit warehouse (U_SOL_WHTR)."
+                    : "In-transit warehouse {$source->transit_warehouse_code} of {$source->code} was not found or is not flagged U_SOL_ITWH.");
             }
 
-            $lines = $locked->lines()->with('product')->get()->filter(fn (StockTransferShipmentLine $line) => (float) $line->qty > 0);
+            // Urut product_id agar kunci baris warehouse_stocks selalu diambil dalam urutan yang sama (hindari deadlock).
+            $lines = $locked->lines()->with('product')->get()
+                ->filter(fn (StockTransferShipmentLine $line) => (float) $line->qty > 0)
+                ->sortBy('product_id')
+                ->values();
 
             if ($lines->isEmpty()) {
                 throw new StockTransferException('Shipment has no lines with quantity greater than zero.');
@@ -155,6 +161,8 @@ class StockTransferService
 
             $options = ['ref_type' => self::REF_RECEIPT, 'ref_id' => $receipt->id, 'created_by' => $by->id];
 
+            usort($received, fn (array $a, array $b) => strcmp($a[0]->product_id, $b[0]->product_id));
+
             foreach ($received as [$line, $qty]) {
                 $receipt->lines()->create(['shipment_line_id' => $line->id, 'qty' => $qty]);
 
@@ -189,7 +197,7 @@ class StockTransferService
      */
     private function assertStockAvailable(Warehouse $source, Collection $lines): void
     {
-        foreach ($lines->groupBy('product_id') as $productId => $productLines) {
+        foreach ($lines->groupBy('product_id')->sortKeys() as $productId => $productLines) {
             $onHand = (float) WarehouseStock::query()
                 ->where('warehouse_id', $source->id)
                 ->where('product_id', $productId)

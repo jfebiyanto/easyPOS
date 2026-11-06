@@ -22,6 +22,7 @@ use App\Support\WarehouseStockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Client\Request;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -310,6 +311,43 @@ class SapStockTransferPostingTest extends TestCase
         $this->assertSame(StockTransferReceipt::SAP_POSTED, $receipt->sap_post_status);
         $this->assertSame(32, (int) $receipt->sap_doc_entry);
         Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/StockTransfers') && $request['U_SOL_TRKY'] === $receipt->id);
+    }
+
+    public function test_shipment_gagal_receipt_menunggu_lalu_kirim_ulang_shipment_mengantrekan_receipt(): void
+    {
+        $this->fakeSap(['error' => 'Timeout']);
+        $shipment = $this->postShipment([[$this->product, 5]]);
+        $this->assertSame(StockTransferShipment::SAP_FAILED, $shipment->sap_post_status);
+
+        $receipt = $this->receiveAll($shipment);
+        $this->assertSame(StockTransferReceipt::SAP_PENDING, $receipt->fresh()->sap_post_status);
+
+        Queue::fake();
+        $this->fakeSap();
+        $this->actingAs($this->owner)->post(route('admin.stock-transfer-shipments.retry', $shipment))->assertSessionHas('success');
+        Queue::assertPushed(PostStockTransferToSap::class, fn (PostStockTransferToSap $job) => $job->documentId === $shipment->id);
+
+        $this->runJob($shipment);
+
+        $this->assertSame(StockTransferShipment::SAP_POSTED, $shipment->fresh()->sap_post_status);
+        Queue::assertPushed(PostStockTransferToSap::class, fn (PostStockTransferToSap $job) => $job->documentId === $receipt->id);
+
+        $this->runJob($receipt);
+
+        $this->assertSame(StockTransferReceipt::SAP_POSTED, $receipt->fresh()->sap_post_status);
+    }
+
+    public function test_job_tidak_berjalan_tumpang_tindih_per_dokumen(): void
+    {
+        $job = new PostStockTransferToSap(StockTransferShipment::class, 'abc-123');
+        $middleware = $job->middleware();
+
+        $this->assertCount(1, $middleware);
+        $this->assertInstanceOf(WithoutOverlapping::class, $middleware[0]);
+        $this->assertSame(StockTransferShipment::class.':abc-123', $middleware[0]->key);
+        $this->assertSame(30, $middleware[0]->releaseAfter);
+        $this->assertSame(300, $middleware[0]->expiresAfter);
+        $this->assertSame(1, $job->maxExceptions);
     }
 
     public function test_receipt_tanpa_status_sap_diantrekan_setelah_shipment_terposting(): void

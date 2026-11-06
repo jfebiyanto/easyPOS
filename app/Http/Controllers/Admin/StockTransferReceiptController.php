@@ -32,7 +32,8 @@ class StockTransferReceiptController extends Controller
                     $query->whereIn('store_id', $storeIds)
                         ->orWhereHas('shipment', fn ($shipment) => $shipment->whereIn('from_store_id', $storeIds));
                 })
-                ->with(['shipment.fromStore', 'store', 'lines'])
+                ->with(['shipment.fromStore', 'store'])
+                ->withCount('lines')
                 ->latest('received_at')
                 ->paginate(15),
         ]);
@@ -58,7 +59,7 @@ class StockTransferReceiptController extends Controller
     {
         $shipmentId = $request->query('shipment');
 
-        if (blank($shipmentId)) {
+        if (! is_string($shipmentId) || blank($shipmentId)) {
             return view('admin.stock.receipts.create', [
                 'shipment' => null,
                 'receivable' => $this->receivableShipments($request),
@@ -111,19 +112,29 @@ class StockTransferReceiptController extends Controller
         return redirect()->route('admin.stock-transfer-receipts.show', $receipt)->with('success', "Receipt {$receipt->number} created. Stock is now in the destination warehouse.");
     }
 
+    /**
+     * Kirim ulang ke SAP: Receipt yang belum terposting (failed, pending macet, atau belum pernah diantrekan).
+     * Bila Shipment-nya belum terposting ke SAP, Receipt tetap pending dan dikirim setelah Shipment terposting.
+     */
     public function retry(Request $request, StockTransferReceipt $receipt): RedirectResponse
     {
         $this->ensureSuperuser($request);
         $this->ensureCompany($receipt->company_id);
-        abort_unless($receipt->sap_post_status === StockTransferReceipt::SAP_FAILED, 422, 'Only receipts with a failed SAP posting can be retried.');
+        abort_unless($receipt->sap_post_status !== StockTransferReceipt::SAP_POSTED, 422, 'This receipt is already posted to SAP.');
 
         SapStockTransferPosting::queue($receipt);
 
         if ($receipt->fresh()->sap_post_status !== StockTransferReceipt::SAP_PENDING) {
-            return back()->with('error', 'SAP posting could not be queued. Check that the SAP integration is active.');
+            return back()->with('error', 'SAP integration is inactive.');
         }
 
         ActivityLogger::log('stock.receipt_sap_retried', "Retried SAP posting for receipt {$receipt->number}", $receipt);
+
+        $shipment = $receipt->shipment;
+
+        if ($shipment?->sap_post_status !== StockTransferShipment::SAP_POSTED) {
+            return back()->with('error', 'Receipt waits for shipment '.($shipment?->number ?? '-').' to be posted to SAP.');
+        }
 
         return back()->with('success', 'SAP posting queued again.');
     }
@@ -143,17 +154,18 @@ class StockTransferReceiptController extends Controller
     }
 
     /**
+     * Shipment posted ke gerai user yang masih punya baris bersisa.
+     *
      * @return Collection<int, StockTransferShipment>
      */
-    private function receivableShipments(Request $request)
+    private function receivableShipments(Request $request): Collection
     {
         return StockTransferShipment::where('company_id', current_company_id())
             ->where('status', StockTransferShipment::STATUS_POSTED)
             ->whereIn('to_store_id', $this->allowedStoreIds($request))
+            ->whereHas('lines', fn ($line) => $line->whereColumn('qty', '>', 'qty_received'))
             ->with(['fromStore', 'toStore', 'lines'])
             ->latest('posted_at')
-            ->get()
-            ->filter(fn (StockTransferShipment $shipment) => $shipment->lines->contains(fn (StockTransferShipmentLine $line) => $line->remaining() > 0))
-            ->values();
+            ->get();
     }
 }

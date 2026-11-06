@@ -15,6 +15,7 @@ use App\Support\StockTransferException;
 use App\Support\StockTransferService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -29,7 +30,8 @@ class StockTransferShipmentController extends Controller
         return view('admin.stock.shipments.index', [
             'shipments' => StockTransferShipment::where('company_id', current_company_id())
                 ->where(function ($query) use ($storeIds) {
-                    $query->whereIn('from_store_id', $storeIds)->orWhereIn('to_store_id', $storeIds);
+                    $query->whereIn('from_store_id', $storeIds)
+                        ->orWhere(fn ($incoming) => $incoming->whereIn('to_store_id', $storeIds)->where('status', StockTransferShipment::STATUS_POSTED));
                 })
                 ->with(['fromStore', 'toStore', 'lines'])
                 ->latest('created_at')
@@ -42,7 +44,7 @@ class StockTransferShipmentController extends Controller
         $this->authorizeShipment($request, $shipment, 'either');
 
         return view('admin.stock.shipments.show', [
-            'shipment' => $shipment->load(['fromStore', 'toStore', 'lines.product']),
+            'shipment' => $shipment->load(['fromStore', 'toStore', 'lines.product', 'receipts' => fn ($query) => $query->orderBy('received_at')]),
         ]);
     }
 
@@ -55,25 +57,30 @@ class StockTransferShipmentController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $fromId = $this->resolveStoreId($request, $request->input('from_store_id'));
+        $requestedFrom = $request->input('from_store_id');
+        $fromId = $this->resolveStoreId($request, is_string($requestedFrom) ? $requestedFrom : null);
         abort_unless($fromId && in_array($fromId, $this->allowedStoreIds($request), true), 422, 'Invalid source store.');
 
         $data = $this->validated($request, $fromId);
+        $lines = $this->validLines($data['lines']);
 
-        $shipment = StockTransferShipment::create([
-            'company_id' => current_company_id(),
-            'from_store_id' => $fromId,
-            'to_store_id' => $data['to_store_id'],
-            'status' => StockTransferShipment::STATUS_DRAFT,
-            'note' => $data['note'] ?? null,
-            'created_by' => auth()->id(),
-        ]);
-
-        if ($this->syncLines($shipment, $data['lines']) === 0) {
-            $shipment->delete();
-
+        if ($lines === []) {
             return back()->withInput()->with('error', 'There are no valid lines to save.');
         }
+
+        $shipment = DB::transaction(function () use ($fromId, $data, $lines) {
+            $shipment = StockTransferShipment::create([
+                'company_id' => current_company_id(),
+                'from_store_id' => $fromId,
+                'to_store_id' => $data['to_store_id'],
+                'status' => StockTransferShipment::STATUS_DRAFT,
+                'note' => $data['note'] ?? null,
+                'created_by' => auth()->id(),
+            ]);
+            $shipment->lines()->createMany($lines);
+
+            return $shipment;
+        });
 
         ActivityLogger::log('stock.shipment_created', "Created stock transfer shipment draft #{$shipment->id}", $shipment);
 
@@ -94,17 +101,17 @@ class StockTransferShipmentController extends Controller
         $this->ensureDraft($shipment);
 
         $data = $this->validated($request, $shipment->from_store_id);
+        $lines = $this->validLines($data['lines']);
 
-        $lineCount = $shipment->getConnection()->transaction(function () use ($shipment, $data) {
-            $shipment->update(['to_store_id' => $data['to_store_id'], 'note' => $data['note'] ?? null]);
-            $shipment->lines()->delete();
-
-            return $this->syncLines($shipment, $data['lines']);
-        });
-
-        if ($lineCount === 0) {
+        if ($lines === []) {
             return back()->withInput()->with('error', 'There are no valid lines to save.');
         }
+
+        DB::transaction(function () use ($shipment, $data, $lines) {
+            $shipment->update(['to_store_id' => $data['to_store_id'], 'note' => $data['note'] ?? null]);
+            $shipment->lines()->delete();
+            $shipment->lines()->createMany($lines);
+        });
 
         ActivityLogger::log('stock.shipment_updated', "Updated stock transfer shipment draft #{$shipment->id}", $shipment);
 
@@ -138,13 +145,24 @@ class StockTransferShipmentController extends Controller
         return redirect()->route('admin.stock-transfer-shipments.index')->with('success', "Shipment {$shipment->number} posted. Stock is now in transit.");
     }
 
+    /**
+     * Kirim ulang ke SAP: Shipment posted yang belum terposting ke SAP (failed, pending macet, atau belum pernah diantrekan).
+     */
     public function retry(Request $request, StockTransferShipment $shipment): RedirectResponse
     {
         $this->ensureSuperuser($request);
         $this->ensureCompany($shipment->company_id);
-        abort_unless($shipment->sap_post_status === StockTransferShipment::SAP_FAILED, 422, 'Only shipments with a failed SAP posting can be retried.');
+        abort_unless(
+            $shipment->status === StockTransferShipment::STATUS_POSTED && $shipment->sap_post_status !== StockTransferShipment::SAP_POSTED,
+            422,
+            'Only posted shipments that are not yet posted to SAP can be retried.',
+        );
 
         SapStockTransferPosting::queue($shipment);
+
+        if ($shipment->fresh()->sap_post_status !== StockTransferShipment::SAP_PENDING) {
+            return back()->with('error', 'SAP integration is inactive.');
+        }
 
         ActivityLogger::log('stock.shipment_sap_retried', "Retried SAP posting for shipment {$shipment->number}", $shipment);
 
@@ -163,7 +181,9 @@ class StockTransferShipmentController extends Controller
         $allowed = $this->allowedStoreIds($request);
 
         $permitted = in_array($shipment->from_store_id, $allowed, true)
-            || ($side === 'either' && in_array($shipment->to_store_id, $allowed, true));
+            || ($side === 'either'
+                && $shipment->status === StockTransferShipment::STATUS_POSTED
+                && in_array($shipment->to_store_id, $allowed, true));
 
         abort_unless($permitted, 403);
     }
@@ -182,42 +202,41 @@ class StockTransferShipmentController extends Controller
             'to_store_id' => ['required', Rule::notIn([$fromStoreId]), Rule::exists('stores', 'id')->where('company_id', current_company_id())],
             'note' => ['nullable', 'string', 'max:500'],
             'lines' => ['required', 'array', 'min:1'],
-            'lines.*.product_id' => ['nullable', Rule::exists('products', 'id')->where('company_id', current_company_id())],
+            'lines.*.product_id' => ['nullable', Rule::exists('products', 'id')->where('company_id', current_company_id())->where('track_stock', true)],
             'lines.*.qty' => ['nullable', 'numeric', 'min:0'],
         ]);
     }
 
     /**
+     * Baris dengan produk dan qty > 0; baris kosong dilewati.
+     *
      * @param  array<int, array<string, mixed>>  $lines
+     * @return list<array{product_id: string, qty: float, qty_received: int}>
      */
-    private function syncLines(StockTransferShipment $shipment, array $lines): int
+    private function validLines(array $lines): array
     {
-        $created = 0;
-
-        foreach ($lines as $line) {
-            if (blank($line['product_id'] ?? null) || (float) ($line['qty'] ?? 0) <= 0) {
-                continue;
-            }
-
-            $shipment->lines()->create(['product_id' => $line['product_id'], 'qty' => (float) $line['qty'], 'qty_received' => 0]);
-            $created++;
-        }
-
-        return $created;
+        return collect($lines)
+            ->reject(fn (array $line) => blank($line['product_id'] ?? null) || (float) ($line['qty'] ?? 0) <= 0)
+            ->map(fn (array $line) => ['product_id' => $line['product_id'], 'qty' => (float) $line['qty'], 'qty_received' => 0])
+            ->values()
+            ->all();
     }
 
     /**
+     * Owner memilih gerai asal saat membuat (bawaan = resolveStoreId); Store Manager dan form edit memakai gerai asal tetap.
+     *
      * @return array<string, mixed>
      */
     private function formData(Request $request, StockTransferShipment $shipment): array
     {
+        $canChooseSource = ! $shipment->exists && $request->user()->isOwner();
+        $stores = Store::where('company_id', current_company_id())->orderBy('code')->get();
+
         return [
             'shipment' => $shipment,
-            'fromStore' => Store::find($shipment->from_store_id),
-            'destinations' => Store::where('company_id', current_company_id())
-                ->where('id', '!=', $shipment->from_store_id)
-                ->orderBy('code')
-                ->get(),
+            'fromStore' => $stores->firstWhere('id', $shipment->from_store_id),
+            'sources' => $canChooseSource ? $stores : collect(),
+            'destinations' => $canChooseSource ? $stores : $stores->where('id', '!=', $shipment->from_store_id)->values(),
             'products' => Product::where('company_id', current_company_id())
                 ->where('track_stock', true)
                 ->orderBy('sku')

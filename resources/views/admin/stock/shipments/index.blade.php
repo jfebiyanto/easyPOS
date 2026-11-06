@@ -21,7 +21,11 @@
         'Partially Received' => 'chip-info',
         'Completed' => 'chip-success',
     ];
-    $sapChips = ['pending' => 'chip-pending', 'posted' => 'chip-success', 'failed' => 'chip-danger'];
+    $sapChips = [
+        \App\Models\StockTransferShipment::SAP_PENDING => 'chip-pending',
+        \App\Models\StockTransferShipment::SAP_POSTED => 'chip-success',
+        \App\Models\StockTransferShipment::SAP_FAILED => 'chip-danger',
+    ];
     $isOwner = auth()->user()->isOwner();
     $allowedStoreIds = $isOwner ? null : array_filter([auth()->user()->store_id]);
 @endphp
@@ -57,7 +61,7 @@
                     <td>
                         @if ($shipment->sap_post_status)
                             <span class="chip {{ $sapChips[$shipment->sap_post_status] ?? 'chip-neutral' }}">{{ ucfirst($shipment->sap_post_status) }}</span>
-                            @if ($shipment->sap_post_status === 'posted' && $shipment->sap_doc_num)
+                            @if ($shipment->sap_post_status === \App\Models\StockTransferShipment::SAP_POSTED && $shipment->sap_doc_num)
                                 <span class="mono" style="font-size:12px;">{{ \App\Support\Sap\SapStockTransferPosting::OBJ_STOCK_TRANSFER }} {{ $shipment->sap_doc_num }}</span>
                             @endif
                         @else
@@ -81,7 +85,7 @@
                             @if (in_array($display, ['In Transit', 'Partially Received'], true) && ($isOwner || in_array($shipment->to_store_id, $allowedStoreIds, true)))
                                 <a href="{{ route('admin.stock-transfer-receipts.create', ['shipment' => $shipment->id]) }}" class="btn btn-filled btn-sm">Receive</a>
                             @endif
-                            @if ($isOwner && $shipment->sap_post_status === 'failed')
+                            @if ($isOwner && ! $isDraft && $shipment->sap_post_status !== \App\Models\StockTransferShipment::SAP_POSTED)
                                 <form method="POST" action="{{ route('admin.stock-transfer-shipments.retry', $shipment) }}">
                                     @csrf
                                     <button type="submit" class="btn btn-tonal btn-sm">Retry</button>

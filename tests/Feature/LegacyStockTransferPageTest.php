@@ -69,6 +69,8 @@ class LegacyStockTransferPageTest extends TestCase
                 ->assertSee('TRF-OLD-001')
                 ->assertSee('STR001')
                 ->assertSee('STR002')
+                ->assertSee('Shipped')
+                ->assertDontSee('Dikirim')
                 ->assertDontSee('Create Transfer')
                 ->assertDontSee('>Ship<', false)
                 ->assertDontSee('>Receive<', false)

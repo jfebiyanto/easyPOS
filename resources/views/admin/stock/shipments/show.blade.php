@@ -15,7 +15,7 @@
             <label>SAP</label>
             <div>
                 {{ $shipment->sap_post_status ? ucfirst($shipment->sap_post_status) : '-' }}
-                @if ($shipment->sap_post_status === 'posted' && $shipment->sap_doc_num)
+                @if ($shipment->sap_post_status === \App\Models\StockTransferShipment::SAP_POSTED && $shipment->sap_doc_num)
                     <span class="mono">{{ \App\Support\Sap\SapStockTransferPosting::OBJ_STOCK_TRANSFER }} {{ $shipment->sap_doc_num }}</span>
                 @endif
             </div>
@@ -50,7 +50,46 @@
             </tbody>
         </table>
     </div>
-    <div class="form-actions" style="margin-top:20px;">
+</div>
+
+@if ($shipment->status === \App\Models\StockTransferShipment::STATUS_POSTED)
+    @php $shipmentInSap = $shipment->sap_post_status === \App\Models\StockTransferShipment::SAP_POSTED; @endphp
+    <div class="card">
+        <h2 class="card-title">Receipts</h2>
+        <div class="table-wrap">
+            <table class="md-table">
+                <thead>
+                    <tr>
+                        <th>Number</th>
+                        <th>Date</th>
+                        <th>SAP</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($shipment->receipts as $receipt)
+                        <tr>
+                            <td class="mono"><a href="{{ route('admin.stock-transfer-receipts.show', $receipt) }}">{{ $receipt->number }}</a></td>
+                            <td class="mono">{{ $receipt->received_at?->format('d/m/Y') }}</td>
+                            <td>
+                                {{ $receipt->sap_post_status ? ucfirst($receipt->sap_post_status) : '-' }}
+                                @if ($receipt->sap_post_status === \App\Models\StockTransferReceipt::SAP_POSTED && $receipt->sap_doc_num)
+                                    <span class="mono">{{ \App\Support\Sap\SapStockTransferPosting::OBJ_STOCK_TRANSFER }} {{ $receipt->sap_doc_num }}</span>
+                                @elseif (! $shipmentInSap && $receipt->sap_post_status !== \App\Models\StockTransferReceipt::SAP_POSTED)
+                                    <div class="hint">Waits for this shipment to be posted to SAP.</div>
+                                @endif
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="3">No receipts yet.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+@endif
+
+<div>
+    <div class="form-actions">
         <a href="{{ route('admin.stock-transfer-shipments.index') }}" class="btn btn-outline">Back</a>
     </div>
 </div>

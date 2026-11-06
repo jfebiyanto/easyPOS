@@ -15,10 +15,22 @@
     <div class="card">
         <h2 class="card-title">Shipment Information</h2>
         <div class="form-grid">
-            <div class="field">
-                <label>Source Store</label>
-                <input type="text" value="{{ $fromStore?->code }} · {{ $fromStore?->name }}" disabled>
-            </div>
+            @if ($sources->isNotEmpty())
+                <div class="field @error('from_store_id') has-error @enderror">
+                    <label for="from_store_id">Source Store *</label>
+                    <select id="from_store_id" name="from_store_id" required>
+                        @foreach ($sources as $s)
+                            <option value="{{ $s->id }}" @selected(old('from_store_id', $shipment->from_store_id) === $s->id)>{{ $s->code }} · {{ $s->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('from_store_id') <div class="error">{{ $message }}</div> @enderror
+                </div>
+            @else
+                <div class="field">
+                    <label>Source Store</label>
+                    <input type="text" value="{{ $fromStore?->code }} · {{ $fromStore?->name }}" disabled>
+                </div>
+            @endif
             <div class="field @error('to_store_id') has-error @enderror">
                 <label for="to_store_id">Destination Store *</label>
                 <select id="to_store_id" name="to_store_id" required>

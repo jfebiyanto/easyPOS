@@ -5,7 +5,11 @@
 
 @section('content')
 @php
-    $sapChips = ['pending' => 'chip-pending', 'posted' => 'chip-success', 'failed' => 'chip-danger'];
+    $sapChips = [
+        \App\Models\StockTransferReceipt::SAP_PENDING => 'chip-pending',
+        \App\Models\StockTransferReceipt::SAP_POSTED => 'chip-success',
+        \App\Models\StockTransferReceipt::SAP_FAILED => 'chip-danger',
+    ];
     $isOwner = auth()->user()->isOwner();
 @endphp
 
@@ -36,11 +40,11 @@
                     <td class="mono">{{ $receipt->received_at?->format('d/m/Y') }}</td>
                     <td class="mono">{{ $receipt->shipment?->number ?? '-' }}</td>
                     <td>{{ $receipt->store?->code ?? '-' }}</td>
-                    <td>{{ $receipt->lines->count() }}</td>
+                    <td>{{ $receipt->lines_count }}</td>
                     <td>
                         @if ($receipt->sap_post_status)
                             <span class="chip {{ $sapChips[$receipt->sap_post_status] ?? 'chip-neutral' }}">{{ ucfirst($receipt->sap_post_status) }}</span>
-                            @if ($receipt->sap_post_status === 'posted' && $receipt->sap_doc_num)
+                            @if ($receipt->sap_post_status === \App\Models\StockTransferReceipt::SAP_POSTED && $receipt->sap_doc_num)
                                 <span class="mono" style="font-size:12px;">{{ \App\Support\Sap\SapStockTransferPosting::OBJ_STOCK_TRANSFER }} {{ $receipt->sap_doc_num }}</span>
                             @endif
                         @else
@@ -49,7 +53,7 @@
                     </td>
                     <td>
                         <div class="actions-cell">
-                            @if ($isOwner && $receipt->sap_post_status === 'failed')
+                            @if ($isOwner && $receipt->sap_post_status !== \App\Models\StockTransferReceipt::SAP_POSTED)
                                 <form method="POST" action="{{ route('admin.stock-transfer-receipts.retry', $receipt) }}">
                                     @csrf
                                     <button type="submit" class="btn btn-tonal btn-sm">Retry</button>

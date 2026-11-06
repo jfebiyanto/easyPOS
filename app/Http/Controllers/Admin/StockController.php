@@ -30,6 +30,7 @@ class StockController extends Controller
 
         $store = $storeId ? Store::with('warehouse')->find($storeId) : null;
         $warehouse = $store?->warehouse;
+        $transitWarehouse = $warehouse?->transitWarehouse();
 
         return view('admin.stock.index', [
             'storeId' => $storeId,
@@ -37,6 +38,8 @@ class StockController extends Controller
             'products' => $products,
             'warehouse' => $warehouse,
             'balances' => WarehouseStockService::balances($warehouse?->id, $products->pluck('id')->all()),
+            'transitWarehouse' => $transitWarehouse,
+            'transitBalances' => WarehouseStockService::balances($transitWarehouse?->id, $products->pluck('id')->all()),
             'stores' => $request->user()->isOwner()
                 ? Store::where('company_id', current_company_id())->orderBy('code')->get()
                 : collect(),
@@ -45,6 +48,7 @@ class StockController extends Controller
 
     /**
      * Riwayat mutasi buku besar warehouse gerai (termasuk mutasi yang disalin dari SAP B1).
+     * `?transit=1` menampilkan gudang in-transit milik warehouse gerai (U_SOL_WHTR).
      */
     public function mutations(Request $request, Product $product): View
     {
@@ -52,7 +56,7 @@ class StockController extends Controller
 
         $storeId = $this->resolveStoreId($request, $request->query('store'));
         $store = $storeId ? Store::with('warehouse')->find($storeId) : null;
-        $warehouse = $store?->warehouse;
+        $warehouse = $request->boolean('transit') ? $store?->warehouse?->transitWarehouse() : $store?->warehouse;
 
         return view('admin.stock.mutations', [
             'product' => $product,

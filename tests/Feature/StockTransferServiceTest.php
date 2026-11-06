@@ -175,6 +175,18 @@ class StockTransferServiceTest extends TestCase
         $this->assertSame(10.0, $this->onHand($this->source));
     }
 
+    public function test_post_ditolak_bila_kode_in_transit_tidak_ditemukan_menyebut_kode(): void
+    {
+        $this->transit->update(['is_transit' => false]);
+        $shipment = $this->draftShipment();
+
+        $this->assertRejected(
+            'In-transit warehouse G.001.IT of G.001.MN was not found or is not flagged U_SOL_ITWH.',
+            fn () => (new StockTransferService)->post($shipment, $this->owner)
+        );
+        $this->assertSame(10.0, $this->onHand($this->source));
+    }
+
     public function test_post_ditolak_bila_store_tanpa_warehouse(): void
     {
         $this->toStore->update(['warehouse_id' => null]);
