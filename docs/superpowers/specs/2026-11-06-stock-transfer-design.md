@@ -55,3 +55,17 @@ Perbarui `.ai/rules/sap-stock.md` (transfer kini lewat buku besar warehouse dan 
 
 ## Di luar cakupan
 Pembatalan Shipment setelah Posted; Receipt ke store selain tujuan Shipment; kelebihan terima (melebihi dikirim); transfer antar-warehouse tanpa store; migrasi otomatis data Legacy.
+
+## Tambahan: Stock Transfer Return (pengembalian dari in-transit ke gudang pengirim)
+Tanggal: 2026-11-06. Disetujui lewat diskusi (hak akses dan status ditetapkan pengguna).
+
+**Tujuan:** barang yang tidak diterima (hilang/rusak di jalan) dikembalikan dari gudang in-transit ke gudang pengirim, untuk selanjutnya di-adjust manual. Contoh: kirim 12, terima 10, sisa 2 → Return 2: `G.001.IT → G.001.MN`.
+
+- **Dokumen:** `stock_transfer_returns` (+ `stock_transfer_return_lines`), meniru Receipt: `company_id`, `shipment_id`, `store_id` (= store pengirim), `number` (tipe penomoran baru `stock_transfer_return`, caption "Stock Transfer Return"), `note`, `returned_at`, `created_by`, kolom status posting SAP + trait `PostsToSap`; baris menunjuk `shipment_line_id` + `qty`. Tanpa Draft dan tanpa pembatalan.
+- **Sisa:** `stock_transfer_shipment_lines.qty_returned` (baru, default 0). `remaining() = qty − qty_received − qty_returned`. Receipt dan Return sama-sama dibatasi `0 < qty ≤ remaining()` per baris (kunci baris `lockForUpdate`, minimal satu baris).
+- **Stok:** in-transit −qty, gudang pengirim (`from_warehouse_id`) +qty (`TYPE_TRANSFER_OUT`/`TYPE_TRANSFER_IN`, `ref_type='stock_transfer_return'`). Hanya untuk Shipment `posted`.
+- **Status Shipment:** Completed bila Σ(diterima + dikembalikan) ≥ Σ dikirim; Partially Received bila ada diterima atau dikembalikan tetapi belum habis; In Transit bila keduanya 0. Jumlah dikembalikan tampil di halaman Shipment.
+- **Hak akses:** Owner dan Store Manager store **pengirim** (`from_store_id`); store penerima tidak bisa membuat Return.
+- **SAP:** Stock Transfer `FromWarehouse` = in-transit, `ToWarehouse` = gudang pengirim; `U_SOL_FRST/TRKY/STID` (STID = store pengirim); `JournalMemo` = nomor Return; `Comments` = Notes (alasan, maks. 254, tidak dikirim bila kosong). Return menunggu sampai Shipment terposting di SAP; diantrekan ulang oleh job Shipment seperti Receipt (status pending atau null). Mutasi OIVL TransType 67 ditautkan ke baris ledger (`ref_type='stock_transfer_return'`), tidak dihitung dua kali. Kirim ulang hanya Owner (status bukan posted).
+- **UI:** menu Inventory "Stock Transfer Return"; form terisi otomatis dari Shipment (pemilih Shipment → semua baris bersisa, qty = sisa, hapus baris atau ubah qty, kolom Notes); tombol "Return" di daftar/halaman Shipment untuk pengguna yang berhak bila masih ada sisa; halaman Shipment menampilkan daftar Return. Teks UI Inggris.
+- **Di luar cakupan:** pembatalan Return; Stock Adjustment otomatis (tetap manual); Return oleh store penerima.
