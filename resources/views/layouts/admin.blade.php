@@ -59,7 +59,6 @@
                         ['admin.stock-adjustments.index', 'tune', 'Stock Adjustments', true],
                         ['admin.stock-transfer-shipments.index', 'local_shipping', 'Stock Transfer Shipment', true],
                         ['admin.stock-transfer-receipts.index', 'move_to_inbox', 'Stock Transfer Receipt', true],
-                        ['admin.stock-transfers.index', 'swap_horiz', 'Stock Transfers', true],
                     ]],
                     'operasional' => ['Operations', [
                         ['admin.customer-groups.index', 'diversity_3', 'Customer Groups', true],

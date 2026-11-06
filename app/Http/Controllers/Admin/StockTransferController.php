@@ -3,22 +3,17 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Admin\Concerns\ScopesToStore;
-use App\Http\Controllers\Concerns\AuthorizesCompany;
 use App\Http\Controllers\Controller;
-use App\Models\NumberingConfig;
-use App\Models\Product;
-use App\Models\StockLedger;
 use App\Models\StockTransfer;
-use App\Models\Store;
-use App\Support\ActivityLogger;
-use App\Support\StockService;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
+/**
+ * Halaman baca-saja untuk transfer satu langkah lama; alur baru ada di Shipment/Receipt.
+ */
 class StockTransferController extends Controller
 {
-    use AuthorizesCompany, ScopesToStore;
+    use ScopesToStore;
 
     public function index(Request $request): View
     {
@@ -32,189 +27,5 @@ class StockTransferController extends Controller
                 ->latest('created_at')
                 ->paginate(15),
         ]);
-    }
-
-    public function create(Request $request): View
-    {
-        return view('admin.stock.transfers.form', [
-            'products' => Product::where('company_id', current_company_id())
-                ->where('track_stock', true)
-                ->orderBy('sku')
-                ->get(),
-            'stores' => Store::where('company_id', current_company_id())->orderBy('code')->get(),
-            'defaultFromStoreId' => $this->resolveStoreId($request),
-        ]);
-    }
-
-    public function store(Request $request)
-    {
-        $fromId = $this->resolveStoreId($request, $request->input('from_store_id'));
-        abort_unless($fromId && in_array($fromId, $this->allowedStoreIds($request), true), 422, 'Invalid source store.');
-
-        $data = $request->validate([
-            'to_store_id' => ['required', 'different:from_store_id', Rule::exists('stores', 'id')->where('company_id', current_company_id())],
-            'note' => ['nullable', 'string', 'max:500'],
-            'lines' => ['required', 'array', 'min:1'],
-            'lines.*.product_id' => ['nullable', Rule::exists('products', 'id')->where('company_id', current_company_id())],
-            'lines.*.qty' => ['nullable', 'numeric', 'min:0'],
-        ]);
-
-        $transfer = StockTransfer::create([
-            'company_id' => current_company_id(),
-            'from_store_id' => $fromId,
-            'to_store_id' => $data['to_store_id'],
-            'status' => StockTransfer::STATUS_DRAFT,
-            'note' => $data['note'] ?? null,
-            'created_by' => auth()->id(),
-        ]);
-
-        $created = 0;
-        foreach ($data['lines'] as $line) {
-            if (blank($line['product_id'] ?? null) || (float) ($line['qty'] ?? 0) <= 0) {
-                continue;
-            }
-
-            $transfer->lines()->create([
-                'product_id' => $line['product_id'],
-                'qty_requested' => (float) $line['qty'],
-            ]);
-            $created++;
-        }
-
-        if ($created === 0) {
-            $transfer->delete();
-
-            return back()->withInput()->with('error', 'There are no valid lines to save.');
-        }
-
-        ActivityLogger::log('stock.transfer_created', "Created stock transfer draft #{$transfer->id}", $transfer);
-
-        return redirect()->route('admin.stock-transfers.index')->with('success', 'Transfer created (draft).');
-    }
-
-    public function ship(Request $request, StockTransfer $stockTransfer)
-    {
-        $this->ensureCompany($stockTransfer->company_id);
-        $this->authorizeTransfer($request, $stockTransfer, 'from');
-        abort_unless(in_array($stockTransfer->status, [StockTransfer::STATUS_DRAFT, StockTransfer::STATUS_REQUESTED], true), 422, 'The transfer cannot be shipped in this status.');
-
-        foreach ($stockTransfer->lines as $line) {
-            StockService::assertNonNegative($stockTransfer->from_store_id, $line->product_id, -(float) $line->qty_requested);
-        }
-
-        foreach ($stockTransfer->lines as $line) {
-            StockService::record(
-                $stockTransfer->from_store_id,
-                $line->product_id,
-                StockLedger::TYPE_TRANSFER_OUT,
-                -(float) $line->qty_requested,
-                ['ref_type' => 'stock_transfer', 'ref_id' => $stockTransfer->id]
-            );
-            $line->update(['qty_shipped' => $line->qty_requested]);
-        }
-
-        $stockTransfer->update([
-            'status' => StockTransfer::STATUS_SHIPPED,
-            'shipped_at' => now(),
-            'number' => NumberingConfig::nextNumber('stock_transfer_shipment'),
-        ]);
-
-        ActivityLogger::log('stock.transfer_shipped', "Mengirim transfer {$stockTransfer->number}", $stockTransfer);
-
-        return redirect()->route('admin.stock-transfers.index')->with('success', 'Transfer shipped. Stock has left the source store.');
-    }
-
-    public function receiveForm(Request $request, StockTransfer $stockTransfer): View
-    {
-        $this->ensureCompany($stockTransfer->company_id);
-        $this->authorizeTransfer($request, $stockTransfer, 'to');
-        abort_unless($stockTransfer->status === StockTransfer::STATUS_SHIPPED, 422, 'The transfer has not been shipped.');
-
-        return view('admin.stock.transfers.receive', [
-            'transfer' => $stockTransfer->load('lines.product', 'fromStore', 'toStore'),
-        ]);
-    }
-
-    public function receive(Request $request, StockTransfer $stockTransfer)
-    {
-        $this->ensureCompany($stockTransfer->company_id);
-        $this->authorizeTransfer($request, $stockTransfer, 'to');
-        abort_unless($stockTransfer->status === StockTransfer::STATUS_SHIPPED, 422, 'The transfer has not been shipped.');
-
-        $data = $request->validate([
-            'lines' => ['required', 'array'],
-            'lines.*.id' => ['required', Rule::exists('stock_transfer_lines', 'id')->where('stock_transfer_id', $stockTransfer->id)],
-            'lines.*.qty_received' => ['required', 'numeric', 'min:0'],
-            'lines.*.variance_reason' => ['nullable', 'string', 'max:500'],
-        ]);
-
-        foreach ($data['lines'] as $row) {
-            $line = $stockTransfer->lines()->whereKey($row['id'])->first();
-            if (! $line) {
-                continue;
-            }
-
-            $received = (float) $row['qty_received'];
-            $shipped = (float) $line->qty_shipped;
-
-            if ($received !== $shipped && blank($row['variance_reason'] ?? null)) {
-                return back()->withInput()->withErrors(['lines' => "A difference reason is required for product {$line->product?->sku}."]);
-            }
-
-            if ($received > 0) {
-                StockService::record(
-                    $stockTransfer->to_store_id,
-                    $line->product_id,
-                    StockLedger::TYPE_TRANSFER_IN,
-                    $received,
-                    ['ref_type' => 'stock_transfer', 'ref_id' => $stockTransfer->id]
-                );
-            }
-
-            $line->update([
-                'qty_received' => $received,
-                'variance_reason' => $row['variance_reason'] ?? null,
-            ]);
-        }
-
-        $stockTransfer->update([
-            'status' => StockTransfer::STATUS_RECEIVED,
-            'received_at' => now(),
-        ]);
-
-        ActivityLogger::log('stock.transfer_received', "Menerima transfer {$stockTransfer->number}", $stockTransfer);
-
-        return redirect()->route('admin.stock-transfers.index')->with('success', 'Transfer received. Stock has entered the destination store.');
-    }
-
-    public function cancel(Request $request, StockTransfer $stockTransfer)
-    {
-        $this->ensureCompany($stockTransfer->company_id);
-        $this->authorizeTransfer($request, $stockTransfer, 'from');
-        abort_if($stockTransfer->isShipped(), 422, 'A shipped transfer cannot be cancelled. Receive it in full, then send it back.');
-
-        $stockTransfer->update(['status' => StockTransfer::STATUS_CANCELLED]);
-
-        ActivityLogger::log('stock.transfer_cancelled', "Membatalkan transfer #{$stockTransfer->id}", $stockTransfer);
-
-        return redirect()->route('admin.stock-transfers.index')->with('success', 'Transfer cancelled.');
-    }
-
-    /**
-     * Kirim dan batal hanya oleh gerai asal ('from'), terima hanya oleh gerai tujuan ('to'); Owner bebas.
-     *
-     * @param  'from'|'to'|'either'  $side
-     */
-    private function authorizeTransfer(Request $request, StockTransfer $transfer, string $side = 'either'): void
-    {
-        $allowed = $this->allowedStoreIds($request);
-
-        $permitted = match ($side) {
-            'from' => in_array($transfer->from_store_id, $allowed, true),
-            'to' => in_array($transfer->to_store_id, $allowed, true),
-            default => in_array($transfer->from_store_id, $allowed, true) || in_array($transfer->to_store_id, $allowed, true),
-        };
-
-        abort_unless($permitted, 403);
     }
 }

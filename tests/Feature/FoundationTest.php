@@ -303,7 +303,6 @@ class FoundationTest extends TestCase
             'admin.stock-adjustments.index',
             'admin.stock-adjustments.create',
             'admin.stock-transfers.index',
-            'admin.stock-transfers.create',
             'admin.customers.index',
             'admin.member-levels.index',
             'admin.reports.index',

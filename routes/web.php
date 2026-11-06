@@ -156,12 +156,6 @@ Route::prefix('admin')
         Route::post('/stock-adjustments/{stockAdjustment}/post', [Admin\StockAdjustmentController::class, 'post'])->name('stock-adjustments.post');
 
         Route::get('/stock-transfers', [Admin\StockTransferController::class, 'index'])->name('stock-transfers.index');
-        Route::get('/stock-transfers/create', [Admin\StockTransferController::class, 'create'])->name('stock-transfers.create');
-        Route::post('/stock-transfers', [Admin\StockTransferController::class, 'store'])->name('stock-transfers.store');
-        Route::post('/stock-transfers/{stockTransfer}/ship', [Admin\StockTransferController::class, 'ship'])->name('stock-transfers.ship');
-        Route::get('/stock-transfers/{stockTransfer}/receive', [Admin\StockTransferController::class, 'receiveForm'])->name('stock-transfers.receive-form');
-        Route::post('/stock-transfers/{stockTransfer}/receive', [Admin\StockTransferController::class, 'receive'])->name('stock-transfers.receive');
-        Route::post('/stock-transfers/{stockTransfer}/cancel', [Admin\StockTransferController::class, 'cancel'])->name('stock-transfers.cancel');
 
         Route::get('/stock-transfer-shipments', [Admin\StockTransferShipmentController::class, 'index'])->name('stock-transfer-shipments.index');
         Route::get('/stock-transfer-shipments/create', [Admin\StockTransferShipmentController::class, 'create'])->name('stock-transfer-shipments.create');
