@@ -24,8 +24,6 @@ class TaxGroupController extends Controller
 
     public function index(Request $request): View
     {
-        $this->ensureSuperuser($request);
-
         return view('admin.tax-groups.index', [
             'taxGroups' => apply_sort(
                 TaxGroup::query(),

@@ -25,8 +25,6 @@ class CustomerGroupController extends Controller
 
     public function index(Request $request): View
     {
-        $this->ensureSuperuser($request);
-
         return view('admin.customer-groups.index', [
             'groups' => apply_sort(
                 CustomerGroup::where('company_id', current_company_id())->withCount('customers'),

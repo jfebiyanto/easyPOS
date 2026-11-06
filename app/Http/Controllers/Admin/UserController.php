@@ -20,8 +20,6 @@ class UserController extends Controller
 
     public function index(Request $request): View
     {
-        $this->ensureSuperuser($request);
-
         $query = User::with('store');
 
         if ($storeId = $request->query('store')) {

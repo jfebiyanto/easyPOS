@@ -90,7 +90,7 @@ class PromotionHierarchyTest extends TestCase
 
     public function test_store_manager_tidak_boleh_mengubah_hierarki(): void
     {
-        $this->actingAs($this->manager)->get(route('admin.promotion-hierarchy.edit'))->assertForbidden();
+        $this->actingAs($this->manager)->get(route('admin.promotion-hierarchy.edit'))->assertOk();
         $this->put(route('admin.promotion-hierarchy.update'), ['order' => array_keys(Promotion::HIERARCHY_SOURCES)])->assertForbidden();
     }
 

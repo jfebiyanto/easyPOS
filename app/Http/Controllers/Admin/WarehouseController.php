@@ -18,8 +18,6 @@ class WarehouseController extends Controller
 
     public function index(Request $request): View
     {
-        $this->ensureSuperuser($request);
-
         return view('admin.warehouses.index', [
             'warehouses' => apply_sort(
                 Warehouse::with('store:id,warehouse_id,code,name'),

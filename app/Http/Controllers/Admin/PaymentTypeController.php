@@ -19,8 +19,6 @@ class PaymentTypeController extends Controller
 
     public function index(): View
     {
-        $this->ensureSuperuser(request());
-
         return view('admin.payment-types.index', [
             'paymentTypes' => apply_sort(
                 PaymentType::with(['stores:id,code,name', 'creditCard:id,code,name']),

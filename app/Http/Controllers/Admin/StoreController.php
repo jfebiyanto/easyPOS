@@ -25,8 +25,6 @@ class StoreController extends Controller
 
     public function index(): View
     {
-        $this->ensureSuperuser(request());
-
         return view('admin.stores.index', [
             'stores' => apply_sort(
                 Store::withCount('users'),

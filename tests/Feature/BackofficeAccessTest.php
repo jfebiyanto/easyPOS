@@ -147,6 +147,35 @@ class BackofficeAccessTest extends TestCase
         $this->assertGreaterThan(50, $checked);
     }
 
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function readablePages(): array
+    {
+        $names = [
+            'admin.stores.index', 'admin.warehouses.index', 'admin.tax-groups.index', 'admin.users.index',
+            'admin.member-levels.index', 'admin.currencies.index', 'admin.payment-types.index',
+            'admin.customer-groups.index', 'admin.promotion-hierarchy.edit', 'admin.products.index',
+            'admin.customers.index', 'admin.price-lists.index', 'admin.promotions.index', 'admin.groups.index',
+            'admin.units.index', 'admin.brands.index',
+        ];
+
+        return array_combine($names, array_map(fn (string $name) => [$name], $names));
+    }
+
+    #[DataProvider('readablePages')]
+    public function test_store_manager_dapat_membuka_halaman_baca(string $name): void
+    {
+        $this->actingAs($this->manager)->get(route($name))->assertOk();
+    }
+
+    public function test_store_manager_tidak_dapat_menyimpan_master(): void
+    {
+        $this->actingAs($this->manager)->put(route('admin.promotion-hierarchy.update'), ['order' => ['buy_x_get_y']])->assertForbidden();
+        $this->actingAs($this->manager)->post(route('admin.users.reset-password', $this->cashier))->assertForbidden();
+        $this->actingAs($this->manager)->post(route('admin.member-levels.store'), ['name' => 'Gold'])->assertForbidden();
+    }
+
     public function test_store_manager_tanpa_gerai_ditolak_403(): void
     {
         $stateless = $this->makeUser('manager2', User::ROLE_STORE_MANAGER, null);

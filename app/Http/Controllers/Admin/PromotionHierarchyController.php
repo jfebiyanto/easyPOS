@@ -22,8 +22,6 @@ class PromotionHierarchyController extends Controller
 
     public function edit(Request $request): View
     {
-        $this->ensureSuperuser($request);
-
         return view('admin.products.promotions.hierarchy', [
             'order' => CompanyDetail::current()->promotionHierarchy(),
             'sources' => Promotion::HIERARCHY_SOURCES,

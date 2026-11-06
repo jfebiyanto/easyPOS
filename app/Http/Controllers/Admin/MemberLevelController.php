@@ -17,8 +17,6 @@ class MemberLevelController extends Controller
 
     public function index(): View
     {
-        $this->ensureSuperuser(request());
-
         return view('admin.member-levels.index', [
             'levels' => MemberLevel::orderBy('min_points')->get(),
             'config' => LoyaltyConfig::current(),
@@ -29,7 +27,7 @@ class MemberLevelController extends Controller
     {
         $this->ensureSuperuser(request());
 
-        return view('admin.member-levels.form', ['level' => new MemberLevel()]);
+        return view('admin.member-levels.form', ['level' => new MemberLevel]);
     }
 
     public function store(Request $request)

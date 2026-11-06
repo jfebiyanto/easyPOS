@@ -14,12 +14,10 @@ use Illuminate\View\View;
 
 class CurrencyController extends Controller
 {
-    use AuthorizesSuperuser, AuthorizesCompany;
+    use AuthorizesCompany, AuthorizesSuperuser;
 
     public function index(): View
     {
-        $this->ensureSuperuser(request());
-
         return view('admin.currencies.index', [
             'currencies' => apply_sort(
                 Currency::withCount('denominations'),
@@ -34,7 +32,7 @@ class CurrencyController extends Controller
     {
         $this->ensureSuperuser(request());
 
-        return view('admin.currencies.form', ['currency' => new Currency()]);
+        return view('admin.currencies.form', ['currency' => new Currency]);
     }
 
     public function store(Request $request)
@@ -54,7 +52,6 @@ class CurrencyController extends Controller
 
     public function show(Currency $currency): View
     {
-        $this->ensureSuperuser(request());
         $this->ensureCompany($currency->company_id);
 
         return view('admin.currencies.show', [

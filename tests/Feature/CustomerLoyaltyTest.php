@@ -298,7 +298,7 @@ class CustomerLoyaltyTest extends TestCase
         $this->assertSame(0.0, (float) $this->member->refresh()->points_balance);
     }
 
-    public function test_member_level_hanya_untuk_owner(): void
+    public function test_member_level_dapat_dilihat_store_manager_tetapi_hanya_owner_yang_mengubah(): void
     {
         $manager = User::create([
             'company_id' => $this->company->id,
@@ -310,7 +310,8 @@ class CustomerLoyaltyTest extends TestCase
             'password' => 'password',
         ]);
 
-        $this->actingAs($manager)->get(route('admin.member-levels.index'))->assertForbidden();
+        $this->actingAs($manager)->get(route('admin.member-levels.index'))->assertOk();
+        $this->actingAs($manager)->post(route('admin.member-levels.store'), ['name' => 'Gold'])->assertForbidden();
         $this->actingAs($this->owner)->get(route('admin.member-levels.index'))->assertOk();
     }
 
