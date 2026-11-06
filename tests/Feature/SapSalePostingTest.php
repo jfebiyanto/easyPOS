@@ -187,11 +187,15 @@ class SapSalePostingTest extends TestCase
             && $request['U_SOL_FRST'] === 'Y'
             && $request['U_SOL_TRKY'] === $sale->id
             && $request['U_SOL_STID'] === $this->store->id
+            && $request['JournalMemo'] === $sale->number
+            && ! isset($request['Comments'])
             && $request['DocumentLines'] === [['ItemCode' => 'INDF-0001', 'Quantity' => 2.0, 'Price' => 4000.0, 'WarehouseCode' => 'G.001.MN', 'VatGroup' => 'PPNK-11']]);
         Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/IncomingPayments')
             && $request['CashAccount'] === '1100-1001-0002'
             && $request['CashSum'] === 8880.0
             && $request['U_SOL_TRKY'] === $sale->id
+            && $request['JournalRemarks'] === $sale->number
+            && ! isset($request['Remarks'])
             && $request['PaymentInvoices'] === [['DocEntry' => 4, 'InvoiceType' => 'it_Invoice', 'SumApplied' => 8880.0]]);
     }
 

@@ -134,7 +134,8 @@ class SapStockTransferPosting
             'FromWarehouse' => $from->code,
             'ToWarehouse' => $to->code,
             'DocDate' => $this->documentDate($date),
-            'Comments' => $this->comments($doc),
+            'JournalMemo' => Str::limit((string) $doc->number, 50, ''),
+            ...($this->comments($doc) !== '' ? ['Comments' => $this->comments($doc)] : []),
             'StockTransferLines' => $lines->map(function (array $line) use ($from, $to, $doc) {
                 [$sku, $qty] = $line;
 
@@ -179,13 +180,11 @@ class SapStockTransferPosting
     }
 
     /**
-     * Comments dokumen SAP (maks. 254 karakter): isi Notes dokumen easyPOS bila ada (alasan transfer),
-     * selain itu penanda "easyPOS {nomor}".
+     * Comments dokumen SAP (maks. 254 karakter) = Notes dokumen easyPOS (alasan transfer); kosong bila tidak ada.
+     * Nomor dokumen easyPOS dicatat di JournalMemo.
      */
     private function comments(StockTransferShipment|StockTransferReceipt $doc): string
     {
-        $note = trim((string) $doc->note);
-
-        return Str::limit($note !== '' ? $note : "easyPOS {$doc->number}", 254, '');
+        return Str::limit(trim((string) $doc->note), 254, '');
     }
 }

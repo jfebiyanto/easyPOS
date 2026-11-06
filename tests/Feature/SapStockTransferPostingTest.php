@@ -227,7 +227,7 @@ class SapStockTransferPostingTest extends TestCase
             'FromWarehouse' => 'G.001.MN',
             'ToWarehouse' => 'G.001.IT',
             'DocDate' => $shipment->posted_at->copy()->setTimezone('Asia/Jakarta')->toDateString(),
-            'Comments' => "easyPOS {$shipment->number}",
+            'JournalMemo' => $shipment->number,
             'StockTransferLines' => [
                 ['ItemCode' => 'INDF-0001', 'Quantity' => 5.0, 'FromWarehouseCode' => 'G.001.MN', 'WarehouseCode' => 'G.001.IT'],
                 ['ItemCode' => 'INDF-0002', 'Quantity' => 2.5, 'FromWarehouseCode' => 'G.001.MN', 'WarehouseCode' => 'G.001.IT'],
@@ -239,20 +239,21 @@ class SapStockTransferPostingTest extends TestCase
     {
         $this->fakeSap();
 
-        $this->postShipment([[$this->product, 5]], 'Barang rusak, retur ke gudang pusat');
+        $shipment = $this->postShipment([[$this->product, 5]], 'Barang rusak, retur ke gudang pusat');
 
         Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/StockTransfers')
-            && $request['Comments'] === 'Barang rusak, retur ke gudang pusat');
+            && $request['Comments'] === 'Barang rusak, retur ke gudang pusat'
+            && $request['JournalMemo'] === $shipment->number);
     }
 
-    public function test_notes_kosong_memakai_nomor_dokumen_sebagai_comments(): void
+    public function test_notes_kosong_tidak_mengirim_comments_dan_nomor_tetap_di_journal_memo(): void
     {
         $this->fakeSap();
 
         $shipment = $this->postShipment([[$this->product, 5]], '   ');
 
         Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/StockTransfers')
-            && $request['Comments'] === "easyPOS {$shipment->number}");
+            && ! isset($request['Comments']) && $request['JournalMemo'] === $shipment->number);
     }
 
     public function test_notes_receipt_mengisi_comments_sap(): void
@@ -280,7 +281,7 @@ class SapStockTransferPostingTest extends TestCase
             && $request['U_SOL_STID'] === $this->toStore->id
             && $request['FromWarehouse'] === 'G.001.IT'
             && $request['ToWarehouse'] === 'G.002.MN'
-            && $request['Comments'] === "easyPOS {$receipt->number}"
+            && ! isset($request['Comments']) && $request['JournalMemo'] === $receipt->number
             && $request['StockTransferLines'] == [['ItemCode' => 'INDF-0001', 'Quantity' => 3.0, 'FromWarehouseCode' => 'G.001.IT', 'WarehouseCode' => 'G.002.MN']]);
     }
 
