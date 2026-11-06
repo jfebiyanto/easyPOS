@@ -6,6 +6,7 @@ use App\Models\CompanyDetail;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\StockTransferReceipt;
+use App\Models\StockTransferReturn;
 use App\Models\StockTransferShipment;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
@@ -295,7 +296,7 @@ class SapStockMutationService
     }
 
     /**
-     * Mutasi dari Stock Transfer yang diposting easyPOS (Shipment/Receipt) sudah tercatat saat dokumen dibuat:
+     * Mutasi dari Stock Transfer yang diposting easyPOS (Shipment/Receipt/Return) sudah tercatat saat dokumen dibuat:
      * kedua baris OIVL (keluar dan masuk) ditautkan ke baris buku besar lawannya. Stock Transfer yang
      * dibuat langsung di SAP tidak punya dokumen easyPOS dan disalin seperti biasa.
      *
@@ -307,16 +308,21 @@ class SapStockMutationService
             return false;
         }
 
-        $docEntry = (int) $row['CreatedBy'];
+        $documents = [
+            StockTransferService::REF_SHIPMENT => StockTransferShipment::class,
+            StockTransferService::REF_RECEIPT => StockTransferReceipt::class,
+            StockTransferService::REF_RETURN => StockTransferReturn::class,
+        ];
 
-        $shipmentId = StockTransferShipment::where('company_id', $this->company->id)->where('sap_doc_entry', $docEntry)->value('id');
-        if ($shipmentId !== null) {
-            return $this->linkToLedger($row, StockTransferService::REF_SHIPMENT, $shipmentId);
+        foreach ($documents as $refType => $documentClass) {
+            $documentId = $documentClass::where('company_id', $this->company->id)->where('sap_doc_entry', (int) $row['CreatedBy'])->value('id');
+
+            if ($documentId !== null) {
+                return $this->linkToLedger($row, $refType, $documentId);
+            }
         }
 
-        $receiptId = StockTransferReceipt::where('company_id', $this->company->id)->where('sap_doc_entry', $docEntry)->value('id');
-
-        return $receiptId !== null && $this->linkToLedger($row, StockTransferService::REF_RECEIPT, $receiptId);
+        return false;
     }
 
     /**

@@ -7,6 +7,7 @@ use App\Models\CompanyDetail;
 use App\Models\Product;
 use App\Models\ProductGroup;
 use App\Models\StockTransferReceipt;
+use App\Models\StockTransferReturn;
 use App\Models\StockTransferShipment;
 use App\Models\StockTransferShipmentLine;
 use App\Models\Store;
@@ -191,7 +192,19 @@ class SapStockTransferPostingTest extends TestCase
         return (new StockTransferService)->receive($shipment, $quantities, $this->owner);
     }
 
-    private function runJob(StockTransferShipment|StockTransferReceipt $doc): void
+    /**
+     * @param  array<int, array{0: Product, 1: float}>  $lines
+     */
+    private function returnLines(StockTransferShipment $shipment, array $lines, ?string $note = null): StockTransferReturn
+    {
+        $quantities = collect($lines)->mapWithKeys(fn (array $line) => [
+            $shipment->lines()->where('product_id', $line[0]->id)->value('id') => $line[1],
+        ])->all();
+
+        return (new StockTransferService)->returnToSender($shipment, $quantities, $this->owner, $note);
+    }
+
+    private function runJob(StockTransferShipment|StockTransferReceipt|StockTransferReturn $doc): void
     {
         (new PostStockTransferToSap($doc::class, $doc->id))->handle();
     }
@@ -449,6 +462,168 @@ class SapStockTransferPostingTest extends TestCase
             [WarehouseStockLedger::TYPE_TRANSFER_OUT, WarehouseStockLedger::TYPE_TRANSFER_IN],
             WarehouseStockLedger::whereNotNull('sap_trans_seq')->orderBy('sap_trans_seq')->pluck('type')->all()
         );
+    }
+
+    public function test_return_diposting_dari_in_transit_ke_gudang_pengirim(): void
+    {
+        $this->fakeSap();
+        $shipment = $this->postShipment([[$this->product, 8], [$this->otherProduct, 3]]);
+        (new StockTransferService)->receive($shipment, [$shipment->lines()->where('product_id', $this->product->id)->value('id') => 6], $this->owner);
+
+        $return = $this->returnLines($shipment, [[$this->product, 2], [$this->otherProduct, 1.5]])->fresh();
+
+        $this->assertSame(StockTransferReturn::SAP_POSTED, $return->sap_post_status);
+        $this->assertSame([33, '900003'], [(int) $return->sap_doc_entry, (string) $return->sap_doc_num]);
+        $this->assertNotNull($return->sap_posted_at);
+        $this->assertNull($return->sap_post_error);
+
+        $body = Http::recorded(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/StockTransfers'))
+            ->map(fn (array $pair) => $pair[0]->data())
+            ->last();
+        $this->assertEquals([
+            'U_SOL_FRST' => 'Y',
+            'U_SOL_TRKY' => $return->id,
+            'U_SOL_STID' => $this->fromStore->id,
+            'FromWarehouse' => 'G.001.IT',
+            'ToWarehouse' => 'G.001.MN',
+            'DocDate' => $return->returned_at->copy()->setTimezone('Asia/Jakarta')->toDateString(),
+            'JournalMemo' => $return->number,
+            'StockTransferLines' => [
+                ['ItemCode' => 'INDF-0001', 'Quantity' => 2.0, 'FromWarehouseCode' => 'G.001.IT', 'WarehouseCode' => 'G.001.MN'],
+                ['ItemCode' => 'INDF-0002', 'Quantity' => 1.5, 'FromWarehouseCode' => 'G.001.IT', 'WarehouseCode' => 'G.001.MN'],
+            ],
+        ], $body);
+    }
+
+    public function test_notes_return_mengisi_comments_sap(): void
+    {
+        $this->fakeSap();
+        $shipment = $this->postShipment([[$this->product, 5]]);
+
+        $return = $this->returnLines($shipment, [[$this->product, 2]], 'Rusak di jalan');
+
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/StockTransfers')
+            && $request['U_SOL_TRKY'] === $return->id
+            && $request['Comments'] === 'Rusak di jalan'
+            && $request['JournalMemo'] === $return->number);
+    }
+
+    public function test_return_menunggu_shipment_terposting(): void
+    {
+        Queue::fake();
+        $shipment = $this->postShipment([[$this->product, 5]]);
+        $return = $this->returnLines($shipment, [[$this->product, 2]]);
+        $this->fakeSap();
+
+        $this->runJob($return);
+
+        $this->assertSame(StockTransferReturn::SAP_PENDING, $return->fresh()->sap_post_status);
+        Http::assertNothingSent();
+
+        $this->runJob($shipment);
+
+        $this->assertSame(StockTransferShipment::SAP_POSTED, $shipment->fresh()->sap_post_status);
+        Queue::assertPushed(PostStockTransferToSap::class, fn (PostStockTransferToSap $job) => $job->documentClass === StockTransferReturn::class && $job->documentId === $return->id);
+
+        $this->runJob($return);
+
+        $return->refresh();
+        $this->assertSame(StockTransferReturn::SAP_POSTED, $return->sap_post_status);
+        $this->assertSame(32, (int) $return->sap_doc_entry);
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/StockTransfers')
+            && $request['U_SOL_TRKY'] === $return->id && $request['FromWarehouse'] === 'G.001.IT' && $request['ToWarehouse'] === 'G.001.MN');
+    }
+
+    public function test_return_tanpa_status_sap_diantrekan_setelah_shipment_terposting(): void
+    {
+        Queue::fake();
+        $shipment = $this->postShipment([[$this->product, 5]]);
+
+        // Integrasi sempat mati saat Return dibuat: Return tidak diantrekan (status kosong).
+        $this->company->update(['sap_enabled' => false]);
+        $return = $this->returnLines($shipment, [[$this->product, 2]]);
+        $this->assertNull($return->sap_post_status);
+        $this->company->update(['sap_enabled' => true]);
+
+        $this->fakeSap();
+        $this->runJob($shipment);
+
+        $this->assertSame(StockTransferReturn::SAP_PENDING, $return->fresh()->sap_post_status);
+        Queue::assertPushed(PostStockTransferToSap::class, fn (PostStockTransferToSap $job) => $job->documentClass === StockTransferReturn::class && $job->documentId === $return->id);
+    }
+
+    public function test_return_kirim_ulang_idempoten_memakai_u_sol_trky(): void
+    {
+        $this->fakeSap();
+        $shipment = $this->postShipment([[$this->product, 5]]);
+        Queue::fake();
+        $return = $this->returnLines($shipment, [[$this->product, 2]]);
+        $return->forceFill(['sap_post_status' => StockTransferReturn::SAP_FAILED, 'sap_post_error' => 'Timeout'])->save();
+
+        $this->fakeSap(['existing' => [$return->id => ['DocEntry' => 66, 'DocNum' => 900066]]]);
+        SapStockTransferPosting::queue($return);
+        $this->assertSame(StockTransferReturn::SAP_PENDING, $return->fresh()->sap_post_status);
+
+        $this->runJob($return);
+
+        $return->refresh();
+        $this->assertSame(StockTransferReturn::SAP_POSTED, $return->sap_post_status);
+        $this->assertSame([66, '900066'], [(int) $return->sap_doc_entry, (string) $return->sap_doc_num]);
+        $this->assertNoStockTransferCreated();
+    }
+
+    public function test_return_kegagalan_sap_menandai_failed_dengan_pesan(): void
+    {
+        $this->fakeSap();
+        $shipment = $this->postShipment([[$this->product, 5]]);
+        $this->fakeSap(['error' => 'Quantity falls into negative inventory '.str_repeat('x', 600)]);
+
+        $return = $this->returnLines($shipment, [[$this->product, 2]])->fresh();
+
+        $this->assertSame(StockTransferReturn::SAP_FAILED, $return->sap_post_status);
+        $this->assertStringContainsString('Quantity falls into negative inventory', $return->sap_post_error);
+        $this->assertLessThanOrEqual(500, mb_strlen($return->sap_post_error));
+        $this->assertNull($return->sap_doc_entry);
+    }
+
+    public function test_job_return_dikunci_per_dokumen(): void
+    {
+        $middleware = (new PostStockTransferToSap(StockTransferReturn::class, 'abc-123'))->middleware();
+
+        $this->assertSame(StockTransferReturn::class.':abc-123', $middleware[0]->key);
+    }
+
+    public function test_oivl_return_menaut_ke_ledger_return_tanpa_menggandakan(): void
+    {
+        $this->fakeSap();
+        $shipment = $this->postShipment([[$this->product, 4]]);
+        // Receipt dan Return sama-sama mengeluarkan 2 dari in-transit: hanya ref_type yang membedakan barisnya.
+        $receipt = (new StockTransferService)->receive($shipment, [$shipment->lines()->value('id') => 2], $this->owner)->fresh();
+        $return = $this->returnLines($shipment, [[$this->product, 2]])->fresh();
+        $this->assertSame([31, 32, 33], [(int) $shipment->sap_doc_entry, (int) $receipt->sap_doc_entry, (int) $return->sap_doc_entry]);
+
+        $ledgerCount = WarehouseStockLedger::count();
+        $balances = [$this->onHand($this->source), $this->onHand($this->transit), $this->onHand($this->destination)];
+
+        // Baris Return disalin lebih dulu: tidak boleh mengambil baris ledger Receipt yang setara.
+        $this->fakeOivl([
+            $this->oivlRow(1, 31, 'G.001.MN', 0, 4),
+            $this->oivlRow(2, 31, 'G.001.IT', 4, 0),
+            $this->oivlRow(3, 33, 'G.001.IT', 0, 2),
+            $this->oivlRow(4, 33, 'G.001.MN', 2, 0),
+            $this->oivlRow(5, 32, 'G.001.IT', 0, 2),
+            $this->oivlRow(6, 32, 'G.002.MN', 2, 0),
+        ]);
+        $this->artisan('sap:sync-stock')->assertSuccessful();
+
+        $this->assertSame($ledgerCount, WarehouseStockLedger::count());
+        $this->assertSame($balances, [$this->onHand($this->source), $this->onHand($this->transit), $this->onHand($this->destination)]);
+        $this->assertSame([[$this->source->id, -4.0, 1], [$this->transit->id, 4.0, 2]], $this->linkedRows(StockTransferService::REF_SHIPMENT, $shipment->id));
+        $this->assertSame([[$this->transit->id, -2.0, 5], [$this->destination->id, 2.0, 6]], $this->linkedRows(StockTransferService::REF_RECEIPT, $receipt->id));
+        $this->assertSame([[$this->transit->id, -2.0, 3], [$this->source->id, 2.0, 4]], $this->linkedRows(StockTransferService::REF_RETURN, $return->id));
+
+        $linked = WarehouseStockLedger::where('sap_trans_seq', 4)->sole();
+        $this->assertSame([67, 33, '900003'], [$linked->sap_trans_type, $linked->sap_doc_entry, $linked->sap_doc_num]);
     }
 
     /**

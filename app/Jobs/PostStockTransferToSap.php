@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\CompanyDetail;
 use App\Models\StockTransferReceipt;
+use App\Models\StockTransferReturn;
 use App\Models\StockTransferShipment;
 use App\Support\Sap\SapStockTransferPosting;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -22,7 +23,7 @@ class PostStockTransferToSap implements ShouldQueue
     public int $maxExceptions = 1;
 
     /**
-     * @param  class-string<StockTransferShipment|StockTransferReceipt>  $documentClass
+     * @param  class-string<StockTransferShipment|StockTransferReceipt|StockTransferReturn>  $documentClass
      */
     public function __construct(public string $documentClass, public string $documentId) {}
 
@@ -38,7 +39,7 @@ class PostStockTransferToSap implements ShouldQueue
 
     public function handle(): void
     {
-        if (! in_array($this->documentClass, [StockTransferShipment::class, StockTransferReceipt::class], true)) {
+        if (! in_array($this->documentClass, [StockTransferShipment::class, StockTransferReceipt::class, StockTransferReturn::class], true)) {
             return;
         }
 

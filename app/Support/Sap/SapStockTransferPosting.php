@@ -7,6 +7,7 @@ use App\Models\CompanyDetail;
 use App\Models\StockTransferReceipt;
 use App\Models\StockTransferReceiptLine;
 use App\Models\StockTransferReturn;
+use App\Models\StockTransferReturnLine;
 use App\Models\StockTransferShipment;
 use App\Models\StockTransferShipmentLine;
 use App\Models\Warehouse;
@@ -16,14 +17,15 @@ use RuntimeException;
 use Throwable;
 
 /**
- * Posting Stock Transfer Shipment dan Receipt easyPOS ke SAP B1 sebagai Stock Transfer (OWTR).
+ * Posting Stock Transfer Shipment, Receipt, dan Return easyPOS ke SAP B1 sebagai Stock Transfer (OWTR).
  *
- * - Shipment: gudang pengirim → gudang in-transit; Receipt: gudang in-transit → gudang penerima.
+ * - Shipment: gudang pengirim → gudang in-transit; Receipt: gudang in-transit → gudang penerima;
+ *   Return: gudang in-transit → gudang pengirim.
  * - Header dokumen: U_SOL_FRST = 'Y', U_SOL_TRKY = UUID dokumen, U_SOL_STID = UUID store pembuat
- *   (store pengirim untuk Shipment, store penerima untuk Receipt).
+ *   (store pengirim untuk Shipment dan Return, store penerima untuk Receipt).
  * - Idempoten: sebelum membuat, cari Stock Transfer dengan U_SOL_TRKY yang sama.
- * - Receipt menunggu (tetap pending) sampai Shipment-nya terposting; setelah Shipment terposting,
- *   Receipt yang pending atau belum pernah diantrekan diantrekan ulang.
+ * - Receipt dan Return menunggu (tetap pending) sampai Shipment-nya terposting; setelah Shipment terposting,
+ *   yang pending atau belum pernah diantrekan diantrekan ulang.
  */
 class SapStockTransferPosting
 {
@@ -47,10 +49,10 @@ class SapStockTransferPosting
 
     public function __construct(private readonly CompanyDetail $company) {}
 
-    public function post(StockTransferShipment|StockTransferReceipt $doc): void
+    public function post(StockTransferShipment|StockTransferReceipt|StockTransferReturn $doc): void
     {
-        if ($doc instanceof StockTransferReceipt && $doc->shipment?->sap_post_status !== StockTransferShipment::SAP_POSTED) {
-            // Menunggu Shipment terposting; job Shipment mengantrekan ulang Receipt ini.
+        if (! $doc instanceof StockTransferShipment && $doc->shipment?->sap_post_status !== StockTransferShipment::SAP_POSTED) {
+            // Menunggu Shipment terposting; job Shipment mengantrekan ulang Receipt/Return ini.
             $doc->forceFill(['sap_post_status' => $doc::SAP_PENDING])->saveQuietly();
 
             return;
@@ -83,26 +85,28 @@ class SapStockTransferPosting
         }
 
         if ($doc instanceof StockTransferShipment) {
-            $this->queueWaitingReceipts($doc);
+            $this->queueWaitingDocuments($doc);
         }
     }
 
     /**
-     * Receipt yang menunggu (pending) atau belum pernah diantrekan (integrasi sempat mati) dikirim setelah Shipment terposting.
+     * Receipt dan Return yang menunggu (pending) atau belum pernah diantrekan (integrasi sempat mati)
+     * dikirim setelah Shipment terposting, urut waktu kejadian.
      */
-    private function queueWaitingReceipts(StockTransferShipment $shipment): void
+    private function queueWaitingDocuments(StockTransferShipment $shipment): void
     {
-        $shipment->receipts()
-            ->where(fn ($query) => $query->whereNull('sap_post_status')->orWhere('sap_post_status', StockTransferReceipt::SAP_PENDING))
-            ->orderBy('received_at')
-            ->get()
-            ->each(fn (StockTransferReceipt $receipt) => self::queue($receipt));
+        $waiting = fn ($query) => $query->whereNull('sap_post_status')->orWhere('sap_post_status', $shipment::SAP_PENDING);
+
+        $shipment->receipts()->where($waiting)->get()
+            ->concat($shipment->returns()->where($waiting)->get())
+            ->sortBy(fn (StockTransferReceipt|StockTransferReturn $doc) => ($doc->received_at ?? $doc->returned_at)?->getTimestamp())
+            ->each(fn (StockTransferReceipt|StockTransferReturn $doc) => self::queue($doc));
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function payload(StockTransferShipment|StockTransferReceipt $doc): array
+    private function payload(StockTransferShipment|StockTransferReceipt|StockTransferReturn $doc): array
     {
         if ($doc instanceof StockTransferShipment) {
             $doc->loadMissing(['fromWarehouse', 'transitWarehouse', 'lines.product']);
@@ -110,19 +114,21 @@ class SapStockTransferPosting
             $to = $this->requireWarehouse($doc->transitWarehouse, 'in-transit');
             $date = $doc->posted_at;
             $storeId = $doc->from_store_id;
-            $lines = $doc->lines
-                ->filter(fn (StockTransferShipmentLine $line) => (float) $line->qty > 0)
-                ->map(fn (StockTransferShipmentLine $line) => [$line->product?->sku, (float) $line->qty]);
+            $lines = $doc->lines->map(fn (StockTransferShipmentLine $line) => [$line->product?->sku, (float) $line->qty]);
         } else {
-            $doc->loadMissing(['shipment.transitWarehouse', 'shipment.toWarehouse', 'lines.shipmentLine.product']);
+            // Receipt: in-transit → gudang penerima; Return: in-transit → gudang pengirim.
+            $isReturn = $doc instanceof StockTransferReturn;
+            $doc->loadMissing(['shipment.transitWarehouse', $isReturn ? 'shipment.fromWarehouse' : 'shipment.toWarehouse', 'lines.shipmentLine.product']);
             $from = $this->requireWarehouse($doc->shipment->transitWarehouse, 'in-transit');
-            $to = $this->requireWarehouse($doc->shipment->toWarehouse, 'destination');
-            $date = $doc->received_at;
+            $to = $isReturn
+                ? $this->requireWarehouse($doc->shipment->fromWarehouse, 'source')
+                : $this->requireWarehouse($doc->shipment->toWarehouse, 'destination');
+            $date = $isReturn ? $doc->returned_at : $doc->received_at;
             $storeId = $doc->store_id;
-            $lines = $doc->lines
-                ->filter(fn (StockTransferReceiptLine $line) => (float) $line->qty > 0)
-                ->map(fn (StockTransferReceiptLine $line) => [$line->shipmentLine?->product?->sku, (float) $line->qty]);
+            $lines = $doc->lines->map(fn (StockTransferReceiptLine|StockTransferReturnLine $line) => [$line->shipmentLine?->product?->sku, (float) $line->qty]);
         }
+
+        $lines = $lines->filter(fn (array $line) => $line[1] > 0);
 
         if ($lines->isEmpty()) {
             throw new RuntimeException("Document {$doc->number} has no lines to post.");
@@ -184,7 +190,7 @@ class SapStockTransferPosting
      * Comments dokumen SAP (maks. 254 karakter) = Notes dokumen easyPOS (alasan transfer); kosong bila tidak ada.
      * Nomor dokumen easyPOS dicatat di JournalMemo.
      */
-    private function comments(StockTransferShipment|StockTransferReceipt $doc): string
+    private function comments(StockTransferShipment|StockTransferReceipt|StockTransferReturn $doc): string
     {
         return Str::limit(trim((string) $doc->note), 254, '');
     }
