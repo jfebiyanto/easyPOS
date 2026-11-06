@@ -10,7 +10,7 @@
 | Terakhir diperbarui | 2026-11-06 |
 | Stack | Backend Laravel, Frontend React JS |
 
-**Perubahan v1.6 (2026-11-03):** integrasi SAP B1 (impor master data & saldo stok, sinkronisasi berkala), modul Warehouse, pricelist jual/beli per gerai, default pelanggan retail per gerai, saldo stok per warehouse, Tax Group (Output Tax) untuk Setting Pajak. Lihat Bagian 6b (C1–C6), model data (Bagian 7), serta penyesuaian FR-A2-02, FR-A7-04, dan FR-A9-02. Tambahan 2026-11-04: penguncian koneksi SAP setelah impor awal (FR-C4-11 s.d. FR-C4-16); semua warehouse SAP diimpor dengan penanda retail (FR-C1-03, FR-C4-04); mutasi stok SAP (OIVL) disalin tiap menit dan menjadi sumber saldo, OITW hanya untuk rekonsiliasi (FR-C4-17 s.d. FR-C4-21, C5); cost item hanya di SAP; akun kas gerai dari warehouse (FR-C1-05); customer manual dikirim ke SAP (C7); posting penjualan POS ke SAP sebagai A/R Invoice + Incoming Payment (C8); konvensi tampilan admin (C9). Tambahan 2026-11-05: Kasir dan Store Manager wajib di tepat satu gerai aktif, pindah gerai hanya oleh Owner, penjualan offline dicatat ke gerai asal (FR-A1-08 s.d. FR-A1-10); layar POS menampilkan kode dan nama pelanggan (default dari master gerai) di atas daftar barang, dan pelanggan serta data pengiriman ikut ditahan lalu direset (FR-A8-09); EOD tertunda tidak lagi memblokir transaksi tetapi mengarahkannya ke tanggal bisnis itu dengan konfirmasi kasir saat login, serta sapaan login dan business date (FR-A8-14 s.d. FR-A8-17, FR-B8-06); layar POS berbasis tabel dengan tombol fungsi F1–F12 dan daftar transaksi gerai (FR-A8-18 s.d. FR-A8-20). Tambahan 2026-11-05: pembayaran QRIS dan EDC diposting ke SAP sebagai Credit Card dengan akun dari UDF warehouse `U_SOL_QRIS_ACC`/`U_SOL_EDC_ACC`, dan baris A/R Invoice membawa profit center warehouse (FR-C1-06, FR-C8-14 s.d. FR-C8-16). Tambahan 2026-11-05 (lanjutan): pemetaan Tipe Pembayaran ke Credit Card SAP dari impor OCRC (FR-C8-14, FR-C8-17), format harga dokumen SAP (PriceAfterVAT/Price) dan CostingCode (FR-C8-18), Period & Volume Discount, Discount Group, dan Hierarki Promosi (FR-C4-22 s.d. FR-C4-25); POS: qty diketik langsung, kode approval EDC/QRIS (hanya easyPOS), cetak struk tanpa popup dengan pilihan cetak otomatis (FR-A8-21 s.d. FR-A8-23); pengawasan kasir: keranjang tersimpan otomatis dan dipulihkan, konfirmasi saat menutup POS, satu tab per browser, satu sesi aktif per kasir dengan audit browser dan IP, serta laporan pembatalan transaksi per gerai (FR-A8-24 s.d. FR-A8-28); Integration Monitor dan halaman admin lebar penuh (FR-C8-09, FR-C9-03). Tambahan 2026-11-06: F6 Transaksi kini punya ringkasan business date, rincian per transaksi, dan akses terbatas ke gerai kasir sendiri (FR-A8-20, FR-A8-29); laporan Penjualan per Gerai disusun ulang agar Penjualan Neto + PPN + Ongkir = Omzet dan retur mengikuti zona waktu perusahaan (FR-B6-02), serta Produk Terlaris diurutkan menurut qty (FR-B6-04).
+**Perubahan v1.6 (2026-11-03):** integrasi SAP B1 (impor master data & saldo stok, sinkronisasi berkala), modul Warehouse, pricelist jual/beli per gerai, default pelanggan retail per gerai, saldo stok per warehouse, Tax Group (Output Tax) untuk Setting Pajak. Lihat Bagian 6b (C1–C6), model data (Bagian 7), serta penyesuaian FR-A2-02, FR-A7-04, dan FR-A9-02. Tambahan 2026-11-04: penguncian koneksi SAP setelah impor awal (FR-C4-11 s.d. FR-C4-16); semua warehouse SAP diimpor dengan penanda retail (FR-C1-03, FR-C4-04); mutasi stok SAP (OIVL) disalin tiap menit dan menjadi sumber saldo, OITW hanya untuk rekonsiliasi (FR-C4-17 s.d. FR-C4-21, C5); cost item hanya di SAP; akun kas gerai dari warehouse (FR-C1-05); customer manual dikirim ke SAP (C7); posting penjualan POS ke SAP sebagai A/R Invoice + Incoming Payment (C8); konvensi tampilan admin (C9). Tambahan 2026-11-05: Kasir dan Store Manager wajib di tepat satu gerai aktif, pindah gerai hanya oleh Owner, penjualan offline dicatat ke gerai asal (FR-A1-08 s.d. FR-A1-10); layar POS menampilkan kode dan nama pelanggan (default dari master gerai) di atas daftar barang, dan pelanggan serta data pengiriman ikut ditahan lalu direset (FR-A8-09); EOD tertunda tidak lagi memblokir transaksi tetapi mengarahkannya ke tanggal bisnis itu dengan konfirmasi kasir saat login, serta sapaan login dan business date (FR-A8-14 s.d. FR-A8-17, FR-B8-06); layar POS berbasis tabel dengan tombol fungsi F1–F12 dan daftar transaksi gerai (FR-A8-18 s.d. FR-A8-20). Tambahan 2026-11-05: pembayaran QRIS dan EDC diposting ke SAP sebagai Credit Card dengan akun dari UDF warehouse `U_SOL_QRIS_ACC`/`U_SOL_EDC_ACC`, dan baris A/R Invoice membawa profit center warehouse (FR-C1-06, FR-C8-14 s.d. FR-C8-16). Tambahan 2026-11-05 (lanjutan): pemetaan Tipe Pembayaran ke Credit Card SAP dari impor OCRC (FR-C8-14, FR-C8-17), format harga dokumen SAP (PriceAfterVAT/Price) dan CostingCode (FR-C8-18), Period & Volume Discount, Discount Group, dan Hierarki Promosi (FR-C4-22 s.d. FR-C4-25); POS: qty diketik langsung, kode approval EDC/QRIS (hanya easyPOS), cetak struk tanpa popup dengan pilihan cetak otomatis (FR-A8-21 s.d. FR-A8-23); pengawasan kasir: keranjang tersimpan otomatis dan dipulihkan, konfirmasi saat menutup POS, satu tab per browser, satu sesi aktif per kasir dengan audit browser dan IP, serta laporan pembatalan transaksi per gerai (FR-A8-24 s.d. FR-A8-28); Integration Monitor dan halaman admin lebar penuh (FR-C8-09, FR-C9-03). Tambahan 2026-11-06: F6 Transaksi kini punya ringkasan business date, rincian per transaksi, dan akses terbatas ke gerai kasir sendiri (FR-A8-20, FR-A8-29); laporan Penjualan per Gerai disusun ulang agar Penjualan Neto + PPN + Ongkir = Omzet dan retur mengikuti zona waktu perusahaan (FR-B6-02), serta Produk Terlaris diurutkan menurut qty (FR-B6-04). Hak akses Store Manager disempitkan: tulis hanya di EOD, review stok, stok, dan pengiriman, halaman lain hanya baca, data per gerai hanya gerainya, empat halaman (Identitas Perusahaan, Penomoran, Impor SAP B1, Integration Monitor) tertutup (FR-A1-11, FR-A1-12).
 
 Dokumen ini adalah baseline yang disetujui. Semua keputusan klarifikasi sudah di-fold-in. Satu constraint teknis dikunci pada Bagian 3 dan 8.
 
@@ -84,7 +84,7 @@ Akibatnya:
 
 **Segmen:** UMKM retail (minimarket, kelontong, F&B kecil, fashion) dengan 1 gerai dan rencana menambah hingga 2–10 gerai dalam 1 perusahaan.
 
-**Role:** Owner > Store Manager > Kasir. Satu user boleh merangkap Owner + Store Manager pada gerai pertama. Kasir tidak pernah bisa masuk halaman admin. Product master global per company; stok per gerai; pricelist company/store-level dipilih per gerai.
+**Role:** Owner > Store Manager > Kasir. Satu user boleh merangkap Owner + Store Manager pada gerai pertama. Kasir tidak pernah bisa masuk halaman admin. Store Manager masuk ke halaman admin dengan hak terbatas (FR-A1-11). Product master global per company; stok per gerai; pricelist company/store-level dipilih per gerai.
 
 ### Persona 1 — Budi, Owner (merangkap Store Manager gerai pertama)
 - 38 tahun, memiliki 2 gerai minimarket, masih ikut mengelola langsung.
@@ -98,7 +98,7 @@ Akibatnya:
 - Frustrasi: aplikasi lambat dan berlapis, scanner/printer sering gagal, takut salah hitung, transaksi hilang saat pindah perangkat.
 - Perangkat: PC/tablet Chromium + scanner + printer thermal.
 
-Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, customer, EOD, dan laporan gerainya; tanpa akses setting perusahaan.
+Store Manager non-owner adalah persona sekunder: menjalankan operasional gerainya (EOD, review stok, saldo stok, transfer dan penyesuaian stok, pengiriman) serta melihat dashboard dan laporan gerainya; halaman lain hanya dapat dilihat (FR-A1-11).
 
 ---
 
@@ -145,10 +145,10 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - Sebagai Owner, saya ingin melihat laporan lintas gerai dan mengekspornya, supaya keputusan bisnis berbasis data.
 
 ### Store Manager
-- Sebagai Store Manager, saya ingin memilih pricelist yang dipakai gerai saya, supaya harga sesuai kebijakan gerai.
+- Sebagai Store Manager, saya ingin melihat pricelist yang dipakai gerai saya (pengaturannya oleh Owner), supaya saya tahu harga yang berlaku.
 - Sebagai Store Manager, saya ingin menyelesaikan transaksi ber-flag review dan menutup toko dengan hitung kas per pecahan, supaya laporan final benar.
 - Sebagai Store Manager, saya ingin transfer stok antar gerai dengan jejak, supaya distribusi terkontrol.
-- Sebagai Store Manager, saya ingin mengelola produk, harga, stok, dan customer gerai saya.
+- Sebagai Store Manager, saya ingin mengelola stok (penyesuaian, transfer), review stok, EOD, dan pengiriman, serta melihat dashboard dan laporan gerai saya.
 
 ### Kasir
 - Sebagai Kasir, saya ingin semua metode bayar tetap diproses saat offline, supaya penjualan tidak berhenti.
@@ -225,6 +225,8 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 - FR-A1-08: Kasir dan Store Manager wajib ditugaskan ke tepat satu gerai aktif (ditegakkan di server). Pindah gerai hanya oleh Owner lewat halaman user dan tercatat di audit log. Owner boleh tanpa gerai. *(Baru 2026-11-05.)*
 - FR-A1-09: Kasir atau Store Manager tanpa gerai aktif ditolak di semua endpoint POS. Pengecualian: penjualan offline yang membawa gerai asalnya tetap diterima. *(Baru 2026-11-05.)*
 - FR-A1-10: Penjualan offline dicatat ke gerai asal (`store_id` di antrean), walau kasir sudah dipindahkan sebelum sinkron; perbedaan dengan gerai kasir tercatat di audit log. Daftar tahan hanya menampilkan transaksi gerai saat ini. Kasir yang sedang login wajib memuat ulang POS setelah dipindahkan. *(Baru 2026-11-05.)*
+- FR-A1-11: **Hak akses Store Manager** (ditegakkan di server, 403; satu sumber kebenaran `BackofficeAccess`). **Tulis hanya** di: EOD (termasuk buka ulang), Review Stok, Penyesuaian Stok, Transfer Stok, dan Pengiriman; semua pada gerainya sendiri. **Tertutup total** (baca dan tulis): Identitas Perusahaan, Penomoran, Impor Data SAP B1, dan Integration Monitor. **Halaman lain hanya dapat dilihat** (Produk, Harga, Promosi, Pelanggan, Gerai, Warehouse, Tax Group, Mata Uang, Tipe Pembayaran, User, dan seterusnya); tombol dan aksi tulis disembunyikan, formulir tambah/ubah dan semua POST/PUT/DELETE ditolak. **Data per gerai hanya gerainya sendiri**: Dashboard, Laporan, Pembatalan Transaksi, Saldo Stok, Pengiriman, Log Aktivitas, dan Sesi Kasir; parameter gerai lain diabaikan. Rute admin baru otomatis tidak dapat ditulis Store Manager sampai didaftarkan. Store Manager tanpa gerai ditolak (403). Owner tidak berubah. *(Baru 2026-11-06.)*
+- FR-A1-12: **Peran pada transfer stok**: transfer dibuat dari gerai Store Manager sendiri ke gerai mana pun dalam perusahaan; **kirim dan batal hanya oleh gerai asal**, **terima hanya oleh gerai tujuan**; kedua gerai melihat transfer di daftarnya. Log Aktivitas menyimpan gerai tempat aksi dilakukan (`activity_logs.store_id`, snapshot gerai user; log lama diisi dari gerai aktornya) agar Store Manager hanya melihat log gerainya; log tanpa gerai hanya terlihat Owner. *(Baru 2026-11-06.)*
 
 ### A2 — Setting perusahaan
 - FR-A2-01: Nama badan usaha, alamat, logo, NPWP, telepon, email.
@@ -256,7 +258,7 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 ### A6 — Product list (global per company)
 - FR-A6-01: Field: SKU (unik per company), nama, grup, satuan, barcode (opsional, unik per company), harga dasar, harga pokok, `track_stock`, status.
 - FR-A6-02: SKU tidak dapat diubah. Jika salah SKU → nonaktifkan + buat SKU baru (Owner).
-- FR-A6-03: Field selain SKU dapat diedit Owner/Store Manager.
+- FR-A6-03: Field selain SKU dapat diedit Owner; Store Manager hanya melihat (FR-A1-11). *(Diperbarui 2026-11-06.)*
 - FR-A6-04: Produk baru otomatis ditambahkan ke pricelist default store dengan harga dasar (tier `min_qty=1`).
 - FR-A6-05: SKU dapat diisi manual atau di-generate sistem (nomor urut global per company).
 - FR-A6-06: Harga tidak boleh negatif; harga pokok opsional.
@@ -654,7 +656,6 @@ Store Manager non-owner adalah persona sekunder: mengelola produk, harga, stok, 
 
 Tidak ada OQ yang memblokir. Satu constraint dikunci sebagai keputusan teknis:
 
-- **Terbuka (2026-11-06):** Konsep akses **Store Manager** di layar POS belum final. F6 Transaksi saat ini dapat dibuka siapa pun yang terikat satu gerai aktif dan hanya melihat gerai itu; hak tambahan Store Manager (mis. melihat semua kasir, void) menunggu keputusan Product.
 - **Locked:** Cross-device Hold/Parked Sale hanya berlaku untuk draft yang sudah tersinkron ke server. Jika dibutuhkan melanjutkan transaksi tanpa perangkat asal pernah online, satu-satunya jalan adalah local edge server di gerai (LAN server) — di luar MVP dan masuk kategori "Nanti".
 
 ---
