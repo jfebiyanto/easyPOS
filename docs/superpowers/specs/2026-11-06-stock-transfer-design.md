@@ -39,7 +39,7 @@ Contoh: `G.001.MN` mengirim ke `G.002.MN` → Shipment `G.001.MN → G.001.IT`, 
 - Job baru mengikuti `PostSaleToSap`/`SapSalePosting`: kelas `SapStockTransferPosting` untuk Shipment dan Receipt. Resource Service Layer `StockTransfers`.
 - Header: `FromWarehouse`, `ToWarehouse` (kode warehouse), `U_SOL_FRST = 'Y'`, `U_SOL_TRKY` = UUID dokumen easyPOS, `U_SOL_STID` = UUID store yang membuat dokumen. Baris: `ItemCode` = SKU, `Quantity`, `FromWarehouseCode`, `WarehouseCode`.
 - Idempoten: sebelum membuat, cari dokumen dengan `U_SOL_TRKY` yang sama. Simpan DocEntry/DocNum; tampilkan ObjType (67) + DocNum saja.
-- Status: `pending` → `posted` atau `failed` (+ pesan). Kirim ulang oleh Owner dari halaman monitor, sama seperti penjualan. Receipt tidak diantrekan sampai Shipment-nya terposting ke SAP; Receipt yang menunggu diberi status `pending` dan diantrekan ulang setelah Shipment terposting.
+- Status: `pending` → `posted` atau `failed` (+ pesan). Kirim ulang hanya oleh Owner, lewat tombol di daftar Shipment/Receipt (bukan halaman Integration Monitor penjualan). Receipt tidak diposting sampai Shipment-nya terposting ke SAP; Receipt yang menunggu tetap `pending` dan diantrekan ulang oleh job Shipment begitu terposting.
 - **Penautan OIVL**: mutasi OIVL TransType 67 yang `CreatedBy`-nya sama dengan DocEntry dokumen easyPOS ditautkan ke baris ledger yang sudah ada (`ref_type` shipment/receipt), tidak ditambahkan lagi — pola yang sama dengan penjualan (`linkToEasyPosSale`).
 
 ## UI dan menu
