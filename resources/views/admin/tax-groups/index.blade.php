@@ -16,7 +16,7 @@
 <div class="table-wrap">
     <table class="md-table">
         <thead>
-            <tr><th>{!! sort_link('Kode', 'code') !!}</th><th>{!! sort_link('Nama', 'name') !!}</th><th style="text-align:right;">{!! sort_link('Tarif', 'rate') !!}</th><th>{!! sort_link('Sumber', 'source') !!}</th><th>{!! sort_link('Status', 'is_active') !!}</th><th style="text-align:right;">Actions</th></tr>
+            <tr><th>{!! sort_link('Code', 'code') !!}</th><th>{!! sort_link('Name', 'name') !!}</th><th style="text-align:right;">{!! sort_link('Rate', 'rate') !!}</th><th>{!! sort_link('Source', 'source') !!}</th><th>{!! sort_link('Status', 'is_active') !!}</th><th style="text-align:right;">Actions</th></tr>
         </thead>
         <tbody>
             @forelse ($taxGroups as $taxGroup)
@@ -28,7 +28,7 @@
                     <td>{{ $taxGroup->name }}</td>
                     <td style="text-align:right;">{{ \App\Models\TaxGroup::formatRate((float) $taxGroup->rate) }}%</td>
                     <td>{{ $taxGroup->isFromSap() ? 'SAP B1' : 'Manual' }}</td>
-                    <td><span class="badge {{ $taxGroup->is_active ? 'active' : 'inactive' }}">{{ $taxGroup->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
+                    <td><span class="badge {{ $taxGroup->is_active ? 'active' : 'inactive' }}">{{ $taxGroup->is_active ? 'Active' : 'Inactive' }}</span></td>
                     <td>
                         <div class="actions-cell">
                             @if ($taxGroup->isFromSap())
@@ -36,7 +36,7 @@
                             @else
                                 @unless ($readOnly)
                                 <a href="{{ route('admin.tax-groups.edit', $taxGroup) }}" class="btn btn-tonal btn-sm">Edit</a>
-                                <form method="POST" action="{{ route('admin.tax-groups.destroy', $taxGroup) }}" onsubmit="return confirm('Hapus Tax Group ini?')">
+                                <form method="POST" action="{{ route('admin.tax-groups.destroy', $taxGroup) }}" onsubmit="return confirm('Delete this Tax Group?')">
                                     @csrf @method('DELETE')
                                     <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                                 </form>

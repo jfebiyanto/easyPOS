@@ -30,7 +30,7 @@
         <strong>{{ $company->sap_initial_imported_at ? $company->sap_initial_imported_at->timezone(company_timezone())->format('d M Y H:i') : 'Never' }}</strong>
         · Last sync:
         <strong>{{ $company->sap_last_synced_at ? $company->sap_last_synced_at->timezone(company_timezone())->format('d M Y H:i') : '-' }}</strong>
-        · Mutasi stok terakhir:
+        · Last stock movement:
         <strong>{{ $company->sap_stock_synced_at ? $company->sap_stock_synced_at->timezone(company_timezone())->format('d M Y H:i') : '-' }}</strong>
     </p>
 
@@ -67,7 +67,7 @@
         <span id="sap-run-status-text">Import is running in the background...</span>
         @if ($canManage)
             <form method="POST" action="{{ route('admin.sap-import.cancel') }}" style="margin-left: auto;"
-                  onsubmit="return confirm('Hentikan impor yang sedang berjalan?');">
+                  onsubmit="return confirm('Stop the running import?');">
                 @csrf
                 <button type="submit" class="btn btn-text">
                     <span class="material-symbols-rounded">cancel</span> Batalkan

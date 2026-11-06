@@ -16,7 +16,7 @@
 <div class="table-wrap">
     <table class="md-table">
         <thead>
-            <tr><th>{!! sort_link('Kode', 'code') !!}</th><th>{!! sort_link('Nama', 'name') !!}</th><th>Default</th><th>Period</th><th>{!! sort_link('Item Harga', 'items_count') !!}</th><th>{!! sort_link('Status', 'is_active') !!}</th><th style="text-align:right;">Actions</th></tr>
+            <tr><th>{!! sort_link('Code', 'code') !!}</th><th>{!! sort_link('Name', 'name') !!}</th><th>Default</th><th>Period</th><th>{!! sort_link('Price Items', 'items_count') !!}</th><th>{!! sort_link('Status', 'is_active') !!}</th><th style="text-align:right;">Actions</th></tr>
         </thead>
         <tbody>
             @forelse ($priceLists as $priceList)
@@ -26,13 +26,13 @@
                     <td>@if ($priceList->is_default)<span class="badge info">Default</span>@else - @endif</td>
                     <td>{{ $priceList->effective_from?->format('d/m/Y') ?? '-' }} ~ {{ $priceList->effective_until?->format('d/m/Y') ?? '∞' }}</td>
                     <td>{{ $priceList->items_count }}</td>
-                    <td><span class="badge {{ $priceList->is_active ? 'active' : 'inactive' }}">{{ $priceList->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
+                    <td><span class="badge {{ $priceList->is_active ? 'active' : 'inactive' }}">{{ $priceList->is_active ? 'Active' : 'Inactive' }}</span></td>
                     <td>
                         <div class="actions-cell">
                             <a href="{{ route('admin.price-lists.show', $priceList) }}" class="btn btn-tonal btn-sm">Price Items</a>
                             @if (auth()->user()->isSuperuser())
                                 <a href="{{ route('admin.price-lists.edit', $priceList) }}" class="btn btn-tonal btn-sm">Edit</a>
-                                <form method="POST" action="{{ route('admin.price-lists.destroy', $priceList) }}" onsubmit="return confirm('Hapus price list ini?')">
+                                <form method="POST" action="{{ route('admin.price-lists.destroy', $priceList) }}" onsubmit="return confirm('Delete this price list?')">
                                     @csrf @method('DELETE')
                                     <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                                 </form>

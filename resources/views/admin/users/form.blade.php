@@ -42,7 +42,7 @@
                 <select id="role" name="role">
                     @foreach ($roles as $role)
                         <option value="{{ $role }}" @selected(old('role', $user->role ?? 'cashier') === $role)>
-                            {{ ['owner' => 'Owner (akses penuh perusahaan)', 'store_manager' => 'Store Manager (kelola gerai)', 'cashier' => 'Kasir (modul POS saja)'][$role] ?? $role }}
+                            {{ ['owner' => 'Owner (full company access)', 'store_manager' => 'Store Manager (manages their store)', 'cashier' => 'Cashier (POS module only)'][$role] ?? $role }}
                         </option>
                     @endforeach
                 </select>

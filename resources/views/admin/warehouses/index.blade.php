@@ -16,7 +16,7 @@
 <div class="table-wrap">
     <table class="md-table">
         <thead>
-            <tr><th>{!! sort_link('Kode', 'code') !!}</th><th>{!! sort_link('Nama', 'name') !!}</th><th>{!! sort_link('Profit Center', 'profit_center') !!}</th><th>{!! sort_link('Retail', 'is_retail') !!}</th><th>Store</th><th>{!! sort_link('Status', 'is_active') !!}</th><th style="text-align:right;">Actions</th></tr>
+            <tr><th>{!! sort_link('Code', 'code') !!}</th><th>{!! sort_link('Name', 'name') !!}</th><th>{!! sort_link('Profit Center', 'profit_center') !!}</th><th>{!! sort_link('Retail', 'is_retail') !!}</th><th>Store</th><th>{!! sort_link('Status', 'is_active') !!}</th><th style="text-align:right;">Actions</th></tr>
         </thead>
         <tbody>
             @forelse ($warehouses as $warehouse)
@@ -26,12 +26,12 @@
                     <td>{{ $warehouse->profit_center ?: '-' }}</td>
                     <td>{{ $warehouse->is_retail ? 'Yes' : 'No' }}</td>
                     <td>{{ $warehouse->store ? $warehouse->store->code.' · '.$warehouse->store->name : '-' }}</td>
-                    <td><span class="badge {{ $warehouse->is_active ? 'active' : 'inactive' }}">{{ $warehouse->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
+                    <td><span class="badge {{ $warehouse->is_active ? 'active' : 'inactive' }}">{{ $warehouse->is_active ? 'Active' : 'Inactive' }}</span></td>
                     <td>
                         <div class="actions-cell">
                             @unless ($readOnly)
                             <a href="{{ route('admin.warehouses.edit', $warehouse) }}" class="btn btn-tonal btn-sm">Edit</a>
-                            <form method="POST" action="{{ route('admin.warehouses.destroy', $warehouse) }}" onsubmit="return confirm('Hapus warehouse ini?')">
+                            <form method="POST" action="{{ route('admin.warehouses.destroy', $warehouse) }}" onsubmit="return confirm('Delete this warehouse?')">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                             </form>

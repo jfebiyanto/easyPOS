@@ -276,6 +276,6 @@ class CancellationReportTest extends TestCase
         $this->seedCancellation($this->storeA, $this->cashierA);
         $this->seedCancellation($this->storeA, $this->cashierA, ['store_id' => null, 'store_label' => null, 'customer_label' => 'CR9 · TANPA GERAI']);
 
-        $this->actingAs($this->owner)->get(route('admin.cancellations.index'))->assertOk()->assertSee('Gerai tidak diketahui')->assertSee('TANPA GERAI');
+        $this->actingAs($this->owner)->get(route('admin.cancellations.index'))->assertOk()->assertSee('Unknown store')->assertSee('TANPA GERAI');
     }
 }

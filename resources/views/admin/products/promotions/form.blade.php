@@ -38,7 +38,7 @@
                 @error('value') <div class="error">{{ $message }}</div> @enderror
             </div>
             <div class="field @error('product_id') has-error @enderror">
-                <label for="product_id" data-promo-labels='{"discount_percent":"Produk (opsional)","discount_amount":"Produk (opsional)","special_price":"Produk *","buy_x_get_y":"Produk yang Dibeli *"}'>Product</label>
+                <label for="product_id" data-promo-labels='{"discount_percent":"Product (optional)","discount_amount":"Product (optional)","special_price":"Product *","buy_x_get_y":"Purchased Product *"}'>Product</label>
                 <select id="product_id" name="product_id">
                     <option value="">- All Products -</option>
                     @foreach ($products as $product)

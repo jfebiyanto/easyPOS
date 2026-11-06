@@ -78,7 +78,7 @@
     <details class="cancel-group" @if ($loop->first || $groups->count() === 1) open @endif>
         <summary>
             <span class="material-symbols-rounded cancel-chevron" aria-hidden="true">expand_more</span>
-            <strong>{{ $group->store_label ?? 'Gerai tidak diketahui' }}</strong>
+            <strong>{{ $group->store_label ?? 'Unknown store' }}</strong>
             <span class="cancel-stat">{{ number_format($group->total_count, 0, ',', '.') }} pembatalan</span>
             <span class="cancel-stat">{{ $rupiah($group->total_value) }}</span>
             @if ((int) $group->void_count > 0)

@@ -33,7 +33,7 @@
     <table class="md-table">
         <thead>
             <tr>
-                <th>{!! sort_link('Nama', 'name') !!}</th>
+                <th>{!! sort_link('Name', 'name') !!}</th>
                 <th>{!! sort_link('Username', 'username') !!}</th>
                 <th>Store</th>
                 <th>{!! sort_link('Role', 'role') !!}</th>
@@ -50,13 +50,13 @@
                     <td>
                         <span class="badge {{ $user->role }}">{{ ucfirst(str_replace('_', ' ', $user->role)) }}</span>
                     </td>
-                    <td><span class="badge {{ $user->is_active ? 'active' : 'inactive' }}">{{ $user->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
+                    <td><span class="badge {{ $user->is_active ? 'active' : 'inactive' }}">{{ $user->is_active ? 'Active' : 'Inactive' }}</span></td>
                     <td>
                         <div class="actions-cell">
                             @unless ($readOnly)
                             <a href="{{ route('admin.users.edit', $user) }}" class="btn btn-tonal btn-sm">Edit</a>
                             @if ($user->id !== auth()->id())
-                                <form method="POST" action="{{ route('admin.users.destroy', $user) }}" onsubmit="return confirm('Hapus user ini?')">
+                                <form method="POST" action="{{ route('admin.users.destroy', $user) }}" onsubmit="return confirm('Delete this user?')">
                                     @csrf @method('DELETE')
                                     <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                                 </form>

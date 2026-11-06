@@ -7,7 +7,7 @@
             <span class="material-symbols-rounded">point_of_sale</span>
             <h1>easyPOS</h1>
         </div>
-        <p class="login-subtitle">Masuk ke Administrator Backoffice</p>
+        <p class="login-subtitle">Sign in to the Backoffice Administrator</p>
 
         @if ($errors->any())
             <div class="login-error">{{ $errors->first() }}</div>
@@ -26,11 +26,11 @@
             <div class="field">
                 <div class="checkbox-row">
                     <input type="checkbox" id="remember" name="remember" value="1">
-                    <label for="remember">Ingat saya</label>
+                    <label for="remember">Remember me</label>
                 </div>
             </div>
             <button type="submit" class="btn btn-filled" style="width: 100%; justify-content: center;">
-                Masuk
+                Sign in
             </button>
         </form>
     </div>

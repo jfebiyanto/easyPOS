@@ -22,10 +22,10 @@
     <table class="md-table">
         <thead>
             <tr>
-                <th>{!! sort_link('Kode', 'code') !!}</th>
-                <th>{!! sort_link('Nama Store', 'name') !!}</th>
+                <th>{!! sort_link('Code', 'code') !!}</th>
+                <th>{!! sort_link('Store Name', 'name') !!}</th>
                 <th>{!! sort_link('Store Manager', 'pic_name') !!}</th>
-                <th>{!! sort_link('PPN', 'ppn_enabled') !!}</th>
+                <th>{!! sort_link('VAT', 'ppn_enabled') !!}</th>
                 <th>{!! sort_link('User', 'users_count') !!}</th>
                 <th>Context Status</th>
                 <th style="text-align:right;">Actions</th>
@@ -59,7 +59,7 @@
                             @endif
                             @if (auth()->user()->isSuperuser())
                                 <a href="{{ route('admin.stores.edit', $store) }}" class="btn btn-tonal btn-sm">Edit</a>
-                                <form method="POST" action="{{ route('admin.stores.destroy', $store) }}" onsubmit="return confirm('Hapus store {{ $store->code }}?')">
+                                <form method="POST" action="{{ route('admin.stores.destroy', $store) }}" onsubmit="return confirm('Delete store {{ $store->code }}?')">
                                     @csrf @method('DELETE')
                                     <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                                 </form>

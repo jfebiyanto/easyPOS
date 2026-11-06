@@ -37,7 +37,7 @@ class Promotion extends MasterModel
         'sap_discount_group' => 'Discount Group (SAP B1)',
         'special_price' => 'Special Price (easyPOS)',
         'discount_amount' => 'Fixed Discount (easyPOS)',
-        'buy_x_get_y' => 'Beli X Gratis Y (easyPOS)',
+        'buy_x_get_y' => 'Buy X Get Y (easyPOS)',
     ];
 
     /**
@@ -47,7 +47,7 @@ class Promotion extends MasterModel
     public const TYPES = [
         'discount_amount' => 'Fixed Discount (Rp)',
         'special_price' => 'Special Price',
-        'buy_x_get_y' => 'Beli X Gratis Y',
+        'buy_x_get_y' => 'Buy X Get Y',
     ];
 
     /** Label semua tipe untuk tampilan, termasuk tipe sumber SAP. */
@@ -55,7 +55,7 @@ class Promotion extends MasterModel
         'discount_percent' => 'Percentage Discount (%)',
         'discount_amount' => 'Fixed Discount (Rp)',
         'special_price' => 'Special Price',
-        'buy_x_get_y' => 'Beli X Gratis Y',
+        'buy_x_get_y' => 'Buy X Get Y',
         self::TYPE_VOLUME_PRICE => 'Tiered Price',
     ];
 
@@ -146,21 +146,21 @@ class Promotion extends MasterModel
     }
 
     /**
-     * Ringkasan aturan untuk daftar promosi, mis. "Beli 2 Gratis 1 Cookies · maks. 3×".
+     * Ringkasan aturan untuk daftar promosi, mis. "Buy 2 Get 1 Free Cookies · max. 3×".
      */
     public function ruleSummary(): string
     {
         $summary = match ($this->type) {
             'discount_percent' => 'Discount '.rtrim(rtrim((string) $this->value, '0'), '.').'%',
-            self::TYPE_VOLUME_PRICE => 'Bertingkat: '.collect($this->tiers ?? [])->filter(fn (array $t) => $t['min_qty'] > 1)->map(fn (array $t) => '≥'.rtrim(rtrim((string) $t['min_qty'], '0'), '.').' → Rp '.number_format((float) $t['price'], 0, ',', '.'))->implode(', '),
-            'discount_amount' => 'Potongan Rp '.number_format((float) $this->value, 0, ',', '.').' /item',
+            self::TYPE_VOLUME_PRICE => 'Tiered: '.collect($this->tiers ?? [])->filter(fn (array $t) => $t['min_qty'] > 1)->map(fn (array $t) => '≥'.rtrim(rtrim((string) $t['min_qty'], '0'), '.').' → Rp '.number_format((float) $t['price'], 0, ',', '.'))->implode(', '),
+            'discount_amount' => 'Discount Rp '.number_format((float) $this->value, 0, ',', '.').' /item',
             'special_price' => 'Price Rp '.number_format((float) $this->value, 0, ',', '.'),
-            'buy_x_get_y' => "Beli {$this->buy_qty} Gratis {$this->get_qty}".($this->bonusProduct ? " {$this->bonusProduct->name}" : ''),
+            'buy_x_get_y' => "Buy {$this->buy_qty} Get {$this->get_qty} Free".($this->bonusProduct ? " {$this->bonusProduct->name}" : ''),
             default => (string) $this->value,
         };
 
         if ($this->type === 'buy_x_get_y') {
-            return $this->max_applications ? "{$summary} · maks. {$this->max_applications}×" : $summary;
+            return $this->max_applications ? "{$summary} · max. {$this->max_applications}×" : $summary;
         }
 
         return $this->min_qty > 1 ? "{$summary} · min. {$this->min_qty}" : $summary;

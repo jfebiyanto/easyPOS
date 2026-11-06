@@ -21,7 +21,7 @@
 <div class="table-wrap">
     <table class="md-table">
         <thead>
-            <tr><th>{!! sort_link('Waktu', 'created_at') !!}</th><th>{!! sort_link('Oleh', 'actor_name') !!}</th><th>{!! sort_link('Aksi', 'action') !!}</th><th>Description</th><th>Object</th></tr>
+            <tr><th>{!! sort_link('Time', 'created_at') !!}</th><th>{!! sort_link('By', 'actor_name') !!}</th><th>{!! sort_link('Actions', 'action') !!}</th><th>Description</th><th>Object</th></tr>
         </thead>
         <tbody>
             @forelse ($logs as $log)

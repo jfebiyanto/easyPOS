@@ -17,11 +17,11 @@
     <table class="md-table">
         <thead>
             <tr>
-                <th>{!! sort_link('Kode (ISO)', 'code') !!}</th>
-                <th>{!! sort_link('Simbol', 'symbol') !!}</th>
+                <th>{!! sort_link('Code (ISO)', 'code') !!}</th>
+                <th>{!! sort_link('Symbol', 'symbol') !!}</th>
                 <th>{!! sort_link('Rounding', 'has_rounding') !!}</th>
-                <th>{!! sort_link('Digit Desimal', 'decimal_places') !!}</th>
-                <th>{!! sort_link('Pecahan', 'denominations_count') !!}</th>
+                <th>{!! sort_link('Decimal Digits', 'decimal_places') !!}</th>
+                <th>{!! sort_link('Denominations', 'denominations_count') !!}</th>
                 <th>{!! sort_link('Status', 'is_active') !!}</th>
                 <th style="text-align:right;">Actions</th>
             </tr>
@@ -34,13 +34,13 @@
                     <td>@if ($currency->has_rounding)<span class="badge info">Rounding</span>@else — @endif</td>
                     <td>{{ $currency->decimal_places }}</td>
                     <td>{{ $currency->denominations_count }}</td>
-                    <td><span class="badge {{ $currency->is_active ? 'active' : 'inactive' }}">{{ $currency->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
+                    <td><span class="badge {{ $currency->is_active ? 'active' : 'inactive' }}">{{ $currency->is_active ? 'Active' : 'Inactive' }}</span></td>
                     <td>
                         <div class="actions-cell">
                             <a href="{{ route('admin.currencies.show', $currency) }}" class="btn btn-tonal btn-sm">Denominations</a>
                             @if (auth()->user()->isSuperuser())
                                 <a href="{{ route('admin.currencies.edit', $currency) }}" class="btn btn-tonal btn-sm">Edit</a>
-                                <form method="POST" action="{{ route('admin.currencies.destroy', $currency) }}" onsubmit="return confirm('Hapus mata uang ini beserta seluruh nominal pecahannya?')">
+                                <form method="POST" action="{{ route('admin.currencies.destroy', $currency) }}" onsubmit="return confirm('Delete this currency and all of its denominations?')">
                                     @csrf @method('DELETE')
                                     <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                                 </form>

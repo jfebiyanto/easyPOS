@@ -31,7 +31,7 @@
         <div><strong>Code</strong><div class="mono">{{ $customer->code ?? '-' }}</div></div>
         <div><strong>Mobile No.</strong><div class="mono">{{ $customer->phone ?? '-' }}</div></div>
         <div><strong>Email</strong><div>{{ $customer->email ?? '-' }}</div></div>
-        <div><strong>Status</strong><div>{{ $customer->is_active ? 'Aktif' : 'Nonaktif' }}{{ $customer->is_member ? ' · Member' : '' }}</div></div>
+        <div><strong>Status</strong><div>{{ $customer->is_active ? 'Active' : 'Inactive' }}{{ $customer->is_member ? ' · Member' : '' }}</div></div>
         <div style="grid-column:1/-1;"><strong>Address</strong><div>{{ $customer->address ?? '-' }}</div></div>
     </div>
 </div>

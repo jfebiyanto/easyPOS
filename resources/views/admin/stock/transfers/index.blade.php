@@ -45,11 +45,11 @@
                     <td>
                         <div class="actions-cell">
                             @if (in_array($tr->status, ['draft', 'requested']))
-                                <form method="POST" action="{{ route('admin.stock-transfers.ship', $tr) }}" onsubmit="return confirm('Kirim transfer ini? Stok keluar dari gerai asal.')">
+                                <form method="POST" action="{{ route('admin.stock-transfers.ship', $tr) }}" onsubmit="return confirm('Ship this transfer? Stock leaves the source store.')">
                                     @csrf
                                     <button type="submit" class="btn btn-filled btn-sm">Ship</button>
                                 </form>
-                                <form method="POST" action="{{ route('admin.stock-transfers.cancel', $tr) }}" onsubmit="return confirm('Batalkan transfer ini?')">
+                                <form method="POST" action="{{ route('admin.stock-transfers.cancel', $tr) }}" onsubmit="return confirm('Cancel this transfer?')">
                                     @csrf
                                     <button type="submit" class="btn btn-outline btn-sm">Cancel</button>
                                 </form>

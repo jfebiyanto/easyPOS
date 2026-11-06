@@ -11,11 +11,11 @@ use Illuminate\View\View;
 class PlaceholderController extends Controller
 {
     private const PAGES = [
-        'bundles' => ['Produk Paket', 'workspaces', 'Bundling beberapa produk menjadi satu paket dengan harga khusus.'],
-        'customer-groups' => ['Grup Pelanggan', 'diversity_3', 'Kategori pelanggan: member reguler, member grosir, korporat, dll.'],
-        'supplier-groups' => ['Grup Pemasok', 'groups_3', 'Kategori pemasok untuk segmentasi pembelian.'],
-        'customers' => ['Daftar Pelanggan', 'person', 'Master data pelanggan: nama, kontak, poin member, dan batas piutang.'],
-        'suppliers' => ['Daftar Pemasok', 'local_shipping', 'Master data pemasok: nama, kontak, dan termin pembayaran.'],
+        'bundles' => ['Bundles', 'workspaces', 'Bundle several products into one package at a special price.'],
+        'customer-groups' => ['Customer Groups', 'diversity_3', 'Customer categories: regular members, wholesale members, corporate, etc.'],
+        'supplier-groups' => ['Supplier Groups', 'groups_3', 'Supplier categories for purchasing segmentation.'],
+        'customers' => ['Customers', 'person', 'Customer master data: name, contact, member points and credit limit.'],
+        'suppliers' => ['Suppliers', 'local_shipping', 'Supplier master data: name, contact and payment terms.'],
     ];
 
     public function show(string $page): View

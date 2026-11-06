@@ -35,11 +35,11 @@
     <table class="md-table">
         <thead>
             <tr>
-                <th>{!! sort_link('Kode', 'code') !!}</th>
-                <th>{!! sort_link('Nama', 'name') !!}</th>
-                <th>{!! sort_link('No. HP', 'phone') !!}</th>
+                <th>{!! sort_link('Code', 'code') !!}</th>
+                <th>{!! sort_link('Name', 'name') !!}</th>
+                <th>{!! sort_link('Mobile No.', 'phone') !!}</th>
                 <th>Tier</th>
-                <th>{!! sort_link('Poin', 'points_balance') !!}</th>
+                <th>{!! sort_link('Points', 'points_balance') !!}</th>
                 <th>{!! sort_link('Status', 'is_active') !!}</th>
                 <th style="text-align:right;">Actions</th>
             </tr>
@@ -50,20 +50,20 @@
                     <td class="mono">
                         {{ $customer->code ?? '-' }}
                         @if (! $customer->isFromSap() && in_array($customer->sap_sync_status, ['pending', 'failed'], true))
-                            <span class="chip {{ $customer->sap_sync_status === 'failed' ? 'chip-danger' : 'chip-neutral' }}" title="{{ $customer->sap_sync_error }}">{{ $customer->sap_sync_status === 'failed' ? 'Gagal ke SAP' : 'Menunggu SAP' }}</span>
+                            <span class="chip {{ $customer->sap_sync_status === 'failed' ? 'chip-danger' : 'chip-neutral' }}" title="{{ $customer->sap_sync_error }}">{{ $customer->sap_sync_status === 'failed' ? 'Failed to send to SAP' : 'Waiting for SAP' }}</span>
                         @endif
                     </td>
                     <td><strong>{{ $customer->name }}</strong></td>
                     <td class="mono">{{ $customer->phone ?? '-' }}</td>
                     <td><span class="chip chip-info">{{ $customer->memberLevel?->name ?? '-' }}</span></td>
                     <td class="money">{{ rtrim(rtrim(number_format((float) $customer->points_balance, 2, ',', '.'), '0'), ',') }}</td>
-                    <td><span class="badge {{ $customer->is_active ? 'active' : 'inactive' }}">{{ $customer->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
+                    <td><span class="badge {{ $customer->is_active ? 'active' : 'inactive' }}">{{ $customer->is_active ? 'Active' : 'Inactive' }}</span></td>
                     <td style="text-align:right;">
                         <div class="actions-cell">
                             <a href="{{ route('admin.customers.show', $customer) }}" class="btn btn-tonal btn-sm">Details</a>
                             @unless ($readOnly)
                             <a href="{{ route('admin.customers.edit', $customer) }}" class="btn btn-tonal btn-sm">Edit</a>
-                            <form method="POST" action="{{ route('admin.customers.destroy', $customer) }}" onsubmit="return confirm('Hapus pelanggan ini?')">
+                            <form method="POST" action="{{ route('admin.customers.destroy', $customer) }}" onsubmit="return confirm('Delete this customer?')">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                             </form>

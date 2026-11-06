@@ -7,7 +7,7 @@
 @if (auth()->user()->isSuperuser())
     <div class="card">
         <h2 class="card-title">Add Denomination</h2>
-        <p class="card-subtitle">Currency: <strong>{{ $currency->code }} ({{ $currency->symbol }})</strong> — daftar pecahan uang yang diterima di kasir.</p>
+        <p class="card-subtitle">Currency: <strong>{{ $currency->code }} ({{ $currency->symbol }})</strong> — denominations accepted at the register.</p>
 
         <form method="POST" action="{{ route('admin.currencies.denominations.store', $currency) }}">
             @csrf
@@ -45,11 +45,11 @@
             @forelse ($currency->denominations as $denomination)
                 <tr>
                     <td><strong>{{ $currency->symbol }} {{ number_format($denomination->value, $currency->decimal_places, ',', '.') }}</strong></td>
-                    <td><span class="badge {{ $denomination->is_active ? 'active' : 'inactive' }}">{{ $denomination->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
+                    <td><span class="badge {{ $denomination->is_active ? 'active' : 'inactive' }}">{{ $denomination->is_active ? 'Active' : 'Inactive' }}</span></td>
                     <td>
                         <div class="actions-cell">
                             @if (auth()->user()->isSuperuser())
-                                <form method="POST" action="{{ route('admin.currencies.denominations.destroy', [$currency, $denomination]) }}" onsubmit="return confirm('Hapus nominal pecahan ini?')">
+                                <form method="POST" action="{{ route('admin.currencies.denominations.destroy', [$currency, $denomination]) }}" onsubmit="return confirm('Delete this denomination?')">
                                     @csrf @method('DELETE')
                                     <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                                 </form>

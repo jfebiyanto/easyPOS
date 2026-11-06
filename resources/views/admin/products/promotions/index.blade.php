@@ -23,7 +23,7 @@
 <div class="table-wrap">
     <table class="md-table">
         <thead>
-            <tr><th>{!! sort_link('Kode', 'code') !!}</th><th>{!! sort_link('Nama', 'name') !!}</th><th>{!! sort_link('Tipe', 'type') !!}</th><th>Applies to</th><th>Rule</th><th>Period</th><th>{!! sort_link('Status', 'is_active') !!}</th><th style="text-align:right;">Actions</th></tr>
+            <tr><th>{!! sort_link('Code', 'code') !!}</th><th>{!! sort_link('Name', 'name') !!}</th><th>{!! sort_link('Type', 'type') !!}</th><th>Applies to</th><th>Rule</th><th>Period</th><th>{!! sort_link('Status', 'is_active') !!}</th><th style="text-align:right;">Actions</th></tr>
         </thead>
         <tbody>
             @forelse ($promotions as $promotion)
@@ -37,7 +37,7 @@
                     <td>{{ $promotion->scopeLabel() }}</td>
                     <td>{{ $promotion->ruleSummary() }}</td>
                     <td>{{ $promotion->periodLabel() }}</td>
-                    <td><span class="badge {{ $promotion->is_active ? 'active' : 'inactive' }}">{{ $promotion->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
+                    <td><span class="badge {{ $promotion->is_active ? 'active' : 'inactive' }}">{{ $promotion->is_active ? 'Active' : 'Inactive' }}</span></td>
                     <td>
                         @if ($promotion->isFromSap())
                             <div class="actions-cell"><span class="hint">Read-only</span></div>
@@ -45,7 +45,7 @@
                             <div class="actions-cell">
                                 @unless ($readOnly)
                                 <a href="{{ route('admin.promotions.edit', $promotion) }}" class="btn btn-tonal btn-sm">Edit</a>
-                                <form method="POST" action="{{ route('admin.promotions.destroy', $promotion) }}" onsubmit="return confirm('Hapus promosi ini?')">
+                                <form method="POST" action="{{ route('admin.promotions.destroy', $promotion) }}" onsubmit="return confirm('Delete this promotion?')">
                                     @csrf @method('DELETE')
                                     <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                                 </form>

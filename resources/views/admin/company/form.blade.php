@@ -182,7 +182,7 @@
                         <span class="material-symbols-rounded">cloud_download</span> SAP B1 Import
                     </a>
                 @elseif ($company->sap_enabled && ! $company->hasSapConfig())
-                    <span class="badge inactive">ON — kredensial belum lengkap</span>
+                    <span class="badge inactive">ON — credentials incomplete</span>
                 @else
                     <span class="badge inactive">Inactive (standalone)</span>
                 @endif
@@ -233,7 +233,7 @@
                     <label for="sap_allow_self_signed">Allow Self-Signed Certificate</label>
                 </div>
                 <div class="hint" style="display: none">
-                    Server SAP B1 internal biasanya memakai self-signed certificate — centang ini agar tes koneksi tidak
+                    Internal SAP B1 servers usually use a self-signed certificate — check this so the connection test does not
                     fail with an SSL error. <strong>Disable only for trusted internal networks.</strong>
                 </div>
             </div>
@@ -348,7 +348,7 @@
                         },
                         body: JSON.stringify(body)
                     }).then(function (r) { return r.json(); }).then(function (data) {
-                        show(data.message || 'Tes koneksi gagal.', data.success ? 'md-snackbar success' : 'md-snackbar error');
+                        show(data.message || 'Connection test failed.', data.success ? 'md-snackbar success' : 'md-snackbar error');
                         return data;
                     }).catch(function (e) {
                         show('Gagal memproses tes koneksi: ' + e, 'md-snackbar error');

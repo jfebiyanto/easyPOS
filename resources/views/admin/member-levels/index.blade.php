@@ -69,12 +69,12 @@
                     <td><strong>{{ $level->name }}</strong></td>
                     <td style="text-align:right;" class="money">{{ rtrim(rtrim(number_format((float) $level->min_points, 2, ',', '.'), '0'), ',') }}</td>
                     <td style="text-align:right;" class="money">Rp {{ number_format((float) $level->earn_amount_per_point, 0, ',', '.') }}</td>
-                    <td><span class="badge {{ $level->is_active ? 'active' : 'inactive' }}">{{ $level->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
+                    <td><span class="badge {{ $level->is_active ? 'active' : 'inactive' }}">{{ $level->is_active ? 'Active' : 'Inactive' }}</span></td>
                     <td style="text-align:right;">
                         <div class="actions-cell">
                             @unless ($readOnly)
                             <a href="{{ route('admin.member-levels.edit', $level) }}" class="btn btn-tonal btn-sm">Edit</a>
-                            <form method="POST" action="{{ route('admin.member-levels.destroy', $level) }}" onsubmit="return confirm('Hapus level ini?')">
+                            <form method="POST" action="{{ route('admin.member-levels.destroy', $level) }}" onsubmit="return confirm('Delete this tier?')">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                             </form>

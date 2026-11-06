@@ -243,7 +243,7 @@ class PromotionTest extends TestCase
             ->get(route('admin.promotions.index'))
             ->assertOk()
             ->assertSee('Kopi Susu')
-            ->assertSee('Beli 2 Gratis 1 Cookies · maks. 3×');
+            ->assertSee('Buy 2 Get 1 Free Cookies · max. 3×');
     }
 
     public function test_api_memakai_validasi_yang_sama(): void

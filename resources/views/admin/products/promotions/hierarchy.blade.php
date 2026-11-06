@@ -21,8 +21,8 @@
                     <span class="rank mono" style="min-width:24px; font-weight:600;"></span>
                     <input type="hidden" name="order[]" value="{{ $key }}">
                     <span style="flex:1;">{{ $sources[$key] }}</span>
-                    <button type="button" class="btn btn-tonal btn-sm" data-move="-1" aria-label="Naikkan {{ $sources[$key] }}"><span class="material-symbols-rounded">arrow_upward</span></button>
-                    <button type="button" class="btn btn-tonal btn-sm" data-move="1" aria-label="Turunkan {{ $sources[$key] }}"><span class="material-symbols-rounded">arrow_downward</span></button>
+                    <button type="button" class="btn btn-tonal btn-sm" data-move="-1" aria-label="Move up {{ $sources[$key] }}"><span class="material-symbols-rounded">arrow_upward</span></button>
+                    <button type="button" class="btn btn-tonal btn-sm" data-move="1" aria-label="Move down {{ $sources[$key] }}"><span class="material-symbols-rounded">arrow_downward</span></button>
                 </li>
             @endforeach
         </ol>

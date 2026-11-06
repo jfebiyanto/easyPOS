@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
-@section('title', $group->exists ? 'Edit Grup Pelanggan' : 'Tambah Grup Pelanggan')
-@section('page_title', $group->exists ? 'Edit Grup Pelanggan' : 'Tambah Grup Pelanggan')
+@section('title', $group->exists ? 'Edit Customer Group' : 'Add Customer Group')
+@section('page_title', $group->exists ? 'Edit Customer Group' : 'Add Customer Group')
 
 @php $fromSap = $group->isFromSap(); @endphp
 

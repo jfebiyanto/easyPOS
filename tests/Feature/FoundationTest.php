@@ -94,7 +94,7 @@ class FoundationTest extends TestCase
 
         $this->actingAs($this->owner)->get(route('admin.dashboard'))
             ->assertOk()
-            ->assertSee('Ganti Store Aktif')
+            ->assertSee('Switch Active Store')
             ->assertSee(route('admin.stores.switch', $other), false);
 
         $this->actingAs($this->owner)
@@ -112,7 +112,7 @@ class FoundationTest extends TestCase
         $this->actingAs($manager)->get(route('admin.dashboard'))
             ->assertOk()
             ->assertSee('STR001 · Store Satu')
-            ->assertDontSee('Ganti Store Aktif')
+            ->assertDontSee('Switch Active Store')
             ->assertDontSee('Edit Store Ini');
     }
 

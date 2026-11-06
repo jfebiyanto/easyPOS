@@ -60,7 +60,7 @@
                     <td>
                         <div class="actions-cell">
                             @if (auth()->user()->isSuperuser())
-                                <form method="POST" action="{{ route('admin.price-lists.items.destroy', [$priceList, $item]) }}" onsubmit="return confirm('Hapus item ini?')">
+                                <form method="POST" action="{{ route('admin.price-lists.items.destroy', [$priceList, $item]) }}" onsubmit="return confirm('Delete this item?')">
                                     @csrf @method('DELETE')
                                     <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                                 </form>

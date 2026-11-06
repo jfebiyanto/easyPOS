@@ -17,7 +17,7 @@
                 <label for="code">Currency Code (ISO) *</label>
                 <input type="text" id="code" name="code" value="{{ old('code', $currency->code) }}" required maxlength="3" style="text-transform: uppercase;" placeholder="IDR">
                 @error('code') <div class="error">{{ $message }}</div> @enderror
-                <div class="hint">Kode ISO 4217, 3 huruf — contoh: IDR, USD, SGD.</div>
+                <div class="hint">ISO 4217 code, 3 letters — e.g. IDR, USD, SGD.</div>
             </div>
             <div class="field @error('symbol') has-error @enderror">
                 <label for="symbol">Symbol *</label>

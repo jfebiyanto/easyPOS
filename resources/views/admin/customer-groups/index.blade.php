@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
-@section('title', 'Grup Pelanggan')
-@section('page_title', 'Grup Pelanggan')
+@section('title', 'Customer Groups')
+@section('page_title', 'Customer Groups')
 
 @section('content')
 <div class="table-toolbar">
@@ -17,9 +17,9 @@
     <table class="md-table">
         <thead>
             <tr>
-                <th>{!! sort_link('Kode', 'code') !!}</th>
-                <th>{!! sort_link('Nama', 'name') !!}</th>
-                <th>{!! sort_link('Sumber', 'source') !!}</th>
+                <th>{!! sort_link('Code', 'code') !!}</th>
+                <th>{!! sort_link('Name', 'name') !!}</th>
+                <th>{!! sort_link('Source', 'source') !!}</th>
                 <th style="text-align:right;">Customer</th>
                 <th>{!! sort_link('Status', 'is_active') !!}</th>
                 <th style="text-align:right;">Actions</th>
@@ -35,13 +35,13 @@
                     <td>{{ $group->name }}</td>
                     <td>{{ $group->isFromSap() ? 'SAP B1' : 'Manual' }}</td>
                     <td style="text-align:right;">{{ $group->customers_count }}</td>
-                    <td><span class="badge {{ $group->is_active ? 'active' : 'inactive' }}">{{ $group->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
+                    <td><span class="badge {{ $group->is_active ? 'active' : 'inactive' }}">{{ $group->is_active ? 'Active' : 'Inactive' }}</span></td>
                     <td>
                         <div class="actions-cell">
                             @unless ($readOnly)
                             <a href="{{ route('admin.customer-groups.edit', $group) }}" class="btn btn-tonal btn-sm">Edit</a>
                             @unless ($group->isFromSap())
-                                <form method="POST" action="{{ route('admin.customer-groups.destroy', $group) }}" onsubmit="return confirm('Hapus grup pelanggan ini?')">
+                                <form method="POST" action="{{ route('admin.customer-groups.destroy', $group) }}" onsubmit="return confirm('Delete this customer group?')">
                                     @csrf @method('DELETE')
                                     <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                                 </form>

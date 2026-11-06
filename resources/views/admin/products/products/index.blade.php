@@ -27,7 +27,7 @@
 <div class="table-wrap">
     <table class="md-table">
         <thead>
-            <tr><th>Image</th><th>{!! sort_link('SKU', 'sku') !!}</th><th>{!! sort_link('Nama', 'name') !!}</th><th>Group</th><th>Brand</th><th>Unit</th><th>{!! sort_link('Harga Dasar', 'base_price') !!}</th><th>{!! sort_link('Status', 'is_active') !!}</th><th style="text-align:right;">Actions</th></tr>
+            <tr><th>Image</th><th>{!! sort_link('SKU', 'sku') !!}</th><th>{!! sort_link('Name', 'name') !!}</th><th>Group</th><th>Brand</th><th>Unit</th><th>{!! sort_link('Base Price', 'base_price') !!}</th><th>{!! sort_link('Status', 'is_active') !!}</th><th style="text-align:right;">Actions</th></tr>
         </thead>
         <tbody>
             @forelse ($products as $product)
@@ -45,12 +45,12 @@
                     <td>{{ $product->brand->name ?? '-' }}</td>
                     <td>{{ $product->unit?->code ?? '-' }}</td>
                     <td>Rp {{ number_format($product->base_price, 0, ',', '.') }}</td>
-                    <td><span class="badge {{ $product->is_active ? 'active' : 'inactive' }}">{{ $product->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
+                    <td><span class="badge {{ $product->is_active ? 'active' : 'inactive' }}">{{ $product->is_active ? 'Active' : 'Inactive' }}</span></td>
                     <td>
                         <div class="actions-cell">
                             @unless ($readOnly)
                             <a href="{{ route('admin.products.edit', $product) }}" class="btn btn-tonal btn-sm">Edit</a>
-                            <form method="POST" action="{{ route('admin.products.destroy', $product) }}" onsubmit="return confirm('Hapus produk ini?')">
+                            <form method="POST" action="{{ route('admin.products.destroy', $product) }}" onsubmit="return confirm('Delete this product?')">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                             </form>

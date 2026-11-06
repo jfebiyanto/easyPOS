@@ -133,7 +133,7 @@
                         <span class="material-symbols-rounded" style="color: var(--md-primary);">store</span>
                         <div class="user-chip-text">
                             <span class="user-chip-name">{{ $activeStore->code }}</span>
-                            <span class="user-chip-role">Store Aktif</span>
+                            <span class="user-chip-role">Active Store</span>
                         </div>
                         <span class="material-symbols-rounded store-switcher-chevron">expand_more</span>
                     </button>
@@ -151,7 +151,7 @@
                             @endif
                         </div>
                         @if ($otherStores->isNotEmpty())
-                            <div class="store-switcher-label">Ganti Store Aktif</div>
+                            <div class="store-switcher-label">Switch Active Store</div>
                             <ul class="store-switcher-list">
                                 @foreach ($otherStores as $otherStore)
                                     <li>

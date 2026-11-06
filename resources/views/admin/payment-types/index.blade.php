@@ -17,7 +17,7 @@
     <table class="md-table">
         <thead>
             <tr>
-                <th>{!! sort_link('Kode', 'code') !!}</th>
+                <th>{!! sort_link('Code', 'code') !!}</th>
                 <th>Description</th>
                 <th>{!! sort_link('Order', 'order_number') !!}</th>
                 <th>{!! sort_link('Count Type', 'count_type') !!}</th>
@@ -46,12 +46,12 @@
                             <span style="font-size:12px; color: var(--md-on-surface-variant);">+{{ $gerai->count() - 3 }} lagi</span>
                         @endif
                     </td>
-                    <td><span class="badge {{ $paymentType->is_active ? 'active' : 'inactive' }}">{{ $paymentType->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
+                    <td><span class="badge {{ $paymentType->is_active ? 'active' : 'inactive' }}">{{ $paymentType->is_active ? 'Active' : 'Inactive' }}</span></td>
                     <td>
                         <div class="actions-cell">
                             @unless ($readOnly)
                             <a href="{{ route('admin.payment-types.edit', $paymentType) }}" class="btn btn-tonal btn-sm">Edit</a>
-                            <form method="POST" action="{{ route('admin.payment-types.destroy', $paymentType) }}" onsubmit="return confirm('Hapus tipe pembayaran ini?')">
+                            <form method="POST" action="{{ route('admin.payment-types.destroy', $paymentType) }}" onsubmit="return confirm('Delete this payment method?')">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                             </form>
