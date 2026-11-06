@@ -6,9 +6,11 @@
 @section('content')
 <div class="table-toolbar">
     <h2 style="margin:0; font-size:16px;">Grup Pelanggan (Customer Group)</h2>
+    @unless ($readOnly)
     <a href="{{ route('admin.customer-groups.create') }}" class="btn btn-filled">
         <span class="material-symbols-rounded">add</span> Tambah Grup
     </a>
+    @endunless
 </div>
 
 <div class="table-wrap">
@@ -36,12 +38,14 @@
                     <td><span class="badge {{ $group->is_active ? 'active' : 'inactive' }}">{{ $group->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
                     <td>
                         <div class="actions-cell">
+                            @unless ($readOnly)
                             <a href="{{ route('admin.customer-groups.edit', $group) }}" class="btn btn-tonal btn-sm">Edit</a>
                             @unless ($group->isFromSap())
                                 <form method="POST" action="{{ route('admin.customer-groups.destroy', $group) }}" onsubmit="return confirm('Hapus grup pelanggan ini?')">
                                     @csrf @method('DELETE')
                                     <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
                                 </form>
+                            @endunless
                             @endunless
                         </div>
                     </td>

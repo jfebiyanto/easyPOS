@@ -30,20 +30,19 @@
                 </div>
 
             @php
-                $isSuperuser = auth()->user()->isSuperuser();
                 $navGroups = [
                     'konfigurasi' => ['Konfigurasi', [
                         ['admin.company.edit', 'apartment', 'Identitas Perusahaan', true],
-                        ['admin.sap-import.index', 'cloud_download', 'Impor Data SAP B1', $isSuperuser && \App\Models\CompanyDetail::current()->sapIntegrationActive()],
-                        ['admin.sap-postings.index', 'cloud_upload', 'Integration Monitor', $isSuperuser && \App\Models\CompanyDetail::current()->sapIntegrationActive()],
-                        ['admin.stores.index', 'store', 'Daftar Gerai', $isSuperuser],
-                        ['admin.warehouses.index', 'warehouse', 'Warehouse', $isSuperuser],
-                        ['admin.tax-groups.index', 'percent', 'Tax Group', $isSuperuser],
-                        ['admin.users.index', 'group', 'Daftar User', $isSuperuser],
-                        ['admin.member-levels.index', 'workspace_premium', 'Level Member', $isSuperuser],
-                        ['admin.numberings.index', 'pin', 'Penomoran', $isSuperuser],
-                        ['admin.currencies.index', 'payments', 'Mata Uang', $isSuperuser],
-                        ['admin.payment-types.index', 'credit_card', 'Tipe Pembayaran', $isSuperuser],
+                        ['admin.sap-import.index', 'cloud_download', 'Impor Data SAP B1', \App\Models\CompanyDetail::current()->sapIntegrationActive()],
+                        ['admin.sap-postings.index', 'cloud_upload', 'Integration Monitor', \App\Models\CompanyDetail::current()->sapIntegrationActive()],
+                        ['admin.stores.index', 'store', 'Daftar Gerai', true],
+                        ['admin.warehouses.index', 'warehouse', 'Warehouse', true],
+                        ['admin.tax-groups.index', 'percent', 'Tax Group', true],
+                        ['admin.users.index', 'group', 'Daftar User', true],
+                        ['admin.member-levels.index', 'workspace_premium', 'Level Member', true],
+                        ['admin.numberings.index', 'pin', 'Penomoran', true],
+                        ['admin.currencies.index', 'payments', 'Mata Uang', true],
+                        ['admin.payment-types.index', 'credit_card', 'Tipe Pembayaran', true],
                     ]],
                     'produk' => ['Produk', [
                         ['admin.groups.index', 'category', 'Kategori Produk', true],
@@ -53,7 +52,7 @@
                         ['admin.bundles.index', 'workspaces', 'Produk Paket', true],
                         ['admin.price-lists.index', 'sell', 'Daftar Harga', true],
                         ['admin.promotions.index', 'percent', 'Promosi', true],
-                        ['admin.promotion-hierarchy.edit', 'low_priority', 'Hierarki Promosi', $isSuperuser],
+                        ['admin.promotion-hierarchy.edit', 'low_priority', 'Hierarki Promosi', true],
                     ]],
                     'stok' => ['Stok', [
                         ['admin.stock.index', 'warehouse', 'Saldo Stok', true],
@@ -61,7 +60,7 @@
                         ['admin.stock-transfers.index', 'swap_horiz', 'Transfer Stok', true],
                     ]],
                     'operasional' => ['Operasional', [
-                        ['admin.customer-groups.index', 'diversity_3', 'Grup Pelanggan', $isSuperuser],
+                        ['admin.customer-groups.index', 'diversity_3', 'Grup Pelanggan', true],
                         ['admin.supplier-groups.index', 'groups_3', 'Grup Pemasok', true],
                         ['admin.customers.index', 'person', 'Daftar Pelanggan', true],
                         ['admin.suppliers.index', 'local_shipping', 'Daftar Pemasok', true],
@@ -72,8 +71,8 @@
                     'laporan' => ['Laporan', [
                         ['admin.reports.index', 'bar_chart', 'Laporan Penjualan', true],
                         ['admin.cancellations.index', 'block', 'Pembatalan Transaksi', true],
-                        ['admin.logs.index', 'history', 'Log Aktivitas', $isSuperuser],
-                        ['admin.pos-sessions.index', 'devices', 'Sesi Kasir', $isSuperuser],
+                        ['admin.logs.index', 'history', 'Log Aktivitas', true],
+                        ['admin.pos-sessions.index', 'devices', 'Sesi Kasir', true],
                     ]],
                 ];
             @endphp
@@ -81,7 +80,7 @@
             {{-- Semua grup tertutup secara default; hanya grup berisi halaman aktif yang terbuka. --}}
             @foreach ($navGroups as $section => [$sectionLabel, $items])
                 @php
-                    $items = array_filter($items, fn ($item) => $item[3]);
+                    $items = array_filter($items, fn ($item) => $item[3] && \App\Support\BackofficeAccess::visible(auth()->user(), $item[0]));
                     $isOpen = collect($items)->contains(fn ($item) => navitem_active($item[0]));
                 @endphp
                 <div class="nav-group {{ $isOpen ? '' : 'collapsed' }}" data-section="{{ $section }}">

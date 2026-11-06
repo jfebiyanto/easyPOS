@@ -176,6 +176,63 @@ class BackofficeAccessTest extends TestCase
         $this->actingAs($this->manager)->post(route('admin.member-levels.store'), ['name' => 'Gold'])->assertForbidden();
     }
 
+    public function test_menu_store_manager_menyembunyikan_halaman_tertutup_dan_menampilkan_sisanya(): void
+    {
+        $response = $this->actingAs($this->manager)->get(route('admin.dashboard'))->assertOk();
+
+        foreach (['admin.company.edit', 'admin.numberings.index'] as $name) {
+            $response->assertDontSee('href="'.route($name).'"', false);
+        }
+        foreach (['admin.users.index', 'admin.eod.index', 'admin.logs.index', 'admin.pos-sessions.index', 'admin.stores.index'] as $name) {
+            $response->assertSee('href="'.route($name).'"', false);
+        }
+    }
+
+    public function test_menu_owner_tetap_lengkap(): void
+    {
+        $response = $this->actingAs($this->owner)->get(route('admin.dashboard'))->assertOk();
+
+        foreach (['admin.company.edit', 'admin.numberings.index', 'admin.users.index'] as $name) {
+            $response->assertSee('href="'.route($name).'"', false);
+        }
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function masterListPages(): array
+    {
+        $names = [
+            'admin.products', 'admin.customers', 'admin.price-lists', 'admin.promotions', 'admin.groups', 'admin.units',
+            'admin.brands', 'admin.stores', 'admin.warehouses', 'admin.tax-groups', 'admin.users', 'admin.currencies',
+            'admin.payment-types', 'admin.customer-groups', 'admin.member-levels',
+        ];
+
+        return array_combine($names, array_map(fn (string $name) => [$name], $names));
+    }
+
+    #[DataProvider('masterListPages')]
+    public function test_halaman_baca_saja_tidak_menampilkan_tombol_tulis_untuk_store_manager(string $prefix): void
+    {
+        $this->actingAs($this->manager)->get(route($prefix.'.index'))
+            ->assertOk()
+            ->assertDontSee(route($prefix.'.create'), false)
+            ->assertDontSee('name="_method" value="DELETE"', false);
+    }
+
+    #[DataProvider('masterListPages')]
+    public function test_owner_tetap_melihat_tombol_tambah(string $prefix): void
+    {
+        $this->actingAs($this->owner)->get(route($prefix.'.index'))->assertOk()->assertSee(route($prefix.'.create'), false);
+    }
+
+    public function test_area_tulis_menampilkan_tombol_untuk_store_manager(): void
+    {
+        $this->actingAs($this->manager)->get(route('admin.stock-adjustments.index'))
+            ->assertOk()
+            ->assertSee(route('admin.stock-adjustments.create'), false);
+    }
+
     public function test_store_manager_tanpa_gerai_ditolak_403(): void
     {
         $stateless = $this->makeUser('manager2', User::ROLE_STORE_MANAGER, null);

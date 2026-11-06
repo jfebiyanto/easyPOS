@@ -42,16 +42,20 @@
             </div>
         </div>
         <div class="form-actions">
+            @unless ($readOnly)
             <button type="submit" class="btn btn-filled"><span class="material-symbols-rounded">save</span> Simpan Konfigurasi</button>
+            @endunless
         </div>
     </form>
 </div>
 
 <div class="table-toolbar">
     <h2 style="margin:0; font-size:16px;">Daftar Level</h2>
+    @unless ($readOnly)
     <a href="{{ route('admin.member-levels.create') }}" class="btn btn-filled">
         <span class="material-symbols-rounded">add</span> Tambah Level
     </a>
+    @endunless
 </div>
 
 <div class="table-wrap">
@@ -68,11 +72,13 @@
                     <td><span class="badge {{ $level->is_active ? 'active' : 'inactive' }}">{{ $level->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
                     <td style="text-align:right;">
                         <div class="actions-cell">
+                            @unless ($readOnly)
                             <a href="{{ route('admin.member-levels.edit', $level) }}" class="btn btn-tonal btn-sm">Edit</a>
                             <form method="POST" action="{{ route('admin.member-levels.destroy', $level) }}" onsubmit="return confirm('Hapus level ini?')">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
                             </form>
+                            @endunless
                         </div>
                     </td>
                 </tr>

@@ -6,9 +6,11 @@
 @section('content')
 <div class="table-toolbar">
     <h2 style="margin:0; font-size:16px;">Daftar Satuan</h2>
+    @unless ($readOnly)
     <a href="{{ route('admin.units.create') }}" class="btn btn-filled">
         <span class="material-symbols-rounded">add</span> Tambah Satuan
     </a>
+    @endunless
 </div>
 
 <div class="table-wrap">
@@ -31,11 +33,13 @@
                     <td><span class="badge {{ $unit->is_active ? 'active' : 'inactive' }}">{{ $unit->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
                     <td>
                         <div class="actions-cell">
+                            @unless ($readOnly)
                             <a href="{{ route('admin.units.edit', $unit) }}" class="btn btn-tonal btn-sm">Edit</a>
                             <form method="POST" action="{{ route('admin.units.destroy', $unit) }}" onsubmit="return confirm('Hapus satuan {{ $unit->code }}?')">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
                             </form>
+                            @endunless
                         </div>
                     </td>
                 </tr>

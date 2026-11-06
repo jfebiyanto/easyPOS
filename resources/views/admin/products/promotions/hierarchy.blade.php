@@ -30,7 +30,9 @@
         @error('order.*') <div class="error">{{ $message }}</div> @enderror
 
         <div class="form-actions">
+            @unless ($readOnly)
             <button type="submit" class="btn btn-filled"><span class="material-symbols-rounded">save</span> Simpan</button>
+            @endunless
             <a href="{{ route('admin.promotions.index') }}" class="btn btn-outline">Kembali</a>
         </div>
     </form>

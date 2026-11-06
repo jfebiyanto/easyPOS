@@ -6,9 +6,11 @@
 @section('content')
 <div class="table-toolbar">
     <h2 style="margin:0; font-size:16px;">Tax Group (Output Tax)</h2>
+    @unless ($readOnly)
     <a href="{{ route('admin.tax-groups.create') }}" class="btn btn-filled">
         <span class="material-symbols-rounded">add</span> Tambah Tax Group
     </a>
+    @endunless
 </div>
 
 <div class="table-wrap">
@@ -32,12 +34,14 @@
                             @if ($taxGroup->isFromSap())
                                 <span class="hint">Hanya-baca (dari SAP)</span>
                             @else
+                                @unless ($readOnly)
                                 <a href="{{ route('admin.tax-groups.edit', $taxGroup) }}" class="btn btn-tonal btn-sm">Edit</a>
                                 <form method="POST" action="{{ route('admin.tax-groups.destroy', $taxGroup) }}" onsubmit="return confirm('Hapus Tax Group ini?')">
                                     @csrf @method('DELETE')
                                     <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
                                 </form>
                             @endif
+                                @endunless
                         </div>
                     </td>
                 </tr>

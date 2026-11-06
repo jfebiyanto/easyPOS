@@ -17,9 +17,11 @@
             <button type="submit" class="btn btn-tonal"><span class="material-symbols-rounded">search</span></button>
         </div>
     </form>
+    @unless ($readOnly)
     <a href="{{ route('admin.products.create') }}" class="btn btn-filled">
         <span class="material-symbols-rounded">add</span> Tambah Produk
     </a>
+    @endunless
 </div>
 
 <div class="table-wrap">
@@ -46,11 +48,13 @@
                     <td><span class="badge {{ $product->is_active ? 'active' : 'inactive' }}">{{ $product->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
                     <td>
                         <div class="actions-cell">
+                            @unless ($readOnly)
                             <a href="{{ route('admin.products.edit', $product) }}" class="btn btn-tonal btn-sm">Edit</a>
                             <form method="POST" action="{{ route('admin.products.destroy', $product) }}" onsubmit="return confirm('Hapus produk ini?')">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
                             </form>
+                            @endunless
                         </div>
                     </td>
                 </tr>

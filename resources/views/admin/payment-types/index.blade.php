@@ -6,9 +6,11 @@
 @section('content')
 <div class="table-toolbar">
     <h2 style="margin:0; font-size:16px;">Daftar Tipe Pembayaran</h2>
+    @unless ($readOnly)
     <a href="{{ route('admin.payment-types.create') }}" class="btn btn-filled">
         <span class="material-symbols-rounded">add</span> Tambah Tipe Pembayaran
     </a>
+    @endunless
 </div>
 
 <div class="table-wrap">
@@ -47,11 +49,13 @@
                     <td><span class="badge {{ $paymentType->is_active ? 'active' : 'inactive' }}">{{ $paymentType->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
                     <td>
                         <div class="actions-cell">
+                            @unless ($readOnly)
                             <a href="{{ route('admin.payment-types.edit', $paymentType) }}" class="btn btn-tonal btn-sm">Edit</a>
                             <form method="POST" action="{{ route('admin.payment-types.destroy', $paymentType) }}" onsubmit="return confirm('Hapus tipe pembayaran ini?')">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
                             </form>
+                            @endunless
                         </div>
                     </td>
                 </tr>

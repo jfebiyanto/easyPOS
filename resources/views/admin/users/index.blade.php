@@ -21,9 +21,11 @@
                 @endforeach
             </select>
         </form>
+        @unless ($readOnly)
         <a href="{{ route('admin.users.create') }}" class="btn btn-filled">
             <span class="material-symbols-rounded">person_add</span> Tambah User
         </a>
+        @endunless
     </div>
 </div>
 
@@ -51,6 +53,7 @@
                     <td><span class="badge {{ $user->is_active ? 'active' : 'inactive' }}">{{ $user->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
                     <td>
                         <div class="actions-cell">
+                            @unless ($readOnly)
                             <a href="{{ route('admin.users.edit', $user) }}" class="btn btn-tonal btn-sm">Edit</a>
                             @if ($user->id !== auth()->id())
                                 <form method="POST" action="{{ route('admin.users.destroy', $user) }}" onsubmit="return confirm('Hapus user ini?')">
@@ -58,6 +61,7 @@
                                     <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
                                 </form>
                             @endif
+                            @endunless
                         </div>
                     </td>
                 </tr>

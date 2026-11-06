@@ -36,6 +36,7 @@
     </div>
 </div>
 
+@unless ($readOnly)
 <div class="card">
     <h2 class="card-title">Penyesuaian Poin</h2>
     <form method="POST" action="{{ route('admin.customers.adjust-points', $customer) }}">
@@ -57,6 +58,7 @@
         </div>
     </form>
 </div>
+@endunless
 
 <div class="card">
     <h2 class="card-title">Riwayat Poin</h2>

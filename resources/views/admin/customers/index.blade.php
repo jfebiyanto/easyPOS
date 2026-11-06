@@ -24,9 +24,11 @@
             <button type="submit" class="btn btn-tonal"><span class="material-symbols-rounded">search</span></button>
         </div>
     </form>
+    @unless ($readOnly)
     <a href="{{ route('admin.customers.create') }}" class="btn btn-filled">
         <span class="material-symbols-rounded">person_add</span> Tambah Pelanggan
     </a>
+    @endunless
 </div>
 
 <div class="table-wrap">
@@ -59,11 +61,13 @@
                     <td style="text-align:right;">
                         <div class="actions-cell">
                             <a href="{{ route('admin.customers.show', $customer) }}" class="btn btn-tonal btn-sm">Detail</a>
+                            @unless ($readOnly)
                             <a href="{{ route('admin.customers.edit', $customer) }}" class="btn btn-tonal btn-sm">Edit</a>
                             <form method="POST" action="{{ route('admin.customers.destroy', $customer) }}" onsubmit="return confirm('Hapus pelanggan ini?')">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
                             </form>
+                            @endunless
                         </div>
                     </td>
                 </tr>

@@ -12,9 +12,11 @@
                 <span class="material-symbols-rounded">low_priority</span> Hierarki Promosi
             </a>
         @endif
+        @unless ($readOnly)
         <a href="{{ route('admin.promotions.create') }}" class="btn btn-filled">
             <span class="material-symbols-rounded">add</span> Tambah Promosi
         </a>
+        @endunless
     </div>
 </div>
 
@@ -41,11 +43,13 @@
                             <div class="actions-cell"><span class="hint">Hanya-baca</span></div>
                         @else
                             <div class="actions-cell">
+                                @unless ($readOnly)
                                 <a href="{{ route('admin.promotions.edit', $promotion) }}" class="btn btn-tonal btn-sm">Edit</a>
                                 <form method="POST" action="{{ route('admin.promotions.destroy', $promotion) }}" onsubmit="return confirm('Hapus promosi ini?')">
                                     @csrf @method('DELETE')
                                     <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
                                 </form>
+                                @endunless
                             </div>
                         @endif
                     </td>
