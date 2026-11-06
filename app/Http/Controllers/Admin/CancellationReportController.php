@@ -66,7 +66,7 @@ class CancellationReportController extends Controller
 
         $dir = storage_path('app/tmp');
         File::ensureDirectoryExists($dir);
-        $filename = "pembatalan_transaksi_{$from}_{$to}";
+        $filename = "voids_cancellations_{$from}_{$to}";
         $path = $dir.DIRECTORY_SEPARATOR.$filename.'.xlsx';
 
         $writer = new Writer;

@@ -240,7 +240,7 @@ class CancellationReportTest extends TestCase
         $response = $this->actingAs($this->owner)->get(route('admin.cancellations.export', ['from' => now()->subDay()->toDateString(), 'to' => now()->addDay()->toDateString()]));
 
         $response->assertOk();
-        $this->assertStringContainsString('pembatalan_transaksi_', (string) $response->headers->get('content-disposition'));
+        $this->assertStringContainsString('voids_cancellations_', (string) $response->headers->get('content-disposition'));
     }
 
     public function test_laporan_dikelompokkan_per_gerai_dengan_ringkasan_di_judul(): void
@@ -251,7 +251,7 @@ class CancellationReportTest extends TestCase
 
         $response = $this->actingAs($this->owner)->get(route('admin.cancellations.index'))->assertOk();
 
-        $response->assertSeeInOrder(['STR001 · Gerai A', '2 pembatalan', 'Rp 12.000', '1 void', '1 batal sebelum bayar', 'STR002 · Gerai B', '1 pembatalan', 'Rp 1.000']);
+        $response->assertSeeInOrder(['STR001 · Gerai A', '2 cancellations', 'Rp 12.000', '1 void', '1 cancelled before payment', 'STR002 · Gerai B', '1 cancellation', 'Rp 1.000']);
         $this->assertSame(2, substr_count($response->getContent(), 'class="cancel-group"'));
         $response->assertSee('Expand all')->assertSee('Collapse all');
     }

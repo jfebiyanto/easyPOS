@@ -62,8 +62,8 @@
 
 <div class="table-toolbar">
     <div>
-        <strong>{{ number_format($summary['count'], 0, ',', '.') }}</strong> pembatalan ·
-        nilai <strong>{{ $rupiah($summary['total']) }}</strong>
+        <strong>{{ number_format($summary['count'], 0, ',', '.') }}</strong> {{ \Illuminate\Support\Str::plural('cancellation', $summary['count']) }} ·
+        value <strong>{{ $rupiah($summary['total']) }}</strong>
     </div>
     <div style="display:flex; gap:8px;">
         <button type="button" class="btn btn-tonal btn-sm" data-cancel-toggle="open">Expand all</button>
@@ -79,13 +79,13 @@
         <summary>
             <span class="material-symbols-rounded cancel-chevron" aria-hidden="true">expand_more</span>
             <strong>{{ $group->store_label ?? 'Unknown store' }}</strong>
-            <span class="cancel-stat">{{ number_format($group->total_count, 0, ',', '.') }} pembatalan</span>
+            <span class="cancel-stat">{{ number_format($group->total_count, 0, ',', '.') }} {{ \Illuminate\Support\Str::plural('cancellation', $group->total_count) }}</span>
             <span class="cancel-stat">{{ $rupiah($group->total_value) }}</span>
             @if ((int) $group->void_count > 0)
                 <span class="chip chip-danger">{{ (int) $group->void_count }} void</span>
             @endif
             @if ($group->total_count - (int) $group->void_count > 0)
-                <span class="chip chip-neutral">{{ $group->total_count - (int) $group->void_count }} batal sebelum bayar</span>
+                <span class="chip chip-neutral">{{ $group->total_count - (int) $group->void_count }} cancelled before payment</span>
             @endif
         </summary>
 
@@ -107,7 +107,7 @@
                         <tr>
                             <td class="mono" style="white-space:nowrap;">
                                 {{ $c->occurred_at->timezone($timezone)->format('d/m/Y H:i:s') }}
-                                @if ($c->isLate()) <div><span class="chip chip-neutral" title="Dicatat {{ $c->created_at->timezone($timezone)->format('d/m/Y H:i:s') }}">Offline</span></div> @endif
+                                @if ($c->isLate()) <div><span class="chip chip-neutral" title="Recorded {{ $c->created_at->timezone($timezone)->format('d/m/Y H:i:s') }}">Offline</span></div> @endif
                             </td>
                             <td>
                                 <span class="chip {{ $c->type === 'sale_void' ? 'chip-danger' : 'chip-neutral' }}">{{ \App\Models\PosCancellation::TYPE_LABELS[$c->type] ?? $c->type }}</span>
@@ -118,7 +118,7 @@
                             <td style="min-width:220px;">
                                 @if (! empty($c->items))
                                     <details>
-                                        <summary>{{ $c->item_count }} barang</summary>
+                                        <summary>{{ $c->item_count }} {{ \Illuminate\Support\Str::plural('item', $c->item_count) }}</summary>
                                         <ul style="margin:6px 0 0; padding-left:18px;">
                                             @foreach ($c->items as $item)
                                                 <li>{{ $qty($item['qty']) }} × {{ $item['name'] ?? '-' }} @if (! empty($item['sku'])) <span class="hint mono">{{ $item['sku'] }}</span> @endif — {{ $rupiah($item['line_total']) }}</li>
@@ -126,9 +126,9 @@
                                         </ul>
                                     </details>
                                 @else
-                                    {{ $c->item_count }} barang
+                                    {{ $c->item_count }} {{ \Illuminate\Support\Str::plural('item', $c->item_count) }}
                                 @endif
-                                @if ($c->reason) <div class="hint">Alasan: {{ $c->reason }}</div> @endif
+                                @if ($c->reason) <div class="hint">Reason: {{ $c->reason }}</div> @endif
                             </td>
                             <td style="text-align:right;" class="money">{{ $rupiah($c->total) }}</td>
                             <td title="{{ $c->user_agent }}">
