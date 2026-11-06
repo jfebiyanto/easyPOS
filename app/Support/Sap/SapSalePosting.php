@@ -201,7 +201,7 @@ class SapSalePosting
                 'DocDueDate' => $sale->business_date->toDateString(),
                 'TaxDate' => $sale->business_date->toDateString(),
                 'NumAtCard' => Str::limit((string) $sale->number, 100, ''),
-                'Comments' => Str::limit("easyPOS {$sale->number}", 254, ''),
+                'JournalMemo' => Str::limit((string) $sale->number, 50, ''),
                 'DocumentLines' => $sale->lines->map(fn (SaleLine $line) => $this->invoiceLine($sale, $line))->values()->all(),
             ]);
 
@@ -265,7 +265,7 @@ class SapSalePosting
                 'CardCode' => $sale->customer->code,
                 'DocDate' => $sale->business_date->toDateString(),
                 'TaxDate' => $sale->business_date->toDateString(),
-                'Remarks' => Str::limit("easyPOS {$sale->number}", 254, ''),
+                'JournalRemarks' => Str::limit((string) $sale->number, 50, ''),
                 'PaymentInvoices' => [[
                     'DocEntry' => $sale->sap_invoice_doc_entry,
                     'InvoiceType' => 'it_Invoice',

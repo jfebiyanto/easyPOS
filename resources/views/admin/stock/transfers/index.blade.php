@@ -1,23 +1,25 @@
 @extends('layouts.admin')
 
-@section('title', 'Stock Transfers')
-@section('page_title', 'Stock Transfers')
+@section('title', 'Legacy Stock Transfers')
+@section('page_title', 'Legacy Stock Transfers')
 
 @section('content')
 <div class="table-toolbar">
-    <h2 style="margin:0; font-size:16px;">Transfer List</h2>
-    <a href="{{ route('admin.stock-transfers.create') }}" class="btn btn-filled">
-        <span class="material-symbols-rounded">add</span> Create Transfer
-    </a>
+    <h2 style="margin:0; font-size:16px;">Legacy Stock Transfers</h2>
+    <a href="{{ route('admin.stock-transfer-shipments.index') }}" class="btn btn-outline">Stock Transfer Shipment</a>
 </div>
+
+<p style="margin:0 0 12px; padding:10px 14px; border-radius:8px; background:var(--color-surface-variant, #eef1f5); font-size:13px;">
+    Read-only — replaced by Stock Transfer Shipment / Stock Transfer Receipt.
+</p>
 
 @php
     $chips = [
         'draft' => ['chip-neutral', 'Draft'],
-        'requested' => ['chip-info', 'Diminta'],
-        'shipped' => ['chip-pending', 'Dikirim'],
-        'received' => ['chip-success', 'Diterima'],
-        'cancelled' => ['chip-danger', 'Dibatalkan'],
+        'requested' => ['chip-info', 'Requested'],
+        'shipped' => ['chip-pending', 'Shipped'],
+        'received' => ['chip-success', 'Received'],
+        'cancelled' => ['chip-danger', 'Cancelled'],
     ];
 @endphp
 
@@ -30,7 +32,6 @@
                 <th>To</th>
                 <th>Items</th>
                 <th>Status</th>
-                <th style="text-align:right;">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -42,27 +43,9 @@
                     <td>{{ $tr->toStore?->code ?? '-' }}</td>
                     <td>{{ $tr->lines->count() }}</td>
                     <td><span class="chip {{ $chip }}">{{ $label }}</span></td>
-                    <td>
-                        <div class="actions-cell">
-                            @if (in_array($tr->status, ['draft', 'requested']))
-                                <form method="POST" action="{{ route('admin.stock-transfers.ship', $tr) }}" onsubmit="return confirm('Ship this transfer? Stock leaves the source store.')">
-                                    @csrf
-                                    <button type="submit" class="btn btn-filled btn-sm">Ship</button>
-                                </form>
-                                <form method="POST" action="{{ route('admin.stock-transfers.cancel', $tr) }}" onsubmit="return confirm('Cancel this transfer?')">
-                                    @csrf
-                                    <button type="submit" class="btn btn-outline btn-sm">Cancel</button>
-                                </form>
-                            @elseif ($tr->status === 'shipped')
-                                <a href="{{ route('admin.stock-transfers.receive-form', $tr) }}" class="btn btn-filled btn-sm">Receive</a>
-                            @else
-                                <span style="color:var(--color-text-muted); font-size:12px;">Completed</span>
-                            @endif
-                        </div>
-                    </td>
                 </tr>
             @empty
-                <tr><td colspan="6"><div class="empty-state"><span class="material-symbols-rounded">swap_horiz</span><p>No stock transfers yet.</p></div></td></tr>
+                <tr><td colspan="5"><div class="empty-state"><span class="material-symbols-rounded">swap_horiz</span><p>No stock transfers yet.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>

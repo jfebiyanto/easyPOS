@@ -118,6 +118,10 @@ class StoreController extends Controller
             return back()->with('error', 'Store still has users and cannot be deleted.');
         }
 
+        if ($store->hasStockTransferDocuments()) {
+            return back()->with('error', 'Store has stock transfer documents and cannot be deleted.');
+        }
+
         $store->priceLists()->detach();
         $store->delete();
 

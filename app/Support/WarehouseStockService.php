@@ -9,8 +9,8 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Saldo dan pergerakan stok per warehouse. Mutasi stok SAP B1 (OIVL) masuk lewat record()
- * sehingga on_hand = jumlah buku besar. Penjualan, retur, transfer, dan penyesuaian easyPOS
- * belum memakai buku besar ini.
+ * sehingga on_hand = jumlah buku besar. Penjualan POS dan transfer stok
+ * (Shipment/Receipt) easyPOS memakai buku besar ini dan diposting ke SAP; retur dan penyesuaian belum.
  */
 class WarehouseStockService
 {

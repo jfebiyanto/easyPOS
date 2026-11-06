@@ -156,12 +156,27 @@ Route::prefix('admin')
         Route::post('/stock-adjustments/{stockAdjustment}/post', [Admin\StockAdjustmentController::class, 'post'])->name('stock-adjustments.post');
 
         Route::get('/stock-transfers', [Admin\StockTransferController::class, 'index'])->name('stock-transfers.index');
-        Route::get('/stock-transfers/create', [Admin\StockTransferController::class, 'create'])->name('stock-transfers.create');
-        Route::post('/stock-transfers', [Admin\StockTransferController::class, 'store'])->name('stock-transfers.store');
-        Route::post('/stock-transfers/{stockTransfer}/ship', [Admin\StockTransferController::class, 'ship'])->name('stock-transfers.ship');
-        Route::get('/stock-transfers/{stockTransfer}/receive', [Admin\StockTransferController::class, 'receiveForm'])->name('stock-transfers.receive-form');
-        Route::post('/stock-transfers/{stockTransfer}/receive', [Admin\StockTransferController::class, 'receive'])->name('stock-transfers.receive');
-        Route::post('/stock-transfers/{stockTransfer}/cancel', [Admin\StockTransferController::class, 'cancel'])->name('stock-transfers.cancel');
+
+        Route::get('/stock-transfer-shipments', [Admin\StockTransferShipmentController::class, 'index'])->name('stock-transfer-shipments.index');
+        Route::get('/stock-transfer-shipments/create', [Admin\StockTransferShipmentController::class, 'create'])->name('stock-transfer-shipments.create');
+        Route::post('/stock-transfer-shipments', [Admin\StockTransferShipmentController::class, 'store'])->name('stock-transfer-shipments.store');
+        Route::get('/stock-transfer-shipments/{shipment}', [Admin\StockTransferShipmentController::class, 'show'])->name('stock-transfer-shipments.show');
+        Route::get('/stock-transfer-shipments/{shipment}/edit', [Admin\StockTransferShipmentController::class, 'edit'])->name('stock-transfer-shipments.edit');
+        Route::put('/stock-transfer-shipments/{shipment}', [Admin\StockTransferShipmentController::class, 'update'])->name('stock-transfer-shipments.update');
+        Route::delete('/stock-transfer-shipments/{shipment}', [Admin\StockTransferShipmentController::class, 'destroy'])->name('stock-transfer-shipments.destroy');
+        Route::post('/stock-transfer-shipments/{shipment}/post', [Admin\StockTransferShipmentController::class, 'post'])->name('stock-transfer-shipments.post');
+        Route::post('/stock-transfer-shipments/{shipment}/retry', [Admin\StockTransferShipmentController::class, 'retry'])->name('stock-transfer-shipments.retry');
+
+        Route::get('/stock-transfer-receipts', [Admin\StockTransferReceiptController::class, 'index'])->name('stock-transfer-receipts.index');
+        Route::get('/stock-transfer-receipts/create', [Admin\StockTransferReceiptController::class, 'create'])->name('stock-transfer-receipts.create');
+        Route::post('/stock-transfer-receipts', [Admin\StockTransferReceiptController::class, 'store'])->name('stock-transfer-receipts.store');
+        Route::get('/stock-transfer-receipts/{receipt}', [Admin\StockTransferReceiptController::class, 'show'])->name('stock-transfer-receipts.show');
+        Route::post('/stock-transfer-receipts/{receipt}/retry', [Admin\StockTransferReceiptController::class, 'retry'])->name('stock-transfer-receipts.retry');
+        Route::get('/stock-transfer-returns', [Admin\StockTransferReturnController::class, 'index'])->name('stock-transfer-returns.index');
+        Route::get('/stock-transfer-returns/create', [Admin\StockTransferReturnController::class, 'create'])->name('stock-transfer-returns.create');
+        Route::post('/stock-transfer-returns', [Admin\StockTransferReturnController::class, 'store'])->name('stock-transfer-returns.store');
+        Route::get('/stock-transfer-returns/{stockReturn}', [Admin\StockTransferReturnController::class, 'show'])->name('stock-transfer-returns.show');
+        Route::post('/stock-transfer-returns/{stockReturn}/retry', [Admin\StockTransferReturnController::class, 'retry'])->name('stock-transfer-returns.retry');
 
         // Product catalog
         Route::resource('warehouses', Admin\WarehouseController::class)->except('show');

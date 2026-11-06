@@ -255,6 +255,8 @@ class SapImportService
             $cashAccount = $this->cut($row['U_SOL_CASH_ACC'] ?? '', 25);
             $qrisAccount = $this->cut($row['U_SOL_QRIS_ACC'] ?? '', 25);
             $edcAccount = $this->cut($row['U_SOL_EDC_ACC'] ?? '', 25);
+            $transitCode = $this->cut($row['U_SOL_WHTR'] ?? '', 30);
+            $isTransit = ($row['U_SOL_ITWH'] ?? null) === 'Y';
 
             [, $outcome] = $this->store(Warehouse::class, ['code' => $code], [
                 'name' => $this->cut($row['WarehouseName'] ?? '', 255) ?: $code,
@@ -262,7 +264,10 @@ class SapImportService
                 'cash_account' => $cashAccount !== '' ? $cashAccount : null,
                 'qris_account' => $qrisAccount !== '' ? $qrisAccount : null,
                 'edc_account' => $edcAccount !== '' ? $edcAccount : null,
-                'is_retail' => ($row['U_SOL_RETAIL'] ?? null) === 'Y',
+                'transit_warehouse_code' => $transitCode !== '' ? $transitCode : null,
+                'is_transit' => $isTransit,
+                // Gudang in-transit selalu non-retail.
+                'is_retail' => ! $isTransit && ($row['U_SOL_RETAIL'] ?? null) === 'Y',
                 'is_active' => ($row['Inactive'] ?? 'tNO') !== 'tYES',
             ]);
 

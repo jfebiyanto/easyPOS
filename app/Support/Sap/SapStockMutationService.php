@@ -5,9 +5,13 @@ namespace App\Support\Sap;
 use App\Models\CompanyDetail;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Models\StockTransferReceipt;
+use App\Models\StockTransferReturn;
+use App\Models\StockTransferShipment;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
 use App\Models\WarehouseStockLedger;
+use App\Support\StockTransferService;
 use App\Support\WarehouseStockService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
@@ -137,7 +141,7 @@ class SapStockMutationService
                     return $result;
                 }
 
-                $linked = $this->linkToEasyPosSale($row);
+                $linked = $this->linkToEasyPosSale($row) || $this->linkToEasyPosTransfer($row);
                 $result[$linked || ! $this->apply($row) ? 'skipped' : 'created']++;
                 $known[$seq] = true;
                 $this->touchedSkus[(string) $row['ItemCode']] = true;
@@ -288,9 +292,49 @@ class SapStockMutationService
             return false;
         }
 
+        return $this->linkToLedger($row, 'sale', $saleId);
+    }
+
+    /**
+     * Mutasi dari Stock Transfer yang diposting easyPOS (Shipment/Receipt/Return) sudah tercatat saat dokumen dibuat:
+     * kedua baris OIVL (keluar dan masuk) ditautkan ke baris buku besar lawannya. Stock Transfer yang
+     * dibuat langsung di SAP tidak punya dokumen easyPOS dan disalin seperti biasa.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    private function linkToEasyPosTransfer(array $row): bool
+    {
+        if ((int) ($row['TransType'] ?? 0) !== SapStockTransferPosting::OBJ_STOCK_TRANSFER || ! isset($row['CreatedBy'])) {
+            return false;
+        }
+
+        $documents = [
+            StockTransferService::REF_SHIPMENT => StockTransferShipment::class,
+            StockTransferService::REF_RECEIPT => StockTransferReceipt::class,
+            StockTransferService::REF_RETURN => StockTransferReturn::class,
+        ];
+
+        foreach ($documents as $refType => $documentClass) {
+            $documentId = $documentClass::where('company_id', $this->company->id)->where('sap_doc_entry', (int) $row['CreatedBy'])->value('id');
+
+            if ($documentId !== null) {
+                return $this->linkToLedger($row, $refType, $documentId);
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Isi kolom sap_* pada satu baris buku besar dokumen easyPOS yang cocok (warehouse, produk, qty) dan belum tertaut.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    private function linkToLedger(array $row, string $refType, string $refId): bool
+    {
         $qty = round((float) ($row['InQty'] ?? 0) - (float) ($row['OutQty'] ?? 0), 3);
-        $ledger = WarehouseStockLedger::where('ref_type', 'sale')
-            ->where('ref_id', $saleId)
+        $ledger = WarehouseStockLedger::where('ref_type', $refType)
+            ->where('ref_id', $refId)
             ->where('warehouse_id', $this->warehouse((string) $row['LocCode'])->id)
             ->where('product_id', $this->productId((string) $row['ItemCode']))
             ->whereNull('sap_trans_seq')

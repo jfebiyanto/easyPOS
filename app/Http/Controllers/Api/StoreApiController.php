@@ -60,6 +60,10 @@ class StoreApiController extends ApiController
             return response()->json(['message' => 'Store still has users and cannot be deleted.'], 422);
         }
 
+        if ($store->hasStockTransferDocuments()) {
+            return response()->json(['message' => 'Store has stock transfer documents and cannot be deleted.'], 422);
+        }
+
         ActivityLogger::log('store.deleted', "Menghapus store (API): {$store->code} · {$store->name}", $store);
         $store->delete();
 

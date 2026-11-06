@@ -21,6 +21,7 @@ class NumberingConfig extends Model
         'stock_request' => 'Stock Request',
         'stock_transfer_shipment' => 'Stock Transfer Shipment',
         'stock_transfer_receipt' => 'Stock Transfer Receipt',
+        'stock_transfer_return' => 'Stock Transfer Return',
         'goods_receipt' => 'Goods Receipt',
         'goods_issue' => 'Goods Issue',
         'stock_counting' => 'Stock Counting',

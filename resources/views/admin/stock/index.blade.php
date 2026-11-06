@@ -70,4 +70,35 @@
         </tbody>
     </table>
 </div>
+
+@if ($transitWarehouse)
+    @php $inTransit = $products->filter(fn ($product) => round((float) ($transitBalances[$product->id]->on_hand ?? 0), 3) != 0); @endphp
+    <h2 style="margin:24px 0 8px; font-size:16px;">In-Transit Warehouse {{ $transitWarehouse->code }}</h2>
+    <p class="hint" style="margin-bottom:8px;">Stock shipped from this store that has not been received yet.</p>
+    <div class="table-wrap">
+        <table class="md-table">
+            <thead>
+                <tr>
+                    <th>SKU</th>
+                    <th>Product Name</th>
+                    <th>Unit</th>
+                    <th style="text-align:right;">Balance</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse ($inTransit as $product)
+                    @php $transitOnHand = (float) $transitBalances[$product->id]->on_hand; @endphp
+                    <tr>
+                        <td><a href="{{ route('admin.stock.mutations', ['product' => $product, 'store' => $storeId, 'transit' => 1]) }}"><strong class="sku">{{ $product->sku }}</strong></a></td>
+                        <td>{{ $product->name }}</td>
+                        <td>{{ $product->unit?->code ?? '-' }}</td>
+                        <td style="text-align:right;" class="money {{ $transitOnHand < 0 ? 'neg' : '' }}">{{ $fmt($transitOnHand) }}</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="4"><div class="empty-state"><span class="material-symbols-rounded">local_shipping</span><p>No stock in transit.</p></div></td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+@endif
 @endsection
