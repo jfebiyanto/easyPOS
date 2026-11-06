@@ -1,0 +1,5911 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>ERD easyPOS</title><style>body{font-family:"Segoe UI",Arial,sans-serif;font-size:9pt;line-height:1.3;margin:20px}h1{font-size:18pt;border-bottom:2px solid #333;margin-bottom:12px}h2{font-size:14pt;margin-top:18px;border-bottom:1px solid #ccc}h3{font-size:12pt;margin-top:14px}table{border-collapse:collapse;width:100%;font-size:8pt;margin-top:6px}th,td{border:1px solid #999;padding:4px;vertical-align:top}th{background:#f0f0f0}code{background:#f5f5f5;padding:1px 3px;font-size:8pt}pre{background:#f5f5f5;padding:8px;overflow-x:auto;font-size:7.5pt;white-space:pre-wrap}</style></head><body><h1>Entity Relationship Diagram (ERD) - easyPOS</h1>
+<p>Dokumen ini menggambarkan struktur database aplikasi <strong>easyPOS</strong> berdasarkan migration files yang sudah ada di <code>database/migrations</code>. Semua primary key menggunakan <strong>UUID v7</strong> (kecuali tabel framework Laravel seperti <code>jobs</code>, <code>cache</code>, <code>personal_access_tokens</code>).</p>
+<hr />
+<h2>Daftar Isi</h2>
+<ol>
+<li><a href="#1-konvensi--catatan-umum">Konvensi &amp; Catatan Umum</a></li>
+<li><a href="#2-diagram-erd-keseluruhan">Diagram ERD Keseluruhan</a></li>
+<li><a href="#3-diagram-per-modul">Diagram per Modul</a></li>
+<li>3.1 <a href="#31-master-data--konfigurasi">Master Data &amp; Konfigurasi</a></li>
+<li>3.2 <a href="#32-produk-harga--promosi">Produk, Harga &amp; Promosi</a></li>
+<li>3.3 <a href="#33-pelanggan--loyalty">Pelanggan &amp; Loyalty</a></li>
+<li>3.4 <a href="#34-penjualan">Penjualan</a></li>
+<li>3.5 <a href="#35-stok">Stok</a></li>
+<li>3.6 <a href="#36-pos-sesi--tutup-kasir">POS, Sesi &amp; Tutup Kasir</a></li>
+<li><a href="#4-detail-entitas">Detail Entitas</a>
+5 <a href="#5-tabel-relasi-foreign-keys">Tabel Relasi (Foreign Keys)</a></li>
+</ol>
+<hr />
+<h2>1. Konvensi &amp; Catatan Umum</h2>
+<table>
+<thead>
+<tr>
+<th>Aspek</th>
+<th>Konvensi</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Primary Key</strong></td>
+<td><code>id</code> UUID (v7) untuk hampir semua tabel domain.</td>
+</tr>
+<tr>
+<td><strong>Tenant/Company Scope</strong></td>
+<td>Hampir semua tabel memiliki <code>company_id</code> FK ke <code>company_details</code>.</td>
+</tr>
+<tr>
+<td><strong>Timestamps</strong></td>
+<td><code>created_at</code> &amp; <code>updated_at</code> Laravel standar, kecuali tabel log/ledger yang hanya <code>created_at</code>.</td>
+</tr>
+<tr>
+<td><strong>Soft Delete</strong></td>
+<td>Tidak digunakan; data dihapus secara fisik atau di-mark (<code>status</code>, <code>is_active</code>).</td>
+</tr>
+<tr>
+<td><strong>Currency</strong></td>
+<td><code>decimal(15,2)</code> untuk nilai uang; <code>decimal(15,3)</code> untuk quantity.</td>
+</tr>
+<tr>
+<td><strong>FK Cascade</strong></td>
+<td>Umumnya <code>cascadeOnDelete</code> untuk data perusahaan; <code>nullOnDelete</code> untuk referensi user/customer.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>2. Diagram ERD Keseluruhan</h2>
+<pre><code>erDiagram
+    COMPANY_DETAILS ||--o{ STORES : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ USERS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ UNITS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ PRODUCT_GROUPS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ BRANDS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ PRODUCTS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ PRICE_LISTS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ PROMOTIONS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ PAYMENT_TYPES : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ CREDIT_CARDS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ CURRENCIES : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ CUSTOMERS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ CUSTOMER_GROUPS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ MEMBER_LEVELS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ SALES : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ SALES_RETURNS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ STOCK_ADJUSTMENTS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ STOCK_TRANSFERS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ STOCK_LEDGER : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ STORE_CLOSURES : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ WAREHOUSES : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ WAREHOUSE_STOCKS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ WAREHOUSE_STOCK_LEDGERS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ TAX_GROUPS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ NUMBERING_CONFIGS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ ACTIVITY_LOGS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ POS_ACTIVE_CARTS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ POS_SESSIONS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ POS_CANCELLATIONS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ SAP_SYNC_RUNS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ LOYALTY_CONFIG : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--|| TAX_GROUPS : &quot;default_tax_group&quot;
+
+    STORES ||--o{ USERS : &quot;mempunyai&quot;
+    STORES ||--o{ SALES : &quot;terjadi di&quot;
+    STORES ||--o{ SALE_DRAFTS : &quot;terjadi di&quot;
+    STORES ||--o{ STOCK_LEDGER : &quot;pergerakan&quot;
+    STORES ||--o{ STOCK_ADJUSTMENTS : &quot;di&quot;
+    STORES ||--o{ STOCK_TRANSFERS_FROM : &quot;from&quot;
+    STORES ||--o{ STOCK_TRANSFERS_TO : &quot;to&quot;
+    STORES ||--o{ STORE_CLOSURES : &quot;ditutup&quot;
+    STORES ||--o{ POS_ACTIVE_CARTS : &quot;aktif di&quot;
+    STORES ||--o{ POS_SESSIONS : &quot;berlangsung di&quot;
+    STORES ||--o{ POS_CANCELLATIONS : &quot;di&quot;
+    STORES ||--o{ WAREHOUSES : &quot;1-1&quot;
+    STORES ||--o{ PRICE_LISTS : &quot;bisa punya&quot;
+    STORES ||--o{ PAYMENT_TYPES : &quot;terdaftar&quot;
+
+    USERS ||--o{ SALES : &quot;sebagai cashier&quot;
+    USERS ||--o{ SALES : &quot;sebagai resolver&quot;
+    USERS ||--o{ SALE_DRAFTS : &quot;membuat&quot;
+    USERS ||--o{ STOCK_LEDGER : &quot;membuat&quot;
+    USERS ||--o{ STOCK_ADJUSTMENTS : &quot;membuat&quot;
+    USERS ||--o{ STOCK_TRANSFERS : &quot;membuat&quot;
+    USERS ||--o{ STORE_CLOSURES : &quot;menutup&quot;
+    USERS ||--o{ STORE_CLOSURES : &quot;membuka ulang&quot;
+    USERS ||--o{ LOYALTY_LEDGER : &quot;membuat&quot;
+    USERS ||--o{ WAREHOUSE_STOCK_LEDGERS : &quot;membuat&quot;
+    USERS ||--o{ POS_SESSIONS : &quot;membuka&quot;
+    USERS ||--o{ POS_ACTIVE_CARTS : &quot;milik&quot;
+    USERS ||--o{ POS_CANCELLATIONS : &quot;membatalkan&quot;
+    USERS ||--o{ ACTIVITY_LOGS : &quot;actor&quot;
+
+    PRODUCT_GROUPS ||--o{ PRODUCTS : &quot;mengelompokkan&quot;
+    BRANDS ||--o{ PRODUCTS : &quot;brand&quot;
+    UNITS ||--o{ PRODUCTS : &quot;satuan&quot;
+    PRODUCTS ||--o{ SALE_LINES : &quot;terjual&quot;
+    PRODUCTS ||--o{ SALES_RETURN_LINES : &quot;dikembalikan&quot;
+    PRODUCTS ||--o{ PRICE_LIST_ITEMS : &quot;dipricing&quot;
+    PRODUCTS ||--o{ STOCK_LEDGER : &quot;bergerak&quot;
+    PRODUCTS ||--o{ STOCK_ADJUSTMENT_LINES : &quot;disesuaikan&quot;
+    PRODUCTS ||--o{ STOCK_TRANSFER_LINES : &quot;ditransfer&quot;
+    PRODUCTS ||--o{ WAREHOUSE_STOCKS : &quot;tersedia di&quot;
+    PRODUCTS ||--o{ WAREHOUSE_STOCK_LEDGERS : &quot;bergerak&quot;
+    PRODUCTS ||--o{ PROMOTIONS : &quot;promo&quot;
+    PRODUCTS ||--o{ PROMOTIONS : &quot;get_product&quot;
+
+    PRICE_LISTS ||--o{ PRICE_LIST_ITEMS : &quot;memuat&quot;
+    PRICE_LISTS ||--o{ STORES : &quot;default purchase&quot;
+
+    CUSTOMER_GROUPS ||--o{ CUSTOMERS : &quot;mengelompokkan&quot;
+    MEMBER_LEVELS ||--o{ CUSTOMERS : &quot;level&quot;
+    CUSTOMERS ||--o{ SALES : &quot;pembeli&quot;
+    CUSTOMERS ||--o{ LOYALTY_LEDGER : &quot;point&quot;
+    CUSTOMERS ||--o{ POS_CANCELLATIONS : &quot;dibatalkan&quot;
+
+    SALES ||--o{ SALE_LINES : &quot;memuat&quot;
+    SALES ||--o{ SALE_PAYMENTS : &quot;dibayar&quot;
+    SALES ||--o{ DELIVERIES : &quot;dikirim&quot;
+    SALES ||--o{ SALES_RETURNS : &quot;dasar return&quot;
+    SALES ||--o{ POS_CANCELLATIONS : &quot;void&quot;
+
+    SALE_LINES ||--o{ SALES_RETURN_LINES : &quot;dikembalikan&quot;
+    SALE_LINES ||--o{ PROMOTIONS : &quot;menggunakan&quot;
+
+    PAYMENT_TYPES ||--o{ SALE_PAYMENTS : &quot;cara bayar&quot;
+    PAYMENT_TYPES ||--o{ CREDIT_CARDS : &quot;mapping&quot;
+
+    CURRENCIES ||--o{ CURRENCY_DENOMINATIONS : &quot;pecahan&quot;
+
+    STOCK_ADJUSTMENTS ||--o{ STOCK_ADJUSTMENT_LINES : &quot;detail&quot;
+    STOCK_TRANSFERS ||--o{ STOCK_TRANSFER_LINES : &quot;detail&quot;
+
+    STORE_CLOSURES ||--o{ STORE_CLOSURE_DENOMINATIONS : &quot;pecahan&quot;
+
+    WAREHOUSES ||--o{ WAREHOUSE_STOCKS : &quot;saldo&quot;
+    WAREHOUSES ||--o{ WAREHOUSE_STOCK_LEDGERS : &quot;pergerakan&quot;
+
+    POS_SESSIONS ||--o{ POS_CANCELLATIONS : &quot;terkait&quot;
+</code></pre>
+<hr />
+<h2>3. Diagram per Modul</h2>
+<h3>3.1 Master Data &amp; Konfigurasi</h3>
+<pre><code>erDiagram
+    COMPANY_DETAILS {
+        uuid id PK
+        string name
+        text address
+        string logo_path
+        string npwp_number
+        string phone
+        string email
+        boolean ppn_enabled
+        decimal ppn_rate
+        boolean ppn_inclusive
+        uuid tax_group_id FK
+        string base_currency_code
+        string timezone
+        boolean allow_negative_stock
+        integer return_window_days
+        boolean return_require_receipt
+        json sku_config
+        text payment_providers
+        boolean sap_enabled
+        string sap_endpoint_url
+        string sap_db_name
+        string sap_username
+        text sap_password
+        json promotion_hierarchy
+        timestamps
+    }
+
+    COMPANY_DETAILS ||--|| TAX_GROUPS : &quot;default&quot;
+    COMPANY_DETAILS ||--o{ STORES : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ USERS : &quot;mempunyai&quot;
+    COMPANY_DETAILS ||--o{ NUMBERING_CONFIGS : &quot;punya&quot;
+    COMPANY_DETAILS ||--o{ ACTIVITY_LOGS : &quot;punya&quot;
+    COMPANY_DETAILS ||--o{ SAP_SYNC_RUNS : &quot;punya&quot;
+    COMPANY_DETAILS ||--|| LOYALTY_CONFIG : &quot;punya&quot;
+
+    TAX_GROUPS {
+        uuid id PK
+        uuid company_id FK
+        string code
+        string name
+        decimal rate
+        date effective_from
+        string source
+        boolean is_active
+        timestamps
+    }
+
+    STORES {
+        uuid id PK
+        uuid company_id FK
+        string code
+        string name
+        text address
+        string pic_name
+        string pic_phone
+        boolean ppn_enabled
+        decimal ppn_rate
+        string currency
+        uuid purchase_price_list_id FK
+        uuid warehouse_id FK
+        uuid default_customer_id FK
+        boolean is_active
+        timestamps
+    }
+
+    USERS {
+        uuid id PK
+        uuid company_id FK
+        uuid store_id FK
+        string name
+        string username UK
+        string email UK
+        string phone
+        enum role
+        boolean is_active
+        string password
+        timestamps
+    }
+
+    NUMBERING_CONFIGS {
+        uuid id PK
+        uuid company_id FK
+        string transaction_type
+        string prefix
+        integer padding
+        string separator
+        enum reset_period
+        string last_period
+        bigint last_number
+        timestamps
+    }
+
+    ACTIVITY_LOGS {
+        uuid id PK
+        uuid company_id FK
+        uuid actor_id FK
+        string actor_name
+        string action
+        string subject_type
+        uuid subject_id
+        text description
+        json properties
+        timestamp created_at
+    }
+
+    SAP_SYNC_RUNS {
+        uuid id PK
+        uuid company_id FK
+        string mode
+        string trigger
+        string status
+        json summary
+        text error
+        timestamp started_at
+        timestamp finished_at
+        timestamps
+    }
+</code></pre>
+<h3>3.2 Produk, Harga &amp; Promosi</h3>
+<pre><code>erDiagram
+    UNITS {
+        uuid id PK
+        uuid company_id FK
+        string code
+        string name
+        boolean is_active
+        timestamps
+    }
+
+    PRODUCT_GROUPS {
+        uuid id PK
+        uuid company_id FK
+        string code
+        string name
+        text description
+        boolean is_active
+        timestamps
+    }
+
+    BRANDS {
+        uuid id PK
+        uuid company_id FK
+        string code
+        string name
+        boolean is_active
+        timestamps
+    }
+
+    PRODUCTS {
+        uuid id PK
+        uuid company_id FK
+        uuid product_group_id FK
+        uuid brand_id FK
+        uuid unit_id FK
+        string sku
+        string barcode
+        string name
+        string image_path
+        text description
+        decimal base_price
+        decimal cost_price
+        boolean track_stock
+        boolean is_active
+        timestamps
+    }
+
+    PRICE_LISTS {
+        uuid id PK
+        uuid company_id FK
+        uuid store_id FK
+        string code
+        string name
+        boolean is_default
+        date effective_from
+        date effective_until
+        boolean is_active
+        timestamps
+    }
+
+    STORE_PRICE_LISTS {
+        uuid store_id PK,FK
+        uuid price_list_id PK,FK
+        boolean is_default
+        timestamps
+    }
+
+    PRICE_LIST_ITEMS {
+        uuid id PK
+        uuid price_list_id FK
+        uuid product_id FK
+        decimal price
+        integer min_qty
+        timestamps
+    }
+
+    PROMOTIONS {
+        uuid id PK
+        uuid company_id FK
+        string code
+        string name
+        string type
+        decimal value
+        uuid product_id FK
+        uuid get_product_id FK
+        uuid brand_id FK
+        uuid product_group_id FK
+        integer min_qty
+        integer buy_qty
+        integer get_qty
+        integer max_applications
+        timestamp starts_at
+        timestamp ends_at
+        boolean is_active
+        text description
+        timestamps
+    }
+
+    PRODUCTS }o--|| PRODUCT_GROUPS : &quot;group&quot;
+    PRODUCTS }o--|| BRANDS : &quot;brand&quot;
+    PRODUCTS }o--|| UNITS : &quot;unit&quot;
+    PRODUCTS ||--o{ PRICE_LIST_ITEMS : &quot;termuat&quot;
+    PRICE_LISTS ||--o{ PRICE_LIST_ITEMS : &quot;memuat&quot;
+    PRICE_LISTS }o--o{ STORES : &quot;store_price_lists&quot;
+    PRODUCTS }o--|| PROMOTIONS : &quot;promo&quot;
+    PRODUCTS }o--|| PROMOTIONS : &quot;get_product&quot;
+    BRANDS }o--|| PROMOTIONS : &quot;brand&quot;
+    PRODUCT_GROUPS }o--|| PROMOTIONS : &quot;group&quot;
+</code></pre>
+<h3>3.3 Pelanggan &amp; Loyalty</h3>
+<pre><code>erDiagram
+    CUSTOMER_GROUPS {
+        uuid id PK
+        uuid company_id FK
+        string code
+        string name
+        string source
+        boolean is_default
+        boolean is_active
+        timestamps
+    }
+
+    MEMBER_LEVELS {
+        uuid id PK
+        uuid company_id FK
+        string name
+        decimal min_points
+        decimal earn_amount_per_point
+        integer order
+        boolean is_active
+        timestamps
+    }
+
+    CUSTOMERS {
+        uuid id PK
+        uuid company_id FK
+        string code
+        string name
+        string phone
+        string email
+        text address
+        boolean is_member
+        uuid member_level_id FK
+        uuid customer_group_id FK
+        decimal points_balance
+        timestamp joined_at
+        boolean is_active
+        timestamps
+    }
+
+    LOYALTY_CONFIG {
+        uuid id PK
+        uuid company_id FK
+        decimal min_spend
+        enum rounding
+        integer expiry_days
+        boolean is_active
+        timestamps
+    }
+
+    LOYALTY_LEDGER {
+        uuid id PK
+        uuid company_id FK
+        uuid customer_id FK
+        enum type
+        decimal points
+        decimal balance_after
+        string ref_type
+        uuid ref_id
+        text note
+        uuid created_by FK
+        timestamp created_at
+    }
+
+    CUSTOMER_GROUPS ||--o{ CUSTOMERS : &quot;group&quot;
+    MEMBER_LEVELS ||--o{ CUSTOMERS : &quot;level&quot;
+    CUSTOMERS ||--o{ LOYALTY_LEDGER : &quot;point history&quot;
+</code></pre>
+<h3>3.4 Penjualan</h3>
+<pre><code>erDiagram
+    SALES {
+        uuid id PK
+        uuid company_id FK
+        uuid store_id FK
+        string number
+        uuid client_uuid UK
+        enum origin
+        enum sync_status
+        date business_date
+        enum type
+        uuid customer_id FK
+        decimal points_earned
+        uuid cashier_id FK
+        enum status
+        enum stock_review_status
+        text review_reason
+        uuid resolved_by FK
+        timestamp resolved_at
+        decimal subtotal
+        decimal discount_total
+        decimal tax_total
+        decimal shipping_cost
+        decimal total
+        decimal paid_total
+        decimal change_total
+        string currency_code
+        timestamp sold_at
+        timestamp voided_at
+        text void_reason
+        string sap_post_status
+        text sap_post_error
+        integer sap_invoice_obj_type
+        string sap_invoice_doc_num
+        integer sap_invoice_doc_entry
+        integer sap_payment_obj_type
+        string sap_payment_doc_num
+        integer sap_payment_doc_entry
+        timestamp sap_posted_at
+        timestamps
+    }
+
+    SALE_LINES {
+        uuid id PK
+        uuid sale_id FK
+        uuid product_id FK
+        string sku_snapshot
+        string name_snapshot
+        decimal unit_price
+        decimal qty
+        decimal discount
+        uuid promotion_id FK
+        string promotion_name_snapshot
+        decimal promotion_discount
+        decimal tax_amount
+        decimal line_total
+        string tax_group_code
+        decimal tax_rate
+        timestamps
+    }
+
+    SALE_PAYMENTS {
+        uuid id PK
+        uuid sale_id FK
+        uuid payment_type_id FK
+        decimal amount
+        enum status
+        string provider
+        string provider_ref
+        string approval_code
+        timestamp confirmed_at
+        timestamps
+    }
+
+    DELIVERIES {
+        uuid id PK
+        uuid sale_id FK
+        string recipient_name
+        string phone
+        text address
+        decimal shipping_cost
+        enum status
+        text note
+        timestamp shipped_at
+        timestamp delivered_at
+        timestamps
+    }
+
+    SALES_RETURNS {
+        uuid id PK
+        uuid company_id FK
+        uuid store_id FK
+        string number
+        uuid original_sale_id FK
+        text reason
+        decimal total
+        string refund_method
+        boolean receipt_verified
+        uuid created_by FK
+        timestamps
+    }
+
+    SALES_RETURN_LINES {
+        uuid id PK
+        uuid sales_return_id FK
+        uuid sale_line_id FK
+        uuid product_id FK
+        decimal qty
+        decimal unit_price
+        decimal line_total
+        timestamps
+    }
+
+    SALE_DRAFTS {
+        uuid id PK
+        uuid company_id FK
+        uuid store_id FK
+        uuid client_uuid UK
+        uuid cashier_id FK
+        string device_label
+        json payload
+        string status
+        timestamps
+    }
+
+    SALES ||--o{ SALE_LINES : &quot;memuat&quot;
+    SALES ||--o{ SALE_PAYMENTS : &quot;dibayar&quot;
+    SALES ||--o{ DELIVERIES : &quot;pengiriman&quot;
+    SALES ||--o{ SALES_RETURNS : &quot;return&quot;
+    SALE_LINES ||--o{ SALES_RETURN_LINES : &quot;return line&quot;
+    SALE_LINES }o--|| PROMOTIONS : &quot;promo&quot;
+    SALE_PAYMENTS }o--|| PAYMENT_TYPES : &quot;cara bayar&quot;
+    SALES_RETURNS }o--|| SALES : &quot;original&quot;
+</code></pre>
+<h3>3.5 Stok</h3>
+<pre><code>erDiagram
+    STOCK_LEDGER {
+        uuid id PK
+        uuid company_id FK
+        uuid store_id FK
+        uuid product_id FK
+        enum type
+        decimal qty
+        decimal unit_cost
+        string ref_type
+        uuid ref_id
+        text note
+        uuid created_by FK
+        timestamp created_at
+    }
+
+    STOCK_ADJUSTMENTS {
+        uuid id PK
+        uuid company_id FK
+        uuid store_id FK
+        string number
+        date date
+        text reason
+        enum status
+        uuid created_by FK
+        timestamp posted_at
+        timestamps
+    }
+
+    STOCK_ADJUSTMENT_LINES {
+        uuid id PK
+        uuid stock_adjustment_id FK
+        uuid product_id FK
+        decimal qty_before
+        decimal qty_after
+        decimal delta
+        timestamps
+    }
+
+    STOCK_TRANSFERS {
+        uuid id PK
+        uuid company_id FK
+        string number
+        uuid from_store_id FK
+        uuid to_store_id FK
+        enum status
+        text note
+        uuid created_by FK
+        timestamp shipped_at
+        timestamp received_at
+        timestamps
+    }
+
+    STOCK_TRANSFER_LINES {
+        uuid id PK
+        uuid stock_transfer_id FK
+        uuid product_id FK
+        decimal qty_requested
+        decimal qty_shipped
+        decimal qty_received
+        text variance_reason
+        timestamps
+    }
+
+    WAREHOUSES {
+        uuid id PK
+        uuid company_id FK
+        string code
+        string name
+        string profit_center
+        boolean is_retail
+        string cash_account
+        string qris_account
+        string edc_account
+        boolean is_active
+        timestamps
+    }
+
+    WAREHOUSE_STOCKS {
+        uuid id PK
+        uuid company_id FK
+        uuid warehouse_id FK
+        uuid product_id FK
+        decimal on_hand
+        decimal committed
+        decimal on_order
+        decimal avg_price
+        decimal sap_on_hand
+        timestamp sap_checked_at
+        timestamps
+    }
+
+    WAREHOUSE_STOCK_LEDGERS {
+        uuid id PK
+        uuid company_id FK
+        uuid warehouse_id FK
+        uuid product_id FK
+        string type
+        decimal qty
+        decimal balance_after
+        decimal unit_cost
+        string ref_type
+        uuid ref_id
+        text note
+        bigint sap_trans_seq UK
+        integer sap_trans_type
+        integer sap_doc_entry
+        string sap_doc_num
+        integer sap_doc_line
+        date doc_date
+        uuid created_by FK
+        timestamp created_at
+    }
+
+    STOCK_ADJUSTMENTS ||--o{ STOCK_ADJUSTMENT_LINES : &quot;detail&quot;
+    STOCK_TRANSFERS ||--o{ STOCK_TRANSFER_LINES : &quot;detail&quot;
+    WAREHOUSES ||--o{ WAREHOUSE_STOCKS : &quot;saldo&quot;
+    WAREHOUSES ||--o{ WAREHOUSE_STOCK_LEDGERS : &quot;riwayat&quot;
+</code></pre>
+<h3>3.6 POS, Sesi &amp; Tutup Kasir</h3>
+<pre><code>erDiagram
+    PAYMENT_TYPES {
+        uuid id PK
+        uuid company_id FK
+        string code
+        text description
+        integer order_number
+        enum count_type
+        uuid credit_card_id FK
+        boolean is_offline_allowed
+        boolean is_active
+        timestamps
+    }
+
+    CREDIT_CARDS {
+        uuid id PK
+        uuid company_id FK
+        string code
+        string name
+        string gl_account
+        timestamps
+    }
+
+    CURRENCIES {
+        uuid id PK
+        uuid company_id FK
+        string code
+        string symbol
+        boolean has_rounding
+        integer decimal_places
+        boolean is_active
+        timestamps
+    }
+
+    CURRENCY_DENOMINATIONS {
+        uuid id PK
+        uuid currency_id FK
+        decimal value
+        boolean is_active
+        timestamps
+    }
+
+    STORE_CLOSURES {
+        uuid id PK
+        uuid company_id FK
+        uuid store_id FK
+        date business_date
+        timestamp opened_at
+        timestamp closed_at
+        decimal sales_total
+        decimal cash_expected
+        decimal cash_counted
+        decimal cash_variance
+        uuid closed_by FK
+        text note
+        timestamp reopened_at
+        uuid reopened_by FK
+        text reopen_reason
+        timestamps
+    }
+
+    STORE_CLOSURE_DENOMINATIONS {
+        uuid id PK
+        uuid store_closure_id FK
+        decimal denomination_value
+        integer count
+        decimal subtotal
+        timestamps
+    }
+
+    POS_ACTIVE_CARTS {
+        uuid id PK
+        uuid company_id FK
+        uuid store_id FK
+        uuid cashier_id FK
+        json payload
+        integer item_count
+        decimal gross_total
+        timestamps
+    }
+
+    POS_SESSIONS {
+        uuid id PK
+        uuid company_id FK
+        uuid user_id FK
+        uuid store_id FK
+        string session_hash
+        string ip_address
+        text user_agent
+        string browser
+        timestamp started_at
+        timestamp last_seen_at
+        timestamp ended_at
+        string ended_reason
+        timestamps
+    }
+
+    POS_CANCELLATIONS {
+        uuid id PK
+        uuid company_id FK
+        string type
+        uuid store_id FK
+        string store_label
+        uuid cashier_id FK
+        string cashier_name
+        uuid customer_id FK
+        string customer_label
+        uuid sale_id FK
+        string sale_number
+        text reason
+        integer item_count
+        decimal total
+        json items
+        timestamp occurred_at
+        string ip_address
+        text user_agent
+        string browser
+        uuid pos_session_id FK
+        timestamps
+    }
+
+    PAYMENT_TYPES }o--|| CREDIT_CARDS : &quot;mapped to&quot;
+    CURRENCIES ||--o{ CURRENCY_DENOMINATIONS : &quot;pecahan&quot;
+    STORE_CLOSURES ||--o{ STORE_CLOSURE_DENOMINATIONS : &quot;pecahan&quot;
+    POS_SESSIONS ||--o{ POS_CANCELLATIONS : &quot;terkait&quot;
+</code></pre>
+<hr />
+<h2>4. Detail Entitas</h2>
+<h3>company_details</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td>UUID v7</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>No</td>
+<td>-</td>
+<td>Nama perusahaan</td>
+</tr>
+<tr>
+<td><code>address</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td>Alamat</td>
+</tr>
+<tr>
+<td><code>logo_path</code></td>
+<td>string</td>
+<td>Yes</td>
+<td>-</td>
+<td>Path logo</td>
+</tr>
+<tr>
+<td><code>npwp_number</code></td>
+<td>string(30)</td>
+<td>Yes</td>
+<td>-</td>
+<td>NPWP</td>
+</tr>
+<tr>
+<td><code>phone</code></td>
+<td>string(30)</td>
+<td>Yes</td>
+<td>-</td>
+<td>Telepon</td>
+</tr>
+<tr>
+<td><code>email</code></td>
+<td>string(150)</td>
+<td>Yes</td>
+<td>-</td>
+<td>Email</td>
+</tr>
+<tr>
+<td><code>ppn_enabled</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>false</td>
+<td>Status PPN aktif</td>
+</tr>
+<tr>
+<td><code>ppn_rate</code></td>
+<td>decimal(5,2)</td>
+<td>No</td>
+<td>11.00</td>
+<td>Tarif PPN</td>
+</tr>
+<tr>
+<td><code>ppn_inclusive</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>false</td>
+<td>PPN inklusif</td>
+</tr>
+<tr>
+<td><code>tax_group_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>-</td>
+<td>Default tax group</td>
+</tr>
+<tr>
+<td><code>base_currency_code</code></td>
+<td>string(10)</td>
+<td>No</td>
+<td>IDR</td>
+<td>Mata uang dasar</td>
+</tr>
+<tr>
+<td><code>timezone</code></td>
+<td>string(40)</td>
+<td>No</td>
+<td>Asia/Jakarta</td>
+<td>Zona waktu</td>
+</tr>
+<tr>
+<td><code>allow_negative_stock</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>false</td>
+<td>Izinkan stok minus</td>
+</tr>
+<tr>
+<td><code>return_window_days</code></td>
+<td>smallint</td>
+<td>Yes</td>
+<td>30</td>
+<td>Jendela retur (hari)</td>
+</tr>
+<tr>
+<td><code>return_require_receipt</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td>Retur wajib struk</td>
+</tr>
+<tr>
+<td><code>sku_config</code></td>
+<td>json</td>
+<td>Yes</td>
+<td>-</td>
+<td>Konfigurasi SKU</td>
+</tr>
+<tr>
+<td><code>payment_providers</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td>Provider pembayaran (terenkripsi)</td>
+</tr>
+<tr>
+<td><code>sap_enabled</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>false</td>
+<td>SAP aktif</td>
+</tr>
+<tr>
+<td><code>sap_verify_ssl</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td>Verifikasi SSL SAP</td>
+</tr>
+<tr>
+<td><code>sap_endpoint_url</code></td>
+<td>string(255)</td>
+<td>Yes</td>
+<td>-</td>
+<td>URL SAP</td>
+</tr>
+<tr>
+<td><code>sap_db_name</code></td>
+<td>string(60)</td>
+<td>Yes</td>
+<td>-</td>
+<td>DB SAP</td>
+</tr>
+<tr>
+<td><code>sap_username</code></td>
+<td>string(60)</td>
+<td>Yes</td>
+<td>-</td>
+<td>User SAP</td>
+</tr>
+<tr>
+<td><code>sap_password</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td>Password SAP (terenkripsi)</td>
+</tr>
+<tr>
+<td><code>sap_sync_interval_minutes</code></td>
+<td>integer</td>
+<td>No</td>
+<td>30</td>
+<td>Interval sinkron SAP</td>
+</tr>
+<tr>
+<td><code>sap_auto_sync</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td>Auto sync SAP</td>
+</tr>
+<tr>
+<td><code>sap_last_synced_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td>Sinkron terakhir</td>
+</tr>
+<tr>
+<td><code>sap_initial_imported_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td>Waktu impor awal</td>
+</tr>
+<tr>
+<td><code>sap_stock_synced_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td>Sinkron stok SAP</td>
+</tr>
+<tr>
+<td><code>sap_stock_sync_error</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td>Error sinkron stok</td>
+</tr>
+<tr>
+<td><code>sap_sync_watermarks</code></td>
+<td>json</td>
+<td>Yes</td>
+<td>-</td>
+<td>Watermark delta SAP</td>
+</tr>
+<tr>
+<td><code>sap_stock_reconciled_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td>Rekonsiliasi stok</td>
+</tr>
+<tr>
+<td><code>promotion_hierarchy</code></td>
+<td>json</td>
+<td>Yes</td>
+<td>-</td>
+<td>Hierarki promo</td>
+</tr>
+<tr>
+<td><code>created_at</code> / <code>updated_at</code></td>
+<td>timestamp</td>
+<td>-</td>
+<td>-</td>
+<td>Standard Laravel</td>
+</tr>
+</tbody>
+</table>
+<h3>stores</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td>string(20)</td>
+<td>No</td>
+<td>-</td>
+<td>Unique per company</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>No</td>
+<td>-</td>
+<td>Nama gerai</td>
+</tr>
+<tr>
+<td><code>address</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td>Alamat</td>
+</tr>
+<tr>
+<td><code>pic_name</code></td>
+<td>string</td>
+<td>Yes</td>
+<td>-</td>
+<td>PIC</td>
+</tr>
+<tr>
+<td><code>pic_phone</code></td>
+<td>string(30)</td>
+<td>Yes</td>
+<td>-</td>
+<td>Telepon PIC</td>
+</tr>
+<tr>
+<td><code>ppn_enabled</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>false</td>
+<td></td>
+</tr>
+<tr>
+<td><code>ppn_rate</code></td>
+<td>decimal(5,2)</td>
+<td>No</td>
+<td>11.00</td>
+<td></td>
+</tr>
+<tr>
+<td><code>currency</code></td>
+<td>string(10)</td>
+<td>No</td>
+<td>IDR</td>
+<td></td>
+</tr>
+<tr>
+<td><code>purchase_price_list_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>price_lists</code></td>
+<td>Pricelist beli default</td>
+</tr>
+<tr>
+<td><code>warehouse_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>warehouses</code></td>
+<td>1 gerai = 1 warehouse</td>
+</tr>
+<tr>
+<td><code>default_customer_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>customers</code></td>
+<td>Customer walk-in default</td>
+</tr>
+<tr>
+<td><code>is_active</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_at</code> / <code>updated_at</code></td>
+<td>timestamp</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>users</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>store_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>stores</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>username</code></td>
+<td>string(60)</td>
+<td>No</td>
+<td>UK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>email</code></td>
+<td>string</td>
+<td>Yes</td>
+<td>UK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>phone</code></td>
+<td>string(30)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>role</code></td>
+<td>enum</td>
+<td>No</td>
+<td>cashier</td>
+<td>owner/store_manager/cashier</td>
+</tr>
+<tr>
+<td><code>is_active</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>password</code></td>
+<td>string</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>rememberToken</code></td>
+<td>string</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_at</code> / <code>updated_at</code></td>
+<td>timestamp</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>units</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td>string(20)</td>
+<td>No</td>
+<td>-</td>
+<td>Unique per company</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>is_active</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>product_groups</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td>string(30)</td>
+<td>No</td>
+<td>-</td>
+<td>Unique per company</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>is_active</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>brands</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td>string(30)</td>
+<td>No</td>
+<td>-</td>
+<td>Unique per company</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>is_active</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>products</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>product_group_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>product_groups</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>brand_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>brands</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>unit_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>units</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>sku</code></td>
+<td>string(40)</td>
+<td>No</td>
+<td>-</td>
+<td>Unique per company</td>
+</tr>
+<tr>
+<td><code>barcode</code></td>
+<td>string(60)</td>
+<td>Yes</td>
+<td>UK</td>
+<td>Unique per company</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>image_path</code></td>
+<td>string(255)</td>
+<td>Yes</td>
+<td>-</td>
+<td>Path gambar</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>base_price</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td>Harga dasar</td>
+</tr>
+<tr>
+<td><code>cost_price</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td>HPP (hidden)</td>
+</tr>
+<tr>
+<td><code>track_stock</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td>Lacak stok</td>
+</tr>
+<tr>
+<td><code>is_active</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>price_lists</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>store_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>stores</code></td>
+<td>Nullable = company-level</td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td>string(30)</td>
+<td>No</td>
+<td>-</td>
+<td>Unique per company</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>is_default</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>false</td>
+<td></td>
+</tr>
+<tr>
+<td><code>effective_from</code></td>
+<td>date</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>effective_until</code></td>
+<td>date</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>is_active</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>store_price_lists</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>store_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>PK, FK→<code>stores</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>price_list_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>PK, FK→<code>price_lists</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>is_default</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>false</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>price_list_items</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>price_list_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>price_lists</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>product_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>products</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>price</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>min_qty</code></td>
+<td>integer</td>
+<td>No</td>
+<td>1</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>promotions</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td>string(30)</td>
+<td>No</td>
+<td>-</td>
+<td>Unique per company</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>string(30)</td>
+<td>No</td>
+<td>discount_percent</td>
+<td>discount_percent/discount_amount/special_price/buy_x_get_y/volume_price</td>
+</tr>
+<tr>
+<td><code>source</code></td>
+<td>string(10)</td>
+<td>No</td>
+<td>manual</td>
+<td>manual/sap</td>
+</tr>
+<tr>
+<td><code>sap_ref</code></td>
+<td>string(100)</td>
+<td>Yes</td>
+<td>-</td>
+<td>Unique dengan company</td>
+</tr>
+<tr>
+<td><code>value</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>product_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>products</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>get_product_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>products</code></td>
+<td>Buy X Get Y</td>
+</tr>
+<tr>
+<td><code>brand_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>brands</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>product_group_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>product_groups</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>customer_scope</code></td>
+<td>string(20)</td>
+<td>No</td>
+<td>all</td>
+<td></td>
+</tr>
+<tr>
+<td><code>customer_ref</code></td>
+<td>string(50)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>price_list_code</code></td>
+<td>string(30)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>min_qty</code></td>
+<td>integer</td>
+<td>No</td>
+<td>1</td>
+<td></td>
+</tr>
+<tr>
+<td><code>buy_qty</code></td>
+<td>integer</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>get_qty</code></td>
+<td>integer</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>max_applications</code></td>
+<td>integer</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>tiers</code></td>
+<td>json</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>group_key</code></td>
+<td>string(100)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>group_relation</code></td>
+<td>string(30)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>starts_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>ends_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>is_active</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>payment_types</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td>string(30)</td>
+<td>No</td>
+<td>-</td>
+<td>Unique per company</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>order_number</code></td>
+<td>integer</td>
+<td>No</td>
+<td>1</td>
+<td>Urutan tampil</td>
+</tr>
+<tr>
+<td><code>count_type</code></td>
+<td>enum</td>
+<td>No</td>
+<td>summary</td>
+<td>summary/detail</td>
+</tr>
+<tr>
+<td><code>credit_card_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>credit_cards</code></td>
+<td>Mapping ke SAP OCRC</td>
+</tr>
+<tr>
+<td><code>is_offline_allowed</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>is_active</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>payment_type_store</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>payment_type_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>PK, FK→<code>payment_types</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>store_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>PK, FK→<code>stores</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>credit_cards</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td>string(20)</td>
+<td>No</td>
+<td>-</td>
+<td>Unique per company</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>gl_account</code></td>
+<td>string(25)</td>
+<td>Yes</td>
+<td>-</td>
+<td>Akun GL SAP</td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>currencies</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td>string(3)</td>
+<td>No</td>
+<td>-</td>
+<td>ISO 4217, unique per company</td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td>string(10)</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>has_rounding</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>false</td>
+<td></td>
+</tr>
+<tr>
+<td><code>decimal_places</code></td>
+<td>tinyint</td>
+<td>No</td>
+<td>2</td>
+<td></td>
+</tr>
+<tr>
+<td><code>is_active</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>currency_denominations</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>currency_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>currencies</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>value</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>-</td>
+<td>Unique per currency</td>
+</tr>
+<tr>
+<td><code>is_active</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>customer_groups</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td>string(30)</td>
+<td>No</td>
+<td>-</td>
+<td>Unique per company</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>source</code></td>
+<td>string(10)</td>
+<td>No</td>
+<td>manual</td>
+<td>manual/sap</td>
+</tr>
+<tr>
+<td><code>is_default</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>false</td>
+<td></td>
+</tr>
+<tr>
+<td><code>is_active</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>member_levels</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string(60)</td>
+<td>No</td>
+<td>-</td>
+<td>Unique per company</td>
+</tr>
+<tr>
+<td><code>min_points</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>earn_amount_per_point</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>10000</td>
+<td></td>
+</tr>
+<tr>
+<td><code>order</code></td>
+<td>integer</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>is_active</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>customers</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td>string(30)</td>
+<td>Yes</td>
+<td>UK</td>
+<td>Unique per company</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>phone</code></td>
+<td>string(30)</td>
+<td>Yes</td>
+<td>UK</td>
+<td>Unique per company</td>
+</tr>
+<tr>
+<td><code>email</code></td>
+<td>string(150)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>address</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>is_member</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>member_level_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>member_levels</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>customer_group_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>customer_groups</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>points_balance</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>joined_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>is_active</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>source</code></td>
+<td>string(10)</td>
+<td>No</td>
+<td>manual</td>
+<td>manual/sap</td>
+</tr>
+<tr>
+<td><code>sap_sync_status</code></td>
+<td>string(10)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sap_sync_error</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sap_synced_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>loyalty_config</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code>, unique</td>
+<td></td>
+</tr>
+<tr>
+<td><code>min_spend</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>rounding</code></td>
+<td>enum</td>
+<td>No</td>
+<td>down</td>
+<td>none/down/up/nearest</td>
+</tr>
+<tr>
+<td><code>expiry_days</code></td>
+<td>integer</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>is_active</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>loyalty_ledger</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>customer_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>customers</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>enum</td>
+<td>No</td>
+<td>-</td>
+<td>earn/return/adjust/expire/redeem</td>
+</tr>
+<tr>
+<td><code>points</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>balance_after</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>ref_type</code></td>
+<td>string(40)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>ref_id</code></td>
+<td>uuid</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>note</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_by</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>users</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>timestamp</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>sales</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>store_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>stores</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>number</code></td>
+<td>string(60)</td>
+<td>Yes</td>
+<td>-</td>
+<td>Nomor transaksi</td>
+</tr>
+<tr>
+<td><code>client_uuid</code></td>
+<td>uuid</td>
+<td>Yes</td>
+<td>UK</td>
+<td>UUID dari client</td>
+</tr>
+<tr>
+<td><code>origin</code></td>
+<td>enum</td>
+<td>No</td>
+<td>online</td>
+<td>online/offline</td>
+</tr>
+<tr>
+<td><code>sync_status</code></td>
+<td>enum</td>
+<td>No</td>
+<td>synced</td>
+<td>pending/synced</td>
+</tr>
+<tr>
+<td><code>business_date</code></td>
+<td>date</td>
+<td>No</td>
+<td>-</td>
+<td>Tanggal bisnis</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>enum</td>
+<td>No</td>
+<td>sale</td>
+<td>sale/return</td>
+</tr>
+<tr>
+<td><code>customer_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>customers</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>points_earned</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>cashier_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>users</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>enum</td>
+<td>No</td>
+<td>completed</td>
+<td>completed/void</td>
+</tr>
+<tr>
+<td><code>stock_review_status</code></td>
+<td>enum</td>
+<td>No</td>
+<td>none</td>
+<td>none/pending/resolved</td>
+</tr>
+<tr>
+<td><code>review_reason</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>resolved_by</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>users</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>resolved_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>subtotal</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>discount_total</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>tax_total</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>shipping_cost</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>total</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>paid_total</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>change_total</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>currency_code</code></td>
+<td>string(10)</td>
+<td>No</td>
+<td>IDR</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sold_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>voided_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>void_reason</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sap_post_status</code></td>
+<td>string(10)</td>
+<td>Yes</td>
+<td>-</td>
+<td>pending/invoiced/posted/failed</td>
+</tr>
+<tr>
+<td><code>sap_post_error</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sap_invoice_obj_type</code></td>
+<td>integer</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sap_invoice_doc_num</code></td>
+<td>string(20)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sap_invoice_doc_entry</code></td>
+<td>integer</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sap_payment_obj_type</code></td>
+<td>integer</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sap_payment_doc_num</code></td>
+<td>string(20)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sap_payment_doc_entry</code></td>
+<td>integer</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sap_posted_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>sale_lines</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sale_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>sales</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>product_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>products</code></td>
+<td>Nullable jika produk terhapus</td>
+</tr>
+<tr>
+<td><code>sku_snapshot</code></td>
+<td>string(40)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>name_snapshot</code></td>
+<td>string</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>unit_price</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>qty</code></td>
+<td>decimal(15,3)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>discount</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>promotion_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>promotions</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>promotion_name_snapshot</code></td>
+<td>string</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>promotion_discount</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>tax_amount</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>line_total</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>tax_group_code</code></td>
+<td>string(30)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>tax_rate</code></td>
+<td>decimal(7,4)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>sale_payments</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sale_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>sales</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>payment_type_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>payment_types</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>amount</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>enum</td>
+<td>No</td>
+<td>confirmed</td>
+<td>pending/confirmed/void</td>
+</tr>
+<tr>
+<td><code>provider</code></td>
+<td>string(40)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>provider_ref</code></td>
+<td>string(120)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>approval_code</code></td>
+<td>string(50)</td>
+<td>Yes</td>
+<td>-</td>
+<td>Kode approval EDC/QRIS</td>
+</tr>
+<tr>
+<td><code>confirmed_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>deliveries</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sale_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>sales</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>recipient_name</code></td>
+<td>string</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>phone</code></td>
+<td>string(30)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>address</code></td>
+<td>text</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>shipping_cost</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>enum</td>
+<td>No</td>
+<td>pending</td>
+<td>pending/shipped/delivered/cancelled</td>
+</tr>
+<tr>
+<td><code>note</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>shipped_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>delivered_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>sales_returns</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>store_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>stores</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>number</code></td>
+<td>string(60)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>original_sale_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>sales</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>total</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>refund_method</code></td>
+<td>string(30)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>receipt_verified</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_by</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>users</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>sales_return_lines</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sales_return_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>sales_returns</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>sale_line_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>sale_lines</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>product_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>products</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>qty</code></td>
+<td>decimal(15,3)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>unit_price</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>line_total</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>sale_drafts</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>store_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>stores</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>client_uuid</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>UK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>cashier_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>users</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>device_label</code></td>
+<td>string</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>payload</code></td>
+<td>json</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>string(20)</td>
+<td>No</td>
+<td>held</td>
+<td>held/finalized/cancelled</td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>stock_ledger</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>store_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>stores</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>product_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>products</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>enum</td>
+<td>No</td>
+<td>-</td>
+<td>opening/sale/sale_return/adjustment/transfer_out/transfer_in</td>
+</tr>
+<tr>
+<td><code>qty</code></td>
+<td>decimal(15,3)</td>
+<td>No</td>
+<td>-</td>
+<td>Positif = masuk, negatif = keluar</td>
+</tr>
+<tr>
+<td><code>unit_cost</code></td>
+<td>decimal(15,2)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>ref_type</code></td>
+<td>string(40)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>ref_id</code></td>
+<td>uuid</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>note</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_by</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>users</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>timestamp</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>stock_adjustments</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>store_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>stores</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>number</code></td>
+<td>string(60)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>date</code></td>
+<td>date</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>enum</td>
+<td>No</td>
+<td>draft</td>
+<td>draft/posted</td>
+</tr>
+<tr>
+<td><code>created_by</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>users</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>posted_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>stock_adjustment_lines</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>stock_adjustment_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>stock_adjustments</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>product_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>products</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>qty_before</code></td>
+<td>decimal(15,3)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>qty_after</code></td>
+<td>decimal(15,3)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>delta</code></td>
+<td>decimal(15,3)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>stock_transfers</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>number</code></td>
+<td>string(60)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>from_store_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>stores</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>to_store_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>stores</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>enum</td>
+<td>No</td>
+<td>draft</td>
+<td>draft/requested/shipped/received/cancelled</td>
+</tr>
+<tr>
+<td><code>note</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_by</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>users</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>shipped_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>received_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>stock_transfer_lines</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>stock_transfer_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>stock_transfers</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>product_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>products</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>qty_requested</code></td>
+<td>decimal(15,3)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>qty_shipped</code></td>
+<td>decimal(15,3)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>qty_received</code></td>
+<td>decimal(15,3)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>variance_reason</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>warehouses</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td>string(30)</td>
+<td>No</td>
+<td>-</td>
+<td>Unique per company</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>profit_center</code></td>
+<td>string(50)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>is_retail</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>cash_account</code></td>
+<td>string(25)</td>
+<td>Yes</td>
+<td>-</td>
+<td>Akun kas SAP</td>
+</tr>
+<tr>
+<td><code>qris_account</code></td>
+<td>string(25)</td>
+<td>Yes</td>
+<td>-</td>
+<td>Akun QRIS SAP</td>
+</tr>
+<tr>
+<td><code>edc_account</code></td>
+<td>string(25)</td>
+<td>Yes</td>
+<td>-</td>
+<td>Akun EDC SAP</td>
+</tr>
+<tr>
+<td><code>is_active</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>warehouse_stocks</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>warehouse_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>warehouses</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>product_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>products</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>on_hand</code></td>
+<td>decimal(15,3)</td>
+<td>No</td>
+<td>0</td>
+<td>InStock</td>
+</tr>
+<tr>
+<td><code>committed</code></td>
+<td>decimal(15,3)</td>
+<td>No</td>
+<td>0</td>
+<td>IsCommited</td>
+</tr>
+<tr>
+<td><code>on_order</code></td>
+<td>decimal(15,3)</td>
+<td>No</td>
+<td>0</td>
+<td>Ordered</td>
+</tr>
+<tr>
+<td><code>avg_price</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td>AvgPrice</td>
+</tr>
+<tr>
+<td><code>sap_on_hand</code></td>
+<td>decimal(15,3)</td>
+<td>Yes</td>
+<td>-</td>
+<td>Saldo OITW SAP</td>
+</tr>
+<tr>
+<td><code>sap_checked_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>warehouse_stock_ledgers</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>warehouse_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>warehouses</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>product_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>products</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>string(30)</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>qty</code></td>
+<td>decimal(15,3)</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>balance_after</code></td>
+<td>decimal(15,3)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>unit_cost</code></td>
+<td>decimal(15,2)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>ref_type</code></td>
+<td>string(40)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>ref_id</code></td>
+<td>uuid</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>note</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sap_trans_seq</code></td>
+<td>bigint</td>
+<td>Yes</td>
+<td>UK (company_id)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sap_trans_type</code></td>
+<td>integer</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sap_doc_entry</code></td>
+<td>integer</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sap_doc_num</code></td>
+<td>string(20)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sap_doc_line</code></td>
+<td>integer</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>doc_date</code></td>
+<td>date</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_by</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>users</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>timestamp</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>tax_groups</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td>string(30)</td>
+<td>No</td>
+<td>-</td>
+<td>Unique per company</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>rate</code></td>
+<td>decimal(7,4)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>effective_from</code></td>
+<td>date</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>source</code></td>
+<td>string(10)</td>
+<td>No</td>
+<td>manual</td>
+<td>manual/sap</td>
+</tr>
+<tr>
+<td><code>is_active</code></td>
+<td>boolean</td>
+<td>No</td>
+<td>true</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>store_closures</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>store_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>stores</code></td>
+<td>Unique per store+business_date</td>
+</tr>
+<tr>
+<td><code>business_date</code></td>
+<td>date</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>opened_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>closed_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sales_total</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>cash_expected</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>cash_counted</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>cash_variance</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>closed_by</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>users</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>note</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>reopened_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>reopened_by</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>users</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>reopen_reason</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>store_closure_denominations</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>store_closure_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>store_closures</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>denomination_value</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>count</code></td>
+<td>integer</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>subtotal</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>pos_active_carts</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>store_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>stores</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>cashier_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>users</code></td>
+<td>Unique per cashier</td>
+</tr>
+<tr>
+<td><code>payload</code></td>
+<td>json</td>
+<td>No</td>
+<td>-</td>
+<td>Data keranjang</td>
+</tr>
+<tr>
+<td><code>item_count</code></td>
+<td>integer</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>gross_total</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>pos_sessions</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>user_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>users</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>store_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>stores</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>session_hash</code></td>
+<td>string(64)</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>ip_address</code></td>
+<td>string(45)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>user_agent</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>browser</code></td>
+<td>string(120)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>started_at</code></td>
+<td>timestamp</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>last_seen_at</code></td>
+<td>timestamp</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>ended_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>ended_reason</code></td>
+<td>string(20)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>pos_cancellations</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>string(20)</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>store_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>stores</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>store_label</code></td>
+<td>string</td>
+<td>Yes</td>
+<td>-</td>
+<td>Denormalized</td>
+</tr>
+<tr>
+<td><code>cashier_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>users</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>cashier_name</code></td>
+<td>string</td>
+<td>Yes</td>
+<td>-</td>
+<td>Denormalized</td>
+</tr>
+<tr>
+<td><code>customer_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>customers</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>customer_label</code></td>
+<td>string</td>
+<td>Yes</td>
+<td>-</td>
+<td>Denormalized</td>
+</tr>
+<tr>
+<td><code>sale_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>sales</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>sale_number</code></td>
+<td>string(60)</td>
+<td>Yes</td>
+<td>-</td>
+<td>Denormalized</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>item_count</code></td>
+<td>integer</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>total</code></td>
+<td>decimal(15,2)</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>items</code></td>
+<td>json</td>
+<td>Yes</td>
+<td>-</td>
+<td>Snapshot item</td>
+</tr>
+<tr>
+<td><code>occurred_at</code></td>
+<td>timestamp</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>ip_address</code></td>
+<td>string(45)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>user_agent</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>browser</code></td>
+<td>string(120)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>pos_session_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>pos_sessions</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>numbering_configs</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>transaction_type</code></td>
+<td>string(60)</td>
+<td>No</td>
+<td>-</td>
+<td>Unique per company</td>
+</tr>
+<tr>
+<td><code>prefix</code></td>
+<td>string(20)</td>
+<td>No</td>
+<td>''</td>
+<td></td>
+</tr>
+<tr>
+<td><code>padding</code></td>
+<td>tinyint</td>
+<td>No</td>
+<td>4</td>
+<td></td>
+</tr>
+<tr>
+<td><code>separator</code></td>
+<td>string(1)</td>
+<td>No</td>
+<td>/</td>
+<td></td>
+</tr>
+<tr>
+<td><code>reset_period</code></td>
+<td>enum</td>
+<td>No</td>
+<td>monthly</td>
+<td>daily/monthly/yearly/never</td>
+</tr>
+<tr>
+<td><code>last_period</code></td>
+<td>string(20)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>last_number</code></td>
+<td>bigint</td>
+<td>No</td>
+<td>0</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>activity_logs</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>actor_id</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>users</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>actor_name</code></td>
+<td>string</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>action</code></td>
+<td>string(60)</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>subject_type</code></td>
+<td>string(60)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>subject_id</code></td>
+<td>uuid</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>text</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>properties</code></td>
+<td>json</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>timestamp</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>sap_sync_runs</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>mode</code></td>
+<td>string(10)</td>
+<td>No</td>
+<td>-</td>
+<td>initial/delta</td>
+</tr>
+<tr>
+<td><code>trigger</code></td>
+<td>string(10)</td>
+<td>No</td>
+<td>-</td>
+<td>manual/schedule</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>string(10)</td>
+<td>No</td>
+<td>-</td>
+<td>queued/running/success/failed</td>
+</tr>
+<tr>
+<td><code>summary</code></td>
+<td>json</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>error</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>started_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>finished_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>Tabel Framework Laravel</h3>
+<p>Berikut tabel bawaan Laravel yang ada di database ini namun umumnya tidak digambarkan dalam ERD domain:</p>
+<table>
+<thead>
+<tr>
+<th>Tabel</th>
+<th>Fungsi</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cache</code> / <code>cache_locks</code></td>
+<td>Cache aplikasi Laravel</td>
+</tr>
+<tr>
+<td><code>jobs</code> / <code>job_batches</code> / <code>failed_jobs</code></td>
+<td>Queue &amp; failed jobs</td>
+</tr>
+<tr>
+<td><code>sessions</code></td>
+<td>Session web</td>
+</tr>
+<tr>
+<td><code>password_reset_tokens</code></td>
+<td>Reset password</td>
+</tr>
+<tr>
+<td><code>personal_access_tokens</code></td>
+<td>Token API Sanctum (<code>tokenable_id</code> UUID karena <code>User</code> memakai UUID)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>5. Tabel Relasi (Foreign Keys)</h2>
+<table>
+<thead>
+<tr>
+<th>Tabel</th>
+<th>Kolom FK</th>
+<th>Referensi Tabel</th>
+<th>Nullable</th>
+<th>On Delete</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>activity_logs</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>activity_logs</code></td>
+<td><code>actor_id</code></td>
+<td><code>users(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>brands</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>company_details</code></td>
+<td><code>tax_group_id</code></td>
+<td><code>tax_groups(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>credit_cards</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>currencies</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>currency_denominations</code></td>
+<td><code>currency_id</code></td>
+<td><code>currencies(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>customer_groups</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>customers</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>customers</code></td>
+<td><code>member_level_id</code></td>
+<td><code>member_levels(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>customers</code></td>
+<td><code>customer_group_id</code></td>
+<td><code>customer_groups(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>deliveries</code></td>
+<td><code>sale_id</code></td>
+<td><code>sales(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>loyalty_config</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>loyalty_ledger</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>loyalty_ledger</code></td>
+<td><code>customer_id</code></td>
+<td><code>customers(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>loyalty_ledger</code></td>
+<td><code>created_by</code></td>
+<td><code>users(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>member_levels</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>numbering_configs</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>payment_type_store</code></td>
+<td><code>payment_type_id</code></td>
+<td><code>payment_types(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>payment_type_store</code></td>
+<td><code>store_id</code></td>
+<td><code>stores(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>payment_types</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>payment_types</code></td>
+<td><code>credit_card_id</code></td>
+<td><code>credit_cards(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>pos_active_carts</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>pos_active_carts</code></td>
+<td><code>store_id</code></td>
+<td><code>stores(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>pos_active_carts</code></td>
+<td><code>cashier_id</code></td>
+<td><code>users(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>pos_cancellations</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>pos_cancellations</code></td>
+<td><code>store_id</code></td>
+<td><code>stores(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>pos_cancellations</code></td>
+<td><code>cashier_id</code></td>
+<td><code>users(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>pos_cancellations</code></td>
+<td><code>customer_id</code></td>
+<td><code>customers(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>pos_cancellations</code></td>
+<td><code>sale_id</code></td>
+<td><code>sales(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>pos_cancellations</code></td>
+<td><code>pos_session_id</code></td>
+<td><code>pos_sessions(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>pos_sessions</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>pos_sessions</code></td>
+<td><code>user_id</code></td>
+<td><code>users(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>pos_sessions</code></td>
+<td><code>store_id</code></td>
+<td><code>stores(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>price_list_items</code></td>
+<td><code>price_list_id</code></td>
+<td><code>price_lists(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>price_list_items</code></td>
+<td><code>product_id</code></td>
+<td><code>products(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>price_lists</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>price_lists</code></td>
+<td><code>store_id</code></td>
+<td><code>stores(id)</code></td>
+<td>Yes</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>product_groups</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>products</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>products</code></td>
+<td><code>product_group_id</code></td>
+<td><code>product_groups(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>products</code></td>
+<td><code>brand_id</code></td>
+<td><code>brands(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>products</code></td>
+<td><code>unit_id</code></td>
+<td><code>units(id)</code></td>
+<td>No</td>
+<td>restrict</td>
+</tr>
+<tr>
+<td><code>promotions</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>promotions</code></td>
+<td><code>product_id</code></td>
+<td><code>products(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>promotions</code></td>
+<td><code>get_product_id</code></td>
+<td><code>products(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>promotions</code></td>
+<td><code>brand_id</code></td>
+<td><code>brands(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>promotions</code></td>
+<td><code>product_group_id</code></td>
+<td><code>product_groups(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>sale_drafts</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>sale_drafts</code></td>
+<td><code>store_id</code></td>
+<td><code>stores(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>sale_drafts</code></td>
+<td><code>cashier_id</code></td>
+<td><code>users(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>sale_lines</code></td>
+<td><code>sale_id</code></td>
+<td><code>sales(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>sale_lines</code></td>
+<td><code>product_id</code></td>
+<td><code>products(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>sale_lines</code></td>
+<td><code>promotion_id</code></td>
+<td><code>promotions(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>sale_payments</code></td>
+<td><code>sale_id</code></td>
+<td><code>sales(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>sale_payments</code></td>
+<td><code>payment_type_id</code></td>
+<td><code>payment_types(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>sales</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>sales</code></td>
+<td><code>store_id</code></td>
+<td><code>stores(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>sales</code></td>
+<td><code>cashier_id</code></td>
+<td><code>users(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>sales</code></td>
+<td><code>customer_id</code></td>
+<td><code>customers(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>sales</code></td>
+<td><code>resolved_by</code></td>
+<td><code>users(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>sales_return_lines</code></td>
+<td><code>sales_return_id</code></td>
+<td><code>sales_returns(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>sales_return_lines</code></td>
+<td><code>sale_line_id</code></td>
+<td><code>sale_lines(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>sales_return_lines</code></td>
+<td><code>product_id</code></td>
+<td><code>products(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>sales_returns</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>sales_returns</code></td>
+<td><code>store_id</code></td>
+<td><code>stores(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>sales_returns</code></td>
+<td><code>original_sale_id</code></td>
+<td><code>sales(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>sales_returns</code></td>
+<td><code>created_by</code></td>
+<td><code>users(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>sap_sync_runs</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stock_adjustment_lines</code></td>
+<td><code>stock_adjustment_id</code></td>
+<td><code>stock_adjustments(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stock_adjustment_lines</code></td>
+<td><code>product_id</code></td>
+<td><code>products(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stock_adjustments</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stock_adjustments</code></td>
+<td><code>store_id</code></td>
+<td><code>stores(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stock_adjustments</code></td>
+<td><code>created_by</code></td>
+<td><code>users(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>stock_ledger</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stock_ledger</code></td>
+<td><code>store_id</code></td>
+<td><code>stores(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stock_ledger</code></td>
+<td><code>product_id</code></td>
+<td><code>products(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stock_ledger</code></td>
+<td><code>created_by</code></td>
+<td><code>users(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>stock_transfer_lines</code></td>
+<td><code>stock_transfer_id</code></td>
+<td><code>stock_transfers(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stock_transfer_lines</code></td>
+<td><code>product_id</code></td>
+<td><code>products(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stock_transfers</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stock_transfers</code></td>
+<td><code>from_store_id</code></td>
+<td><code>stores(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stock_transfers</code></td>
+<td><code>to_store_id</code></td>
+<td><code>stores(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stock_transfers</code></td>
+<td><code>created_by</code></td>
+<td><code>users(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>store_closure_denominations</code></td>
+<td><code>store_closure_id</code></td>
+<td><code>store_closures(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>store_closures</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>store_closures</code></td>
+<td><code>store_id</code></td>
+<td><code>stores(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>store_closures</code></td>
+<td><code>closed_by</code></td>
+<td><code>users(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>store_closures</code></td>
+<td><code>reopened_by</code></td>
+<td><code>users(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>store_price_lists</code></td>
+<td><code>store_id</code></td>
+<td><code>stores(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>store_price_lists</code></td>
+<td><code>price_list_id</code></td>
+<td><code>price_lists(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stores</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stores</code></td>
+<td><code>purchase_price_list_id</code></td>
+<td><code>price_lists(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>stores</code></td>
+<td><code>warehouse_id</code></td>
+<td><code>warehouses(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>stores</code></td>
+<td><code>default_customer_id</code></td>
+<td><code>customers(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>units</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>users</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>users</code></td>
+<td><code>store_id</code></td>
+<td><code>stores(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>warehouse_stock_ledgers</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>warehouse_stock_ledgers</code></td>
+<td><code>warehouse_id</code></td>
+<td><code>warehouses(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>warehouse_stock_ledgers</code></td>
+<td><code>product_id</code></td>
+<td><code>products(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>warehouse_stock_ledgers</code></td>
+<td><code>created_by</code></td>
+<td><code>users(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>warehouse_stocks</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>warehouse_stocks</code></td>
+<td><code>warehouse_id</code></td>
+<td><code>warehouses(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>warehouse_stocks</code></td>
+<td><code>product_id</code></td>
+<td><code>products(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>warehouses</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+</tbody>
+</table></body></html>
