@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureBackofficeAccess;
 use App\Http\Middleware\EnsurePosSessionIsActive;
 use App\Http\Middleware\EnsurePosStoreIsActive;
 use App\Http\Middleware\EnsureUserIsAdmin;
@@ -19,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'admin' => EnsureUserIsAdmin::class,
+            'backoffice.access' => EnsureBackofficeAccess::class,
             'pos.store' => EnsurePosStoreIsActive::class,
             'pos.session' => EnsurePosSessionIsActive::class,
         ]);

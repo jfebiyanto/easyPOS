@@ -49,7 +49,7 @@ Route::middleware('auth')->prefix('pos')->name('pos.')->group(function () {
 
 Route::prefix('admin')
     ->name('admin.')
-    ->middleware(['auth', 'admin'])
+    ->middleware(['auth', 'admin', 'backoffice.access'])
     ->group(function () {
         Route::get('/', [Admin\DashboardController::class, 'index'])->name('dashboard');
         Route::get('/dashboard/today', [Admin\DashboardController::class, 'today'])->name('dashboard.today');
