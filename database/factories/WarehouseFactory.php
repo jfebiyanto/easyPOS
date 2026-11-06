@@ -31,4 +31,12 @@ class WarehouseFactory extends Factory
     {
         return $this->state(fn (array $attributes) => ['is_retail' => false]);
     }
+
+    /**
+     * Gudang in-transit: selalu non-retail.
+     */
+    public function transit(): static
+    {
+        return $this->state(fn (array $attributes) => ['is_retail' => false, 'is_transit' => true]);
+    }
 }
