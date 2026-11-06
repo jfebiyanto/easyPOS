@@ -184,6 +184,9 @@ class StockTransferService
     /**
      * Kembalikan barang yang masih in-transit ke gudang pengirim: in-transit → gudang pengirim.
      *
+     * Urutan kunci baris warehouse_stocks per baris: gudang pengirim lebih dulu, baru in-transit, sama dengan post().
+     * Kebalikannya bisa deadlock di MySQL bila Post dan Return berjalan bersamaan di gerai pengirim. Hasil buku besar tidak terpengaruh.
+     *
      * @param  array<string, float|int|string>  $quantities  shipment_line_id => qty dikembalikan
      */
     public function returnToSender(StockTransferShipment $shipment, array $quantities, User $by, ?string $note = null): StockTransferReturn
@@ -254,8 +257,8 @@ class StockTransferService
             foreach ($returned as [$line, $qty]) {
                 $return->lines()->create(['shipment_line_id' => $line->id, 'qty' => $qty]);
 
-                WarehouseStockService::record($transit, $line->product_id, WarehouseStockLedger::TYPE_TRANSFER_OUT, -$qty, $options);
                 WarehouseStockService::record($source, $line->product_id, WarehouseStockLedger::TYPE_TRANSFER_IN, $qty, $options);
+                WarehouseStockService::record($transit, $line->product_id, WarehouseStockLedger::TYPE_TRANSFER_OUT, -$qty, $options);
 
                 $line->forceFill(['qty_returned' => round((float) $line->qty_returned + $qty, 3)])->save();
             }

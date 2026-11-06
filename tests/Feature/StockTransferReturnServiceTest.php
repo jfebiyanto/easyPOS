@@ -19,6 +19,7 @@ use App\Support\StockTransferException;
 use App\Support\StockTransferService;
 use App\Support\WarehouseStockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -137,9 +138,34 @@ class StockTransferReturnServiceTest extends TestCase
         return $this->postedShipment([$qty])->lines()->firstOrFail();
     }
 
+    public function test_return_menyentuh_gudang_pengirim_sebelum_in_transit_seperti_post(): void
+    {
+        $line = $this->ship(12);
+
+        $touched = [];
+        DB::listen(function ($query) use (&$touched) {
+            if (str_starts_with($query->sql, 'insert into "warehouse_stock_ledgers"')) {
+                $touched[] = collect($query->bindings)->first(
+                    fn ($binding) => in_array($binding, [$this->source->id, $this->transit->id], true),
+                );
+            }
+        });
+
+        (new StockTransferService)->returnToSender($line->shipment, [$line->id => 2], $this->owner);
+
+        // Urutan kunci baris warehouse_stocks sama dengan post() (pengirim dulu, lalu in-transit) agar tidak deadlock.
+        $this->assertSame([$this->source->id, $this->transit->id], $touched);
+
+        $ledgers = WarehouseStockLedger::where('ref_type', StockTransferService::REF_RETURN)->get();
+        $this->assertSame(-2.0, (float) $ledgers->firstWhere('warehouse_id', $this->transit->id)->qty);
+        $this->assertSame(WarehouseStockLedger::TYPE_TRANSFER_OUT, $ledgers->firstWhere('warehouse_id', $this->transit->id)->type);
+        $this->assertSame(2.0, (float) $ledgers->firstWhere('warehouse_id', $this->source->id)->qty);
+        $this->assertSame(WarehouseStockLedger::TYPE_TRANSFER_IN, $ledgers->firstWhere('warehouse_id', $this->source->id)->type);
+    }
+
     public function test_receive_10_return_2_of_12_completes_and_restores_sender(): void
     {
-        $line = ($this->ship(12));
+        $line = $this->ship(12);
         $shipment = $line->shipment;
         $service = new StockTransferService;
 

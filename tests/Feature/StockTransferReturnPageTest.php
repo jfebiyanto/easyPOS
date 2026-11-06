@@ -302,8 +302,26 @@ class StockTransferReturnPageTest extends TestCase
 
     public function test_menu_menampilkan_stock_transfer_return(): void
     {
-        $this->actingAs($this->owner)->get(route('admin.stock-transfer-returns.index'))
-            ->assertOk()->assertSee('Stock Transfer Return');
+        $this->actingAs($this->owner)->get(route('admin.stock-transfer-shipments.index'))
+            ->assertOk()->assertSee('href="'.route('admin.stock-transfer-returns.index').'"', false);
+    }
+
+    public function test_return_dan_shipment_perusahaan_lain_404(): void
+    {
+        $otherCompany = CompanyDetail::create(['name' => 'Other Co']);
+        $otherStore = Store::create(['company_id' => $otherCompany->id, 'code' => 'XSTR', 'name' => 'Foreign', 'pic_name' => 'PIC', 'currency' => 'IDR']);
+        $foreignShipment = StockTransferShipment::create([
+            'company_id' => $otherCompany->id, 'from_store_id' => $otherStore->id, 'to_store_id' => $otherStore->id,
+            'status' => StockTransferShipment::STATUS_POSTED, 'created_by' => $this->owner->id,
+        ]);
+        $foreignReturn = StockTransferReturn::create([
+            'company_id' => $otherCompany->id, 'shipment_id' => $foreignShipment->id, 'number' => 'RET-X-1',
+            'store_id' => $otherStore->id, 'returned_at' => now(), 'created_by' => $this->owner->id,
+        ]);
+
+        $this->actingAs($this->owner)->get(route('admin.stock-transfer-returns.show', $foreignReturn))->assertNotFound();
+        $this->actingAs($this->owner)->post(route('admin.stock-transfer-returns.retry', $foreignReturn))->assertNotFound();
+        $this->actingAs($this->owner)->get(route('admin.stock-transfer-returns.create', ['shipment' => $foreignShipment->id]))->assertNotFound();
     }
 
     public function test_index_dan_show_docnum_tanpa_docentry_dan_visibilitas_penerima(): void
