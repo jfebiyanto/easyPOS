@@ -20,6 +20,7 @@ class ActivityLogger
 
         ActivityLog::create([
             'company_id' => $user?->company_id ?? current_company_id(),
+            'store_id' => $user?->store_id,
             'actor_id' => $user?->getKey(),
             'actor_name' => $user?->name ?? 'system',
             'action' => $action,

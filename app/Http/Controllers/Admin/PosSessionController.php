@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Admin\Concerns\AuthorizesSuperuser;
 use App\Http\Controllers\Controller;
 use App\Models\PosSession;
 use Illuminate\Http\Request;
@@ -13,17 +12,15 @@ use Illuminate\View\View;
  */
 class PosSessionController extends Controller
 {
-    use AuthorizesSuperuser;
-
     public function index(Request $request): View
     {
-        $this->ensureSuperuser($request);
-
+        $user = $request->user();
         $status = $request->query('status');
 
         return view('admin.pos-sessions.index', [
             'sessions' => PosSession::query()
                 ->with(['user:id,name,username', 'store:id,code'])
+                ->when(! $user->isOwner(), fn ($q) => $q->where('store_id', $user->store_id))
                 ->when($status === 'active', fn ($q) => $q->whereNull('ended_at')->where('last_seen_at', '>=', now()->subSeconds(PosSession::STALE_AFTER_SECONDS)))
                 ->when($status === 'ended', fn ($q) => $q->where(fn ($x) => $x->whereNotNull('ended_at')->orWhere('last_seen_at', '<', now()->subSeconds(PosSession::STALE_AFTER_SECONDS))))
                 ->when($request->query('q'), fn ($q, $s) => $q->where(fn ($x) => $x->whereLike('ip_address', "%{$s}%")->orWhereLike('browser', "%{$s}%")

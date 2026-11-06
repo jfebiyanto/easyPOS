@@ -12,7 +12,7 @@ class ActivityLog extends Model
     public const UPDATED_AT = null;
 
     protected $fillable = [
-        'company_id', 'actor_id', 'actor_name', 'action', 'subject_type', 'subject_id', 'description', 'properties',
+        'company_id', 'store_id', 'actor_id', 'actor_name', 'action', 'subject_type', 'subject_id', 'description', 'properties',
     ];
 
     protected function casts(): array
