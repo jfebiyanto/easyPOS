@@ -25,7 +25,7 @@ class BackofficeAccess
      *
      * @var list<string>
      */
-    public const WRITABLE = ['admin.eod.', 'admin.stock-review.', 'admin.stock-adjustments.', 'admin.stock-transfers.', 'admin.deliveries.'];
+    public const WRITABLE = ['admin.eod.', 'admin.stock-review.', 'admin.stock-adjustments.', 'admin.stock-transfers.', 'admin.stock-transfer-shipments.', 'admin.stock-transfer-receipts.', 'admin.deliveries.'];
 
     /**
      * Rute GET berakhiran .edit yang sebenarnya halaman utama (bukan formulir ubah).

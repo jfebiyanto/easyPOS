@@ -91,6 +91,7 @@ class BackofficeAccessTest extends TestCase
             'simpan penyesuaian' => ['admin.stock-adjustments.store', 'POST'],
             'formulir penyesuaian' => ['admin.stock-adjustments.create', 'GET'],
             'simpan transfer' => ['admin.stock-transfers.store', 'POST'],
+            'simpan shipment' => ['admin.stock-transfer-shipments.store', 'POST'],
             'ubah pengiriman' => ['admin.deliveries.update', 'PUT'],
         ];
     }

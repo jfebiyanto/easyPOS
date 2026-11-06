@@ -163,6 +163,16 @@ Route::prefix('admin')
         Route::post('/stock-transfers/{stockTransfer}/receive', [Admin\StockTransferController::class, 'receive'])->name('stock-transfers.receive');
         Route::post('/stock-transfers/{stockTransfer}/cancel', [Admin\StockTransferController::class, 'cancel'])->name('stock-transfers.cancel');
 
+        Route::get('/stock-transfer-shipments', [Admin\StockTransferShipmentController::class, 'index'])->name('stock-transfer-shipments.index');
+        Route::get('/stock-transfer-shipments/create', [Admin\StockTransferShipmentController::class, 'create'])->name('stock-transfer-shipments.create');
+        Route::post('/stock-transfer-shipments', [Admin\StockTransferShipmentController::class, 'store'])->name('stock-transfer-shipments.store');
+        Route::get('/stock-transfer-shipments/{shipment}', [Admin\StockTransferShipmentController::class, 'show'])->name('stock-transfer-shipments.show');
+        Route::get('/stock-transfer-shipments/{shipment}/edit', [Admin\StockTransferShipmentController::class, 'edit'])->name('stock-transfer-shipments.edit');
+        Route::put('/stock-transfer-shipments/{shipment}', [Admin\StockTransferShipmentController::class, 'update'])->name('stock-transfer-shipments.update');
+        Route::delete('/stock-transfer-shipments/{shipment}', [Admin\StockTransferShipmentController::class, 'destroy'])->name('stock-transfer-shipments.destroy');
+        Route::post('/stock-transfer-shipments/{shipment}/post', [Admin\StockTransferShipmentController::class, 'post'])->name('stock-transfer-shipments.post');
+        Route::post('/stock-transfer-shipments/{shipment}/retry', [Admin\StockTransferShipmentController::class, 'retry'])->name('stock-transfer-shipments.retry');
+
         // Product catalog
         Route::resource('warehouses', Admin\WarehouseController::class)->except('show');
         Route::resource('customer-groups', Admin\CustomerGroupController::class)->except('show')
