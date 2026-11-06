@@ -88,7 +88,7 @@ class StockTransferReceiptController extends Controller
     {
         $data = $request->validate([
             'shipment_id' => ['required', 'string'],
-            'note' => ['nullable', 'string', 'max:500'],
+            'note' => ['nullable', 'string', 'max:254'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.qty' => ['required', 'numeric', 'gt:0'],
         ], [

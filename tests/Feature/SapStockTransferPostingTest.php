@@ -164,13 +164,14 @@ class SapStockTransferPostingTest extends TestCase
     /**
      * @param  array<int, array{0: Product, 1: float}>  $lines
      */
-    private function postShipment(array $lines): StockTransferShipment
+    private function postShipment(array $lines, ?string $note = null): StockTransferShipment
     {
         $shipment = StockTransferShipment::create([
             'company_id' => $this->company->id,
             'from_store_id' => $this->fromStore->id,
             'to_store_id' => $this->toStore->id,
             'status' => StockTransferShipment::STATUS_DRAFT,
+            'note' => $note,
             'created_by' => $this->owner->id,
         ]);
 
@@ -232,6 +233,37 @@ class SapStockTransferPostingTest extends TestCase
                 ['ItemCode' => 'INDF-0002', 'Quantity' => 2.5, 'FromWarehouseCode' => 'G.001.MN', 'WarehouseCode' => 'G.001.IT'],
             ],
         ], $bodies->first());
+    }
+
+    public function test_notes_shipment_mengisi_comments_sap(): void
+    {
+        $this->fakeSap();
+
+        $this->postShipment([[$this->product, 5]], 'Barang rusak, retur ke gudang pusat');
+
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/StockTransfers')
+            && $request['Comments'] === 'Barang rusak, retur ke gudang pusat');
+    }
+
+    public function test_notes_kosong_memakai_nomor_dokumen_sebagai_comments(): void
+    {
+        $this->fakeSap();
+
+        $shipment = $this->postShipment([[$this->product, 5]], '   ');
+
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/StockTransfers')
+            && $request['Comments'] === "easyPOS {$shipment->number}");
+    }
+
+    public function test_notes_receipt_mengisi_comments_sap(): void
+    {
+        $this->fakeSap();
+        $shipment = $this->postShipment([[$this->product, 5]]);
+
+        (new StockTransferService)->receive($shipment, [$shipment->lines()->value('id') => 5], $this->owner, 'Diterima lengkap oleh Budi');
+
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/StockTransfers')
+            && $request['FromWarehouse'] === 'G.001.IT' && $request['Comments'] === 'Diterima lengkap oleh Budi');
     }
 
     public function test_receipt_memakai_in_transit_ke_warehouse_penerima(): void

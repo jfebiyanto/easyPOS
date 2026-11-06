@@ -46,7 +46,7 @@
                 <div class="field"><label>To</label><div>{{ $shipment->toStore?->code }} · {{ $shipment->toStore?->name }}</div></div>
                 <div class="field" style="grid-column:1/-1;">
                     <label for="note">Notes</label>
-                    <input type="text" id="note" name="note" value="{{ old('note') }}" maxlength="500">
+                    <input type="text" id="note" name="note" value="{{ old('note') }}" maxlength="254">
                     @error('note') <div class="error">{{ $message }}</div> @enderror
                 </div>
             </div>

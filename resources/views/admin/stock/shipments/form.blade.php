@@ -42,7 +42,7 @@
             </div>
             <div class="field" style="grid-column:1/-1;">
                 <label for="note">Notes</label>
-                <input type="text" id="note" name="note" value="{{ old('note', $shipment->note) }}" maxlength="500">
+                <input type="text" id="note" name="note" value="{{ old('note', $shipment->note) }}" maxlength="254">
             </div>
         </div>
     </div>

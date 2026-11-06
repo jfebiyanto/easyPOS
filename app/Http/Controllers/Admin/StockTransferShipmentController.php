@@ -200,7 +200,7 @@ class StockTransferShipmentController extends Controller
     {
         return $request->validate([
             'to_store_id' => ['required', Rule::notIn([$fromStoreId]), Rule::exists('stores', 'id')->where('company_id', current_company_id())],
-            'note' => ['nullable', 'string', 'max:500'],
+            'note' => ['nullable', 'string', 'max:254'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.product_id' => ['nullable', Rule::exists('products', 'id')->where('company_id', current_company_id())->where('track_stock', true)],
             'lines.*.qty' => ['nullable', 'numeric', 'min:0'],

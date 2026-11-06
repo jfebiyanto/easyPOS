@@ -100,6 +100,17 @@ class StockTransferShipmentPageTest extends TestCase
             ->where('product_id', $this->product->id)->value('on_hand');
     }
 
+    public function test_notes_lebih_dari_254_karakter_ditolak_karena_menjadi_comments_sap(): void
+    {
+        $this->actingAs($this->owner)->post(route('admin.stock-transfer-shipments.store'), [
+            'to_store_id' => $this->stores['B']->id,
+            'note' => str_repeat('x', 255),
+            'lines' => [['product_id' => $this->product->id, 'qty' => 4]],
+        ])->assertSessionHasErrors('note');
+
+        $this->assertSame(0, StockTransferShipment::count());
+    }
+
     public function test_owner_membuat_draft_lalu_post_memindahkan_stok(): void
     {
         $this->actingAs($this->owner)->post(route('admin.stock-transfer-shipments.store'), [
