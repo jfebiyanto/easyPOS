@@ -35,6 +35,7 @@
                     <th>Product</th>
                     <th style="text-align:right;">Shipped</th>
                     <th style="text-align:right;">Received</th>
+                    <th style="text-align:right;">Returned</th>
                     <th style="text-align:right;">Remaining</th>
                 </tr>
             </thead>
@@ -44,6 +45,7 @@
                         <td>{{ $line->product?->sku }} · {{ $line->product?->name }}</td>
                         <td style="text-align:right;" class="money">{{ rtrim(rtrim(number_format((float) $line->qty, 3, ',', '.'), '0'), ',') }}</td>
                         <td style="text-align:right;" class="money">{{ rtrim(rtrim(number_format((float) $line->qty_received, 3, ',', '.'), '0'), ',') }}</td>
+                        <td style="text-align:right;" class="money">{{ rtrim(rtrim(number_format((float) $line->qty_returned, 3, ',', '.'), '0'), ',') }}</td>
                         <td style="text-align:right;" class="money">{{ rtrim(rtrim(number_format($line->remaining(), 3, ',', '.'), '0'), ',') }}</td>
                     </tr>
                 @endforeach
@@ -86,10 +88,52 @@
             </table>
         </div>
     </div>
+
+    <div class="card">
+        <h2 class="card-title">Returns</h2>
+        <div class="table-wrap">
+            <table class="md-table">
+                <thead>
+                    <tr>
+                        <th>Number</th>
+                        <th>Date</th>
+                        <th>SAP</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($shipment->returns as $stockReturn)
+                        <tr>
+                            <td class="mono"><a href="{{ route('admin.stock-transfer-returns.show', $stockReturn) }}">{{ $stockReturn->number }}</a></td>
+                            <td class="mono">{{ $stockReturn->returned_at?->format('d/m/Y') }}</td>
+                            <td>
+                                {{ $stockReturn->sap_post_status ? ucfirst($stockReturn->sap_post_status) : '-' }}
+                                @if ($stockReturn->sap_post_status === \App\Models\StockTransferReturn::SAP_POSTED && $stockReturn->sap_doc_num)
+                                    <span class="mono">{{ \App\Support\Sap\SapStockTransferPosting::OBJ_STOCK_TRANSFER }} {{ $stockReturn->sap_doc_num }}</span>
+                                @elseif (! $shipmentInSap && $stockReturn->sap_post_status !== \App\Models\StockTransferReturn::SAP_POSTED)
+                                    <div class="hint">Waits for this shipment to be posted to SAP.</div>
+                                @endif
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="3">No returns yet.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
 @endif
 
 <div>
     <div class="form-actions">
+        @php
+            $viewer = auth()->user();
+            $canReturn = $shipment->status === \App\Models\StockTransferShipment::STATUS_POSTED
+                && ($viewer->isOwner() || $viewer->store_id === $shipment->from_store_id)
+                && $shipment->lines->contains(fn ($line) => $line->remaining() > 0);
+        @endphp
+        @if ($canReturn)
+            <a href="{{ route('admin.stock-transfer-returns.create', ['shipment' => $shipment->id]) }}" class="btn btn-tonal">Return</a>
+        @endif
         <a href="{{ route('admin.stock-transfer-shipments.index') }}" class="btn btn-outline">Back</a>
     </div>
 </div>

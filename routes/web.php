@@ -172,6 +172,11 @@ Route::prefix('admin')
         Route::post('/stock-transfer-receipts', [Admin\StockTransferReceiptController::class, 'store'])->name('stock-transfer-receipts.store');
         Route::get('/stock-transfer-receipts/{receipt}', [Admin\StockTransferReceiptController::class, 'show'])->name('stock-transfer-receipts.show');
         Route::post('/stock-transfer-receipts/{receipt}/retry', [Admin\StockTransferReceiptController::class, 'retry'])->name('stock-transfer-receipts.retry');
+        Route::get('/stock-transfer-returns', [Admin\StockTransferReturnController::class, 'index'])->name('stock-transfer-returns.index');
+        Route::get('/stock-transfer-returns/create', [Admin\StockTransferReturnController::class, 'create'])->name('stock-transfer-returns.create');
+        Route::post('/stock-transfer-returns', [Admin\StockTransferReturnController::class, 'store'])->name('stock-transfer-returns.store');
+        Route::get('/stock-transfer-returns/{stockReturn}', [Admin\StockTransferReturnController::class, 'show'])->name('stock-transfer-returns.show');
+        Route::post('/stock-transfer-returns/{stockReturn}/retry', [Admin\StockTransferReturnController::class, 'retry'])->name('stock-transfer-returns.retry');
 
         // Product catalog
         Route::resource('warehouses', Admin\WarehouseController::class)->except('show');

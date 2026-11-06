@@ -85,6 +85,9 @@
                             @if (in_array($display, ['In Transit', 'Partially Received'], true) && ($isOwner || in_array($shipment->to_store_id, $allowedStoreIds, true)))
                                 <a href="{{ route('admin.stock-transfer-receipts.create', ['shipment' => $shipment->id]) }}" class="btn btn-filled btn-sm">Receive</a>
                             @endif
+                            @if ($shipment->status === \App\Models\StockTransferShipment::STATUS_POSTED && $isSender && $shipment->lines->contains(fn ($line) => $line->remaining() > 0))
+                                <a href="{{ route('admin.stock-transfer-returns.create', ['shipment' => $shipment->id]) }}" class="btn btn-outline btn-sm">Return</a>
+                            @endif
                             @if ($isOwner && ! $isDraft && $shipment->sap_post_status !== \App\Models\StockTransferShipment::SAP_POSTED)
                                 <form method="POST" action="{{ route('admin.stock-transfer-shipments.retry', $shipment) }}">
                                     @csrf

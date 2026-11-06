@@ -63,6 +63,7 @@
                             <th>Product</th>
                             <th style="text-align:right;">Shipped</th>
                             <th style="text-align:right;">Already Received</th>
+                            <th style="text-align:right;">Already Returned</th>
                             <th style="text-align:right;">Remaining</th>
                             <th style="width:140px;">Qty Received</th>
                             <th></th>
@@ -74,6 +75,7 @@
                                 <td>{{ $line->product?->sku }} · {{ $line->product?->name }}</td>
                                 <td style="text-align:right;" class="money">{{ $format($line->qty) }}</td>
                                 <td style="text-align:right;" class="money">{{ $format($line->qty_received) }}</td>
+                                <td style="text-align:right;" class="money">{{ $format($line->qty_returned) }}</td>
                                 <td style="text-align:right;" class="money">{{ $format($line->remaining()) }}</td>
                                 <td>
                                     <input type="number" step="0.001" min="0.001" max="{{ $plain($line->remaining()) }}" name="lines[{{ $line->id }}][qty]" value="{{ old('lines.'.$line->id.'.qty', $plain($line->remaining())) }}" style="width:100%;" required>

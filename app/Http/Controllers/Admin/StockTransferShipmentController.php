@@ -44,7 +44,7 @@ class StockTransferShipmentController extends Controller
         $this->authorizeShipment($request, $shipment, 'either');
 
         return view('admin.stock.shipments.show', [
-            'shipment' => $shipment->load(['fromStore', 'toStore', 'lines.product', 'receipts' => fn ($query) => $query->orderBy('received_at')]),
+            'shipment' => $shipment->load(['fromStore', 'toStore', 'lines.product', 'receipts' => fn ($query) => $query->orderBy('received_at'), 'returns' => fn ($query) => $query->orderBy('returned_at')]),
         ]);
     }
 

@@ -163,7 +163,7 @@ class StockTransferReceiptController extends Controller
         return StockTransferShipment::where('company_id', current_company_id())
             ->where('status', StockTransferShipment::STATUS_POSTED)
             ->whereIn('to_store_id', $this->allowedStoreIds($request))
-            ->whereHas('lines', fn ($line) => $line->whereColumn('qty', '>', 'qty_received'))
+            ->whereHas('lines', fn ($line) => $line->whereRaw('qty > qty_received + qty_returned'))
             ->with(['fromStore', 'toStore', 'lines'])
             ->latest('posted_at')
             ->get();

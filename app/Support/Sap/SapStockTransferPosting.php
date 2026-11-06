@@ -99,7 +99,7 @@ class SapStockTransferPosting
 
         $shipment->receipts()->where($waiting)->get()
             ->concat($shipment->returns()->where($waiting)->get())
-            ->sortBy(fn (StockTransferReceipt|StockTransferReturn $doc) => ($doc->received_at ?? $doc->returned_at)?->getTimestamp())
+            ->sortBy(fn (StockTransferReceipt|StockTransferReturn $doc) => ($doc instanceof StockTransferReturn ? $doc->returned_at : $doc->received_at)?->getTimestamp())
             ->each(fn (StockTransferReceipt|StockTransferReturn $doc) => self::queue($doc));
     }
 
