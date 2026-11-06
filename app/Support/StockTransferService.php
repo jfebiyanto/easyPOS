@@ -79,8 +79,6 @@ class StockTransferService
                 'status' => StockTransferShipment::STATUS_POSTED,
                 'posted_at' => now(),
                 'number' => NumberingConfig::nextNumber(self::REF_SHIPMENT, null, $locked->company_id),
-                'sap_post_status' => StockTransferShipment::SAP_PENDING,
-                'sap_post_error' => null,
             ])->save();
 
             SapStockTransferPosting::queue($locked);
