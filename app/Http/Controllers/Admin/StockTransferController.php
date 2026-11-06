@@ -95,7 +95,7 @@ class StockTransferController extends Controller
     public function ship(Request $request, StockTransfer $stockTransfer)
     {
         $this->ensureCompany($stockTransfer->company_id);
-        $this->authorizeTransfer($request, $stockTransfer);
+        $this->authorizeTransfer($request, $stockTransfer, 'from');
         abort_unless(in_array($stockTransfer->status, [StockTransfer::STATUS_DRAFT, StockTransfer::STATUS_REQUESTED], true), 422, 'Transfer tidak dapat dikirim pada status ini.');
 
         foreach ($stockTransfer->lines as $line) {
@@ -127,7 +127,7 @@ class StockTransferController extends Controller
     public function receiveForm(Request $request, StockTransfer $stockTransfer): View
     {
         $this->ensureCompany($stockTransfer->company_id);
-        $this->authorizeTransfer($request, $stockTransfer);
+        $this->authorizeTransfer($request, $stockTransfer, 'to');
         abort_unless($stockTransfer->status === StockTransfer::STATUS_SHIPPED, 422, 'Transfer belum dikirim.');
 
         return view('admin.stock.transfers.receive', [
@@ -138,7 +138,7 @@ class StockTransferController extends Controller
     public function receive(Request $request, StockTransfer $stockTransfer)
     {
         $this->ensureCompany($stockTransfer->company_id);
-        $this->authorizeTransfer($request, $stockTransfer);
+        $this->authorizeTransfer($request, $stockTransfer, 'to');
         abort_unless($stockTransfer->status === StockTransfer::STATUS_SHIPPED, 422, 'Transfer belum dikirim.');
 
         $data = $request->validate([
@@ -190,7 +190,7 @@ class StockTransferController extends Controller
     public function cancel(Request $request, StockTransfer $stockTransfer)
     {
         $this->ensureCompany($stockTransfer->company_id);
-        $this->authorizeTransfer($request, $stockTransfer);
+        $this->authorizeTransfer($request, $stockTransfer, 'from');
         abort_if($stockTransfer->isShipped(), 422, 'Transfer yang sudah dikirim tidak dapat dibatalkan. Terima penuh lalu kirim balik.');
 
         $stockTransfer->update(['status' => StockTransfer::STATUS_CANCELLED]);
@@ -200,12 +200,21 @@ class StockTransferController extends Controller
         return redirect()->route('admin.stock-transfers.index')->with('success', 'Transfer dibatalkan.');
     }
 
-    private function authorizeTransfer(Request $request, StockTransfer $transfer): void
+    /**
+     * Kirim dan batal hanya oleh gerai asal ('from'), terima hanya oleh gerai tujuan ('to'); Owner bebas.
+     *
+     * @param  'from'|'to'|'either'  $side
+     */
+    private function authorizeTransfer(Request $request, StockTransfer $transfer, string $side = 'either'): void
     {
-        abort_unless(
-            in_array($transfer->from_store_id, $this->allowedStoreIds($request), true)
-            || in_array($transfer->to_store_id, $this->allowedStoreIds($request), true),
-            403
-        );
+        $allowed = $this->allowedStoreIds($request);
+
+        $permitted = match ($side) {
+            'from' => in_array($transfer->from_store_id, $allowed, true),
+            'to' => in_array($transfer->to_store_id, $allowed, true),
+            default => in_array($transfer->from_store_id, $allowed, true) || in_array($transfer->to_store_id, $allowed, true),
+        };
+
+        abort_unless($permitted, 403);
     }
 }

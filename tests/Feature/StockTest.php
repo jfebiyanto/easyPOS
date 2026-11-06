@@ -164,6 +164,75 @@ class StockTest extends TestCase
         $this->assertSame(4.0, $this->balance($this->storeB->id));
     }
 
+    private function makeManager(Store $store, string $username): User
+    {
+        return User::create([
+            'company_id' => $this->company->id, 'store_id' => $store->id, 'name' => ucfirst($username), 'username' => $username,
+            'role' => User::ROLE_STORE_MANAGER, 'is_active' => true, 'password' => 'password',
+        ]);
+    }
+
+    private function draftTransferAtoB(int $qty = 4): StockTransfer
+    {
+        $this->actingAs($this->makeManager($this->storeA, 'managera'))
+            ->post(route('admin.stock-transfers.store'), [
+                'to_store_id' => $this->storeB->id,
+                'lines' => [['product_id' => $this->product->id, 'qty' => $qty]],
+            ])->assertRedirect(route('admin.stock-transfers.index'));
+
+        return StockTransfer::firstOrFail();
+    }
+
+    public function test_hanya_sm_gerai_asal_yang_mengirim_dan_membatalkan_transfer(): void
+    {
+        $transfer = $this->draftTransferAtoB();
+        $this->assertSame($this->storeA->id, $transfer->from_store_id);
+        $managerB = $this->makeManager($this->storeB, 'managerb');
+
+        $this->actingAs($managerB)->post(route('admin.stock-transfers.ship', $transfer))->assertForbidden();
+        $this->actingAs($managerB)->post(route('admin.stock-transfers.cancel', $transfer))->assertForbidden();
+        $this->assertSame(StockTransfer::STATUS_DRAFT, $transfer->refresh()->status);
+        $this->assertSame(10.0, $this->balance($this->storeA->id));
+    }
+
+    public function test_hanya_sm_gerai_tujuan_yang_menerima_transfer(): void
+    {
+        $transfer = $this->draftTransferAtoB();
+        $managerA = User::where('username', 'managera')->firstOrFail();
+        $managerB = $this->makeManager($this->storeB, 'managerb');
+
+        $this->actingAs($managerA)->post(route('admin.stock-transfers.ship', $transfer))->assertRedirect();
+        $line = $transfer->lines()->firstOrFail();
+
+        $this->actingAs($managerA)->get(route('admin.stock-transfers.receive-form', $transfer))->assertForbidden();
+        $this->actingAs($managerA)->post(route('admin.stock-transfers.receive', $transfer), [
+            'lines' => [['id' => $line->id, 'qty_received' => 4, 'variance_reason' => '']],
+        ])->assertForbidden();
+        $this->assertSame(0.0, $this->balance($this->storeB->id));
+
+        $this->actingAs($managerB)->get(route('admin.stock-transfers.receive-form', $transfer))->assertOk();
+        $this->actingAs($managerB)->post(route('admin.stock-transfers.receive', $transfer), [
+            'lines' => [['id' => $line->id, 'qty_received' => 4, 'variance_reason' => '']],
+        ])->assertRedirect();
+        $this->assertSame(4.0, $this->balance($this->storeB->id));
+    }
+
+    public function test_kedua_sm_melihat_transfer_di_daftar_dan_gerai_asal_selalu_miliknya(): void
+    {
+        $this->draftTransferAtoB();
+        $managerB = $this->makeManager($this->storeB, 'managerb');
+
+        $this->actingAs($managerB)->get(route('admin.stock-transfers.index'))->assertOk()->assertViewHas('transfers', fn ($p) => $p->count() === 1);
+
+        // SM tidak dapat membuat transfer dari gerai lain walau mengirim from_store_id gerai A.
+        $this->actingAs($managerB)->post(route('admin.stock-transfers.store'), [
+            'from_store_id' => $this->storeA->id,
+            'to_store_id' => $this->storeA->id,
+            'lines' => [['product_id' => $this->product->id, 'qty' => 1]],
+        ]);
+        $this->assertSame(0, StockTransfer::where('from_store_id', $this->storeA->id)->where('created_by', $managerB->id)->count());
+    }
+
     public function test_transfer_tidak_bisa_dibatalkan_setelah_dikirim(): void
     {
         $this->actingAs($this->owner)
