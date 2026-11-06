@@ -32,6 +32,7 @@ Contoh: `G.001.MN` mengirim ke `G.002.MN` → Shipment `G.001.MN → G.001.IT`, 
 ## Alur
 - **Post Shipment** (satu transaksi DB): validasi syarat; qty > 0; stok pengirim di warehouse tidak boleh menjadi negatif (`assertNonNegative` setara untuk buku besar warehouse); catat buku besar warehouse (`WarehouseStockService::record`): pengirim −qty, in-transit +qty (tipe `transfer_out`/`transfer_in`, `ref_type = stock_transfer_shipment`); beri nomor; antrekan job posting SAP `afterCommit`.
 - **Receipt**: dibuat oleh store penerima dari Shipment yang posted dan masih punya sisa. Qty per baris ≤ sisa (dikirim − sudah diterima, termasuk Receipt yang antre). Post langsung: in-transit −qty, warehouse penerima +qty (`ref_type = stock_transfer_receipt`); beri nomor; antrekan SAP. Receipt tidak ada Draft dan tidak bisa dibatalkan.
+- **Receipt dibuat dari Shipment (prefill):** di menu Receipt, tombol "New Receipt" meminta user memilih satu Shipment yang masih In Transit/Partially Received untuk store penerima (dropdown nomor Shipment, hanya yang `to_store_id` = store user dan masih punya sisa). Setelah dipilih (reload GET `?shipment=<id>`), form terisi otomatis: semua baris Shipment yang masih punya sisa, dengan qty = sisa. Daftar Shipment juga punya tombol "Receive" yang langsung membuka form terisi itu. User tidak memilih produk satu per satu; produk dan Shipment tidak bisa diubah di form. Barang yang tidak diterima: user **menghapus baris** (tombol hapus per baris) atau **mengganti qty** (0 < qty ≤ sisa). Minimal satu baris tersisa; baris yang dihapus tetap berada di gudang in-transit dan bisa diterima pada Receipt berikutnya. Server memvalidasi ulang (baris milik Shipment itu, qty ≤ sisa) dan tidak memercayai data form.
 - Semua perhitungan sisa memakai kunci baris (`lockForUpdate`) agar dua Receipt bersamaan tidak melewati sisa.
 
 ## Posting SAP
@@ -47,7 +48,7 @@ Contoh: `G.001.MN` mengirim ke `G.002.MN` → Shipment `G.001.MN → G.001.IT`, 
 - Teks UI berbahasa Inggris.
 
 ## Pengujian
-Feature test: syarat Post (integrasi mati, warehouse belum terhubung, U_SOL_WHTR kosong, pesan menyebut warehouse); perpindahan stok dua langkah di buku besar warehouse; stok negatif ditolak; Receipt parsial berulang dan batas sisa; status turunan; hak akses SM per store; payload SAP (header, baris, UDF); idempotensi kirim ulang; penautan OIVL tidak menggandakan ledger; impor OWHS membaca `U_SOL_WHTR`/`U_SOL_ITWH`; halaman Legacy baca-saja.
+Feature test: prefill Receipt dari Shipment (semua baris bersisa, qty = sisa), hapus baris, ubah qty, qty melebihi sisa ditolak, Receipt tanpa baris ditolak, Shipment store lain ditolak; syarat Post (integrasi mati, warehouse belum terhubung, U_SOL_WHTR kosong, pesan menyebut warehouse); perpindahan stok dua langkah di buku besar warehouse; stok negatif ditolak; Receipt parsial berulang dan batas sisa; status turunan; hak akses SM per store; payload SAP (header, baris, UDF); idempotensi kirim ulang; penautan OIVL tidak menggandakan ledger; impor OWHS membaca `U_SOL_WHTR`/`U_SOL_ITWH`; halaman Legacy baca-saja.
 
 ## Dokumentasi
 Perbarui `.ai/rules/sap-stock.md` (transfer kini lewat buku besar warehouse dan diposting ke SAP), PRD, dan ERD.
