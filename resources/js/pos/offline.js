@@ -19,6 +19,14 @@ export function enqueue(sale) {
     return queue.length;
 }
 
+/**
+ * Antrean ada di perangkat dan bisa berisi sisa gerai lain; daftar transaksi hanya menampilkan gerai yang sedang dipakai.
+ */
+export function pendingForStore(queue, storeId) {
+    if (!storeId) return [];
+    return queue.filter((item) => item.store_id === storeId);
+}
+
 export function removeFromQueue(clientUuid) {
     writeQueue(readQueue().filter((item) => item.client_uuid !== clientUuid));
 }

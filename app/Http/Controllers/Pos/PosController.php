@@ -455,6 +455,7 @@ class PosController extends Controller
 
         return response()->json([
             'business_date' => $postingDate,
+            'summary' => $this->daySummary($store, $postingDate),
             'data' => $sales->map(fn (Sale $sale) => [
                 'id' => $sale->id,
                 'number' => $sale->number,
@@ -471,14 +472,14 @@ class PosController extends Controller
 
     public function showSale(Request $request, Sale $sale): JsonResponse
     {
-        abort_unless($sale->company_id === current_company_id(), 404);
+        $this->abortUnlessOwnStore($request, $sale);
 
-        return response()->json(['data' => $this->salePayload($sale->load('lines', 'payments', 'delivery'))]);
+        return response()->json(['data' => $this->salePayload($sale->load('lines', 'payments.paymentType', 'delivery'))]);
     }
 
     public function voidSale(Request $request, Sale $sale): JsonResponse
     {
-        abort_unless($sale->company_id === current_company_id(), 404);
+        $this->abortUnlessOwnStore($request, $sale);
 
         $data = $request->validate(['reason' => ['required', 'string', 'max:500']]);
 
@@ -845,6 +846,64 @@ class PosController extends Controller
         return $user->isOwner() ? Store::orderBy('code')->first() : null;
     }
 
+    /**
+     * Transaksi hanya boleh dibuka atau di-void dari gerai yang sedang dipakai, bukan gerai lain di perusahaan yang sama.
+     */
+    private function abortUnlessOwnStore(Request $request, Sale $sale): void
+    {
+        abort_unless(
+            $sale->company_id === current_company_id() && $sale->store_id === $this->store($request)?->id,
+            404,
+        );
+    }
+
+    /**
+     * Ringkasan satu business date gerai: transaksi selesai dijumlah, void dihitung terpisah.
+     * Kembalian dikurangkan dari tunai (CASH) agar rincian metode bayar sama dengan total penjualan.
+     *
+     * @return array{count: int, void_count: int, subtotal: float, discount_total: float, tax_total: float, total: float, by_payment_type: list<array{code: string, description: ?string, amount: float}>}
+     */
+    private function daySummary(Store $store, string $businessDate): array
+    {
+        $daySales = fn () => Sale::where('company_id', current_company_id())
+            ->where('store_id', $store->id)
+            ->whereDate('business_date', $businessDate);
+
+        $completed = $daySales()->where('status', '!=', Sale::STATUS_VOID)
+            ->selectRaw('count(*) as sale_count, coalesce(sum(subtotal), 0) as subtotal, coalesce(sum(discount_total), 0) as discount_total, coalesce(sum(tax_total), 0) as tax_total, coalesce(sum(total), 0) as total, coalesce(sum(change_total), 0) as change_total')
+            ->first();
+
+        $byType = DB::table('sale_payments')
+            ->join('sales', 'sales.id', '=', 'sale_payments.sale_id')
+            ->leftJoin('payment_types', 'payment_types.id', '=', 'sale_payments.payment_type_id')
+            ->where('sales.company_id', current_company_id())
+            ->where('sales.store_id', $store->id)
+            ->whereDate('sales.business_date', $businessDate)
+            ->where('sales.status', '!=', Sale::STATUS_VOID)
+            ->where('sale_payments.status', 'confirmed')
+            ->groupBy('payment_types.code', 'payment_types.description')
+            ->orderBy('payment_types.code')
+            ->selectRaw('payment_types.code as code, payment_types.description as description, sum(sale_payments.amount) as amount')
+            ->get()
+            ->map(fn ($row) => [
+                'code' => $row->code ?? '-',
+                'description' => $row->description,
+                'amount' => round((float) $row->amount - ($row->code === 'CASH' ? (float) $completed->change_total : 0), 2),
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'count' => (int) $completed->sale_count,
+            'void_count' => $daySales()->where('status', Sale::STATUS_VOID)->count(),
+            'subtotal' => (float) $completed->subtotal,
+            'discount_total' => (float) $completed->discount_total,
+            'tax_total' => (float) $completed->tax_total,
+            'total' => (float) $completed->total,
+            'by_payment_type' => $byType,
+        ];
+    }
+
     private function salePayload(Sale $sale): array
     {
         return [
@@ -878,6 +937,9 @@ class PosController extends Controller
                 'amount' => (float) $p->amount,
                 'status' => $p->status,
                 'approval_code' => $p->approval_code,
+                'type' => $p->relationLoaded('paymentType') && $p->paymentType
+                    ? ['code' => $p->paymentType->code, 'description' => $p->paymentType->description]
+                    : null,
             ]),
             'delivery' => $sale->delivery ? [
                 'recipient_name' => $sale->delivery->recipient_name,

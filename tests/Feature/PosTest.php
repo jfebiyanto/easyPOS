@@ -331,6 +331,85 @@ class PosTest extends TestCase
         $this->actingAs($user)->getJson('/pos/sales')->assertStatus(422);
     }
 
+    public function test_daftar_transaksi_menandai_void_dan_asal_offline(): void
+    {
+        $online = $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload())->json('data.id');
+        $offline = $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload(['origin' => 'offline']))->json('data.id');
+        $voided = $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload())->json('data.id');
+        $this->actingAs($this->cashier)->postJson("/pos/sales/{$voided}/void", ['reason' => 'salah input'])->assertOk();
+
+        $rows = collect($this->actingAs($this->cashier)->getJson('/pos/sales')->assertOk()->json('data'))->keyBy('id');
+
+        $this->assertSame(['completed', 'online'], [$rows[$online]['status'], $rows[$online]['origin']]);
+        $this->assertSame('offline', $rows[$offline]['origin']);
+        $this->assertSame('void', $rows[$voided]['status']);
+    }
+
+    public function test_ringkasan_transaksi_hari_ini_menjumlah_yang_selesai_dan_memisahkan_void_serta_metode_bayar(): void
+    {
+        $edc = PaymentType::create([
+            'company_id' => $this->company->id, 'code' => 'EDC', 'description' => 'Kartu EDC', 'order_number' => 2,
+            'count_type' => 'summary', 'is_active' => true,
+        ]);
+        $edc->stores()->sync([$this->store->id]);
+
+        $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload(['payments' => [
+            ['payment_type_id' => $this->cash->id, 'amount' => 10000, 'status' => 'confirmed'],
+        ]]))->assertCreated();
+        $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload(['payments' => [
+            ['payment_type_id' => $this->cash->id, 'amount' => 3880, 'status' => 'confirmed'],
+            ['payment_type_id' => $edc->id, 'amount' => 5000, 'status' => 'confirmed'],
+        ]]))->assertCreated();
+        $voided = $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload())->json('data.id');
+        $this->actingAs($this->cashier)->postJson("/pos/sales/{$voided}/void", ['reason' => 'salah input'])->assertOk();
+
+        $summary = $this->actingAs($this->cashier)->getJson('/pos/sales')->assertOk()->json('summary');
+
+        $this->assertSame(2, $summary['count']);
+        $this->assertSame(1, $summary['void_count']);
+        $this->assertEquals(17760, $summary['total']);
+        $this->assertEquals(1760, $summary['tax_total']);
+        $this->assertEquals(0, $summary['discount_total']);
+        $byType = collect($summary['by_payment_type'])->keyBy('code');
+        $this->assertEquals(12760, $byType['CASH']['amount']);
+        $this->assertEquals(5000, $byType['EDC']['amount']);
+        $this->assertSame('Kartu EDC', $byType['EDC']['description']);
+    }
+
+    public function test_ringkasan_tidak_menghitung_transaksi_gerai_lain(): void
+    {
+        $otherStore = Store::create(['company_id' => $this->company->id, 'code' => 'STR002', 'name' => 'Gerai B', 'pic_name' => 'PIC', 'currency' => 'IDR']);
+        Sale::create(['company_id' => $this->company->id, 'store_id' => $otherStore->id, 'number' => 'S-LAIN', 'client_uuid' => (string) Str::uuid(), 'business_date' => company_today(), 'sold_at' => now(), 'cashier_id' => $this->cashier->id, 'status' => Sale::STATUS_COMPLETED, 'total' => 5000, 'tax_total' => 500]);
+
+        $summary = $this->actingAs($this->cashier)->getJson('/pos/sales')->assertOk()->json('summary');
+
+        $this->assertSame(0, $summary['count']);
+        $this->assertEquals(0, $summary['total']);
+        $this->assertSame([], $summary['by_payment_type']);
+    }
+
+    public function test_detail_transaksi_menyertakan_jenis_pembayaran(): void
+    {
+        $id = $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload())->json('data.id');
+
+        $this->actingAs($this->cashier)->getJson("/pos/sales/{$id}")
+            ->assertOk()
+            ->assertJsonPath('data.payments.0.type.code', 'CASH')
+            ->assertJsonPath('data.payments.0.type.description', 'Tunai')
+            ->assertJsonPath('data.lines.0.sku', 'SKU-1');
+    }
+
+    public function test_detail_dan_void_transaksi_gerai_lain_ditolak(): void
+    {
+        $otherStore = Store::create(['company_id' => $this->company->id, 'code' => 'STR002', 'name' => 'Gerai B', 'pic_name' => 'PIC', 'currency' => 'IDR']);
+        $foreign = Sale::create(['company_id' => $this->company->id, 'store_id' => $otherStore->id, 'number' => 'S-LAIN', 'client_uuid' => (string) Str::uuid(), 'business_date' => company_today(), 'sold_at' => now(), 'cashier_id' => $this->cashier->id, 'status' => Sale::STATUS_COMPLETED]);
+
+        $this->actingAs($this->cashier)->getJson("/pos/sales/{$foreign->id}")->assertNotFound();
+        $this->actingAs($this->cashier)->postJson("/pos/sales/{$foreign->id}/void", ['reason' => 'iseng'])->assertNotFound();
+
+        $this->assertSame(Sale::STATUS_COMPLETED, $foreign->refresh()->status);
+    }
+
     public function test_bootstrap_mengirim_pelanggan_default_dari_master_gerai(): void
     {
         $retail = Customer::create(['company_id' => $this->company->id, 'code' => 'C-RTL', 'name' => 'Pelanggan Retail', 'is_member' => false, 'is_active' => true]);

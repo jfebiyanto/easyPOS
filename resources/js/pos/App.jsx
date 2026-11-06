@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, uuid } from './api.js';
 import { printReceipt, connectUsbPrinter, hasUsbPrinter, getAutoPrint, setAutoPrint } from './printer.js';
-import { enqueue, readQueue, removeFromQueue, writeQueue } from './offline.js';
+import { enqueue, pendingForStore, readQueue, removeFromQueue, writeQueue } from './offline.js';
 import { activePromotions, applyPromotions, readCachedPromotionMeta, readCachedPromotions, writeCachedPromotionMeta, writeCachedPromotions } from './promotions.js';
 import { formatBusinessClock, formatIsoDate, serverOffset } from './businessClock.js';
 import { fitCartToStock, isOutOfStock, maxQty } from './stock.js';
@@ -1354,6 +1354,9 @@ function TransactionsModal({ online, boot, currency, meta, onClose }) {
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(online);
     const [printing, setPrinting] = useState(null);
+    const [summary, setSummary] = useState(null);
+    const [detail, setDetail] = useState(null);
+    const [opening, setOpening] = useState(null);
 
     useEffect(() => {
         if (!online) return;
@@ -1361,6 +1364,7 @@ function TransactionsModal({ online, boot, currency, meta, onClose }) {
             try {
                 const res = await api.todaySales();
                 setRows(res.data);
+                setSummary(res.summary);
                 setBusinessDate(res.business_date);
             } catch (e) {
                 setError(e.message);
@@ -1381,7 +1385,23 @@ function TransactionsModal({ online, boot, currency, meta, onClose }) {
         setPrinting(null);
     };
 
-    const waiting = readQueue().map((item) => ({
+    const openDetail = async (row) => {
+        setError(null);
+        setOpening(row.id);
+        try {
+            const res = await api.showSale(row.id);
+            setDetail(res.data);
+        } catch (e) {
+            setError(e.message);
+        }
+        setOpening(null);
+    };
+
+    if (detail) {
+        return <TransactionDetail sale={detail} currency={currency} onBack={() => setDetail(null)} onPrint={() => printReceipt(detail, meta)} />;
+    }
+
+    const waiting = pendingForStore(readQueue(), boot.store?.id).map((item) => ({
         key: item.client_uuid,
         number: 'Belum tersinkron',
         customer: item.local_summary?.customer_name || '–',
@@ -1398,6 +1418,7 @@ function TransactionsModal({ online, boot, currency, meta, onClose }) {
                 </p>
                 {error && <div className="md-snackbar error" role="alert">{error}</div>}
                 {loading && <div className="empty-state">Memuat transaksi…</div>}
+                {summary && <TransactionSummary summary={summary} currency={currency} />}
                 <table className="pos-table pos-mini-table">
                     <caption className="sr-only">Transaksi pada business date aktif</caption>
                     <thead>
@@ -1431,7 +1452,10 @@ function TransactionsModal({ online, boot, currency, meta, onClose }) {
                                     {r.status === 'void' && <span className="chip chip-danger"><span className="material-symbols-rounded" aria-hidden="true">block</span>Void</span>}
                                     {r.status !== 'void' && r.origin === 'offline' && <span className="chip chip-offline"><span className="material-symbols-rounded" aria-hidden="true">wifi_off</span>Offline</span>}
                                 </td>
-                                <td><button className="btn btn-tonal btn-sm" disabled={printing === r.id} onClick={() => reprint(r)}>Cetak Ulang</button></td>
+                                <td>
+                                    <button className="btn btn-outline btn-sm" disabled={opening === r.id} onClick={() => openDetail(r)}>Rincian</button>{' '}
+                                    <button className="btn btn-tonal btn-sm" disabled={printing === r.id} onClick={() => reprint(r)}>Cetak Ulang</button>
+                                </td>
                             </tr>
                         ))}
                     </tbody>
@@ -1439,6 +1463,69 @@ function TransactionsModal({ online, boot, currency, meta, onClose }) {
                 {!loading && rows.length === 0 && waiting.length === 0 && <div className="empty-state">Belum ada transaksi pada business date ini.</div>}
                 <div className="pos-modal-actions">
                     <button className="btn btn-outline" onClick={onClose}>Tutup</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Ringkasan business date aktif: hanya transaksi selesai; void dihitung terpisah. Tersedia saat online.
+function TransactionSummary({ summary, currency }) {
+    return (
+        <div className="pos-receipt" aria-label="Ringkasan transaksi">
+            <div><span>Transaksi selesai</span><span>{summary.count}</span></div>
+            {summary.void_count > 0 && <div><span>Transaksi void (tidak dihitung)</span><span>{summary.void_count}</span></div>}
+            <div><span>Penjualan sebelum pajak</span><span className="money">{fmt(summary.subtotal, currency)}</span></div>
+            {summary.discount_total > 0 && <div><span>Diskon</span><span className="money">−{fmt(summary.discount_total, currency)}</span></div>}
+            <div><span>Pajak</span><span className="money">{fmt(summary.tax_total, currency)}</span></div>
+            <div className="pos-grand"><span>TOTAL</span><span className="money">{fmt(summary.total, currency)}</span></div>
+            {summary.by_payment_type.map((p) => (
+                <div key={p.code}><span>{p.description || p.code}</span><span className="money">{fmt(p.amount, currency)}</span></div>
+            ))}
+        </div>
+    );
+}
+
+function TransactionDetail({ sale, currency, onBack, onPrint }) {
+    return (
+        <div className="pos-modal" role="dialog" aria-modal="true" aria-labelledby="pos-trx-detail-title">
+            <div className="pos-modal-card pos-modal-wide">
+                <h2 id="pos-trx-detail-title">Rincian {sale.number}</h2>
+                <p className="card-subtitle" style={{ marginTop: 0 }}>
+                    {sale.customer ? `${sale.customer.code || ''} ${sale.customer.name}`.trim() : 'Tanpa pelanggan'}
+                    {sale.sold_at && ` · ${new Date(sale.sold_at).toLocaleString('id-ID')}`}
+                    {sale.status === 'void' && ' · VOID'}
+                </p>
+                <div className="pos-receipt">
+                    {sale.lines?.map((l, i) => (
+                        <React.Fragment key={i}>
+                            <div className="pos-receipt-line">
+                                <span>{l.qty}× {l.name} @ {fmt(l.unit_price, currency)}</span>
+                                <span className="money">{fmt(l.line_total, currency)}</span>
+                            </div>
+                            {l.discount > 0 && (
+                                <div className="pos-receipt-line pos-receipt-promo">
+                                    <span>{l.promotion_name || 'Diskon'}</span>
+                                    <span className="money">−{fmt(l.discount, currency)}</span>
+                                </div>
+                            )}
+                        </React.Fragment>
+                    ))}
+                    {sale.discount_total > 0 && <div className="pos-saving"><span>Hemat</span><span className="money">−{fmt(sale.discount_total, currency)}</span></div>}
+                    <div><span>Pajak</span><span className="money">{fmt(sale.tax_total, currency)}</span></div>
+                    <div className="pos-grand"><span>TOTAL</span><span className="money">{fmt(sale.total, currency)}</span></div>
+                    {sale.payments?.map((p, i) => (
+                        <div key={i}>
+                            <span>{p.type?.description || p.type?.code || 'Pembayaran'}{p.approval_code ? ` · ${p.approval_code}` : ''}{p.status !== 'confirmed' ? ` (${p.status})` : ''}</span>
+                            <span className="money">{fmt(p.amount, currency)}</span>
+                        </div>
+                    ))}
+                    <div><span>Bayar</span><span className="money">{fmt(sale.paid_total, currency)}</span></div>
+                    <div><span>Kembali</span><span className="money">{fmt(sale.change_total, currency)}</span></div>
+                </div>
+                <div className="pos-modal-actions">
+                    <button className="btn btn-outline" onClick={onBack}>Kembali</button>
+                    <button className="btn btn-filled" onClick={onPrint}>Cetak Ulang</button>
                 </div>
             </div>
         </div>
