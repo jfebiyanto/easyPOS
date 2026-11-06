@@ -1,11 +1,11 @@
 @extends('layouts.admin')
 
-@section('title', 'Detail Pelanggan')
+@section('title', 'Customer Details')
 @section('page_title', 'Detail Pelanggan · '.$customer->name)
 
 @section('content')
 <div class="tabs">
-    <a href="{{ route('admin.customers.index') }}">Pelanggan</a>
+    <a href="{{ route('admin.customers.index') }}">Customer</a>
 </div>
 
 <div class="stat-grid">
@@ -13,7 +13,7 @@
         <div class="stat-icon"><span class="material-symbols-rounded">loyalty</span></div>
         <div>
             <div class="stat-value money">{{ rtrim(rtrim(number_format((float) $customer->points_balance, 2, ',', '.'), '0'), ',') }}</div>
-            <div class="stat-label">Poin saat ini</div>
+            <div class="stat-label">Current points</div>
         </div>
     </div>
     <div class="stat-card">
@@ -26,46 +26,46 @@
 </div>
 
 <div class="card">
-    <h2 class="card-title">Profil</h2>
+    <h2 class="card-title">Profile</h2>
     <div class="form-grid">
-        <div><strong>Kode</strong><div class="mono">{{ $customer->code ?? '-' }}</div></div>
-        <div><strong>No. HP</strong><div class="mono">{{ $customer->phone ?? '-' }}</div></div>
+        <div><strong>Code</strong><div class="mono">{{ $customer->code ?? '-' }}</div></div>
+        <div><strong>Mobile No.</strong><div class="mono">{{ $customer->phone ?? '-' }}</div></div>
         <div><strong>Email</strong><div>{{ $customer->email ?? '-' }}</div></div>
         <div><strong>Status</strong><div>{{ $customer->is_active ? 'Aktif' : 'Nonaktif' }}{{ $customer->is_member ? ' · Member' : '' }}</div></div>
-        <div style="grid-column:1/-1;"><strong>Alamat</strong><div>{{ $customer->address ?? '-' }}</div></div>
+        <div style="grid-column:1/-1;"><strong>Address</strong><div>{{ $customer->address ?? '-' }}</div></div>
     </div>
 </div>
 
 @unless ($readOnly)
 <div class="card">
-    <h2 class="card-title">Penyesuaian Poin</h2>
+    <h2 class="card-title">Points Adjustment</h2>
     <form method="POST" action="{{ route('admin.customers.adjust-points', $customer) }}">
         @csrf
         <div class="form-grid">
             <div class="field @error('points') has-error @enderror">
-                <label for="points">Jumlah Poin (boleh negatif)</label>
+                <label for="points">Points (may be negative)</label>
                 <input type="number" step="0.01" id="points" name="points" required>
                 @error('points') <div class="error">{{ $message }}</div> @enderror
             </div>
             <div class="field @error('note') has-error @enderror" style="grid-column:1/-1;">
-                <label for="note">Alasan *</label>
+                <label for="note">Reason *</label>
                 <input type="text" id="note" name="note" required maxlength="500">
                 @error('note') <div class="error">{{ $message }}</div> @enderror
             </div>
         </div>
         <div class="form-actions">
-            <button type="submit" class="btn btn-filled"><span class="material-symbols-rounded">add</span> Sesuaikan Poin</button>
+            <button type="submit" class="btn btn-filled"><span class="material-symbols-rounded">add</span> Adjust Points</button>
         </div>
     </form>
 </div>
 @endunless
 
 <div class="card">
-    <h2 class="card-title">Riwayat Poin</h2>
+    <h2 class="card-title">Points History</h2>
     <div class="table-wrap">
         <table class="md-table">
             <thead>
-                <tr><th>Waktu</th><th>Tipe</th><th style="text-align:right;">Poin</th><th style="text-align:right;">Saldo</th><th>Catatan</th></tr>
+                <tr><th>Time</th><th>Type</th><th style="text-align:right;">Points</th><th style="text-align:right;">Balance</th><th>Notes</th></tr>
             </thead>
             <tbody>
                 @forelse ($ledger as $entry)
@@ -79,7 +79,7 @@
                         <td>{{ $entry->note ?? '-' }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="5"><div class="empty-state">Belum ada riwayat poin.</div></td></tr>
+                    <tr><td colspan="5"><div class="empty-state">No points history yet.</div></td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -88,6 +88,6 @@
 
 <div class="form-actions">
     <a href="{{ route('admin.customers.edit', $customer) }}" class="btn btn-tonal">Edit</a>
-    <a href="{{ route('admin.customers.index') }}" class="btn btn-outline">Kembali</a>
+    <a href="{{ route('admin.customers.index') }}" class="btn btn-outline">Back</a>
 </div>
 @endsection

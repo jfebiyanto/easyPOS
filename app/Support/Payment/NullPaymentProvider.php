@@ -19,6 +19,6 @@ class NullPaymentProvider implements PaymentProvider
 
     public function createQrisCharge(SalePayment $payment): array
     {
-        throw new RuntimeException('Payment gateway belum dikonfigurasi.');
+        throw new RuntimeException('Payment gateway is not configured.');
     }
 }

@@ -10,7 +10,7 @@ class UserAgentLabel
     public static function describe(?string $userAgent): string
     {
         if (blank($userAgent)) {
-            return 'Tidak diketahui';
+            return 'Unknown';
         }
 
         $browser = match (true) {

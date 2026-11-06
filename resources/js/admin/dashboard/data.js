@@ -9,7 +9,7 @@ export async function fetchTodaySales(url) {
     const body = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-        throw new Error(body.message || 'Gagal memuat data penjualan hari ini.');
+        throw new Error(body.message || 'Failed to load the sales data for today.');
     }
 
     return body.data;
@@ -24,7 +24,7 @@ export async function fetchOverview(url) {
     const body = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-        throw new Error(body.message || 'Gagal memuat ringkasan hari ini.');
+        throw new Error(body.message || 'Failed to load the summary for today.');
     }
 
     return body.data;

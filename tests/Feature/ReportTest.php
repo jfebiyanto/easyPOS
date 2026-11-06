@@ -107,7 +107,7 @@ class ReportTest extends TestCase
         $report = $this->storeReport();
 
         $this->assertSame(
-            ['Gerai', 'Transaksi', 'Penjualan Kotor', 'Diskon', 'Penjualan Neto', 'PPN', 'Ongkir', 'Omzet', 'Retur', 'Net'],
+            ['Store', 'Transactions', 'Gross Sales', 'Discount', 'Net Sales', 'VAT', 'Shipping', 'Revenue', 'Returns', 'Net'],
             $report['columns'],
         );
         $this->assertEqualsWithDelta([1, 30000, 10000, 20000, 0, 0, 20000, 0, 20000], array_slice($report['rows'][0], 1), 0.001);

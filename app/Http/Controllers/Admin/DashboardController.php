@@ -24,7 +24,7 @@ class DashboardController extends Controller
     public function today(): JsonResponse
     {
         $storeId = active_store_id();
-        abort_unless($storeId, 422, 'Belum ada store aktif.');
+        abort_unless($storeId, 422, 'No active store yet.');
 
         return response()->json(['data' => DashboardService::today($storeId)]);
     }

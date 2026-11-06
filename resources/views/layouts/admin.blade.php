@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -31,48 +31,48 @@
 
             @php
                 $navGroups = [
-                    'konfigurasi' => ['Konfigurasi', [
-                        ['admin.company.edit', 'apartment', 'Identitas Perusahaan', true],
-                        ['admin.sap-import.index', 'cloud_download', 'Impor Data SAP B1', \App\Models\CompanyDetail::current()->sapIntegrationActive()],
+                    'konfigurasi' => ['Settings', [
+                        ['admin.company.edit', 'apartment', 'Company Profile', true],
+                        ['admin.sap-import.index', 'cloud_download', 'SAP B1 Import', \App\Models\CompanyDetail::current()->sapIntegrationActive()],
                         ['admin.sap-postings.index', 'cloud_upload', 'Integration Monitor', \App\Models\CompanyDetail::current()->sapIntegrationActive()],
-                        ['admin.stores.index', 'store', 'Daftar Gerai', true],
-                        ['admin.warehouses.index', 'warehouse', 'Warehouse', true],
-                        ['admin.tax-groups.index', 'percent', 'Tax Group', true],
-                        ['admin.users.index', 'group', 'Daftar User', true],
-                        ['admin.member-levels.index', 'workspace_premium', 'Level Member', true],
-                        ['admin.numberings.index', 'pin', 'Penomoran', true],
-                        ['admin.currencies.index', 'payments', 'Mata Uang', true],
-                        ['admin.payment-types.index', 'credit_card', 'Tipe Pembayaran', true],
+                        ['admin.stores.index', 'store', 'Stores', true],
+                        ['admin.warehouses.index', 'warehouse', 'Warehouses', true],
+                        ['admin.tax-groups.index', 'percent', 'Tax Groups', true],
+                        ['admin.users.index', 'group', 'Users', true],
+                        ['admin.member-levels.index', 'workspace_premium', 'Member Tiers', true],
+                        ['admin.numberings.index', 'pin', 'Numbering', true],
+                        ['admin.currencies.index', 'payments', 'Currencies', true],
+                        ['admin.payment-types.index', 'credit_card', 'Payment Methods', true],
                     ]],
-                    'produk' => ['Produk', [
-                        ['admin.groups.index', 'category', 'Kategori Produk', true],
-                        ['admin.units.index', 'straighten', 'Satuan', true],
-                        ['admin.brands.index', 'verified', 'Daftar Merk', true],
-                        ['admin.products.index', 'inventory_2', 'Daftar Produk', true],
-                        ['admin.bundles.index', 'workspaces', 'Produk Paket', true],
-                        ['admin.price-lists.index', 'sell', 'Daftar Harga', true],
-                        ['admin.promotions.index', 'percent', 'Promosi', true],
-                        ['admin.promotion-hierarchy.edit', 'low_priority', 'Hierarki Promosi', true],
+                    'produk' => ['Products', [
+                        ['admin.groups.index', 'category', 'Categories', true],
+                        ['admin.units.index', 'straighten', 'Units', true],
+                        ['admin.brands.index', 'verified', 'Brands', true],
+                        ['admin.products.index', 'inventory_2', 'Product Catalog', true],
+                        ['admin.bundles.index', 'workspaces', 'Bundles', true],
+                        ['admin.price-lists.index', 'sell', 'Price Lists', true],
+                        ['admin.promotions.index', 'percent', 'Promotions', true],
+                        ['admin.promotion-hierarchy.edit', 'low_priority', 'Promo Priority', true],
                     ]],
-                    'stok' => ['Stok', [
-                        ['admin.stock.index', 'warehouse', 'Saldo Stok', true],
-                        ['admin.stock-adjustments.index', 'tune', 'Penyesuaian Stok', true],
-                        ['admin.stock-transfers.index', 'swap_horiz', 'Transfer Stok', true],
+                    'stok' => ['Inventory', [
+                        ['admin.stock.index', 'warehouse', 'Stock Balance', true],
+                        ['admin.stock-adjustments.index', 'tune', 'Stock Adjustments', true],
+                        ['admin.stock-transfers.index', 'swap_horiz', 'Stock Transfers', true],
                     ]],
-                    'operasional' => ['Operasional', [
-                        ['admin.customer-groups.index', 'diversity_3', 'Grup Pelanggan', true],
-                        ['admin.supplier-groups.index', 'groups_3', 'Grup Pemasok', true],
-                        ['admin.customers.index', 'person', 'Daftar Pelanggan', true],
-                        ['admin.suppliers.index', 'local_shipping', 'Daftar Pemasok', true],
-                        ['admin.deliveries.index', 'local_shipping', 'Pengiriman', true],
-                        ['admin.stock-review.index', 'rule', 'Review Stok', true],
-                        ['admin.eod.index', 'lock', 'Tutup Toko', true],
+                    'operasional' => ['Operations', [
+                        ['admin.customer-groups.index', 'diversity_3', 'Customer Groups', true],
+                        ['admin.supplier-groups.index', 'groups_3', 'Supplier Groups', true],
+                        ['admin.customers.index', 'person', 'Customers', true],
+                        ['admin.suppliers.index', 'local_shipping', 'Suppliers', true],
+                        ['admin.deliveries.index', 'local_shipping', 'Deliveries', true],
+                        ['admin.stock-review.index', 'rule', 'Stock Review', true],
+                        ['admin.eod.index', 'lock', 'End of Day', true],
                     ]],
-                    'laporan' => ['Laporan', [
-                        ['admin.reports.index', 'bar_chart', 'Laporan Penjualan', true],
-                        ['admin.cancellations.index', 'block', 'Pembatalan Transaksi', true],
-                        ['admin.logs.index', 'history', 'Log Aktivitas', true],
-                        ['admin.pos-sessions.index', 'devices', 'Sesi Kasir', true],
+                    'laporan' => ['Reports', [
+                        ['admin.reports.index', 'bar_chart', 'Sales Reports', true],
+                        ['admin.cancellations.index', 'block', 'Voids & Cancellations', true],
+                        ['admin.logs.index', 'history', 'Activity Log', true],
+                        ['admin.pos-sessions.index', 'devices', 'Cashier Sessions', true],
                     ]],
                 ];
             @endphp
@@ -129,7 +129,7 @@
                 @endphp
                 {{-- Informasi & pergantian store aktif (sebelumnya di kartu dashboard). --}}
                 <div class="store-switcher" data-dropdown>
-                    <button type="button" class="user-chip store-switcher-toggle" data-dropdown-toggle aria-haspopup="true" aria-expanded="false" title="Store aktif untuk data master">
+                    <button type="button" class="user-chip store-switcher-toggle" data-dropdown-toggle aria-haspopup="true" aria-expanded="false" title="Active store for master data">
                         <span class="material-symbols-rounded" style="color: var(--md-primary);">store</span>
                         <div class="user-chip-text">
                             <span class="user-chip-name">{{ $activeStore->code }}</span>
@@ -142,7 +142,7 @@
                             <strong>{{ $activeStore->code }} · {{ $activeStore->name }}</strong>
                             <dl>
                                 <dt>Store Manager</dt><dd>{{ $activeStore->pic_name ?: '-' }}</dd>
-                                <dt>PPN</dt><dd>{{ $activeStore->ppn_enabled ? $activeStore->ppn_rate.'%' : 'Tidak aktif' }}</dd>
+                                <dt>PPN</dt><dd>{{ $activeStore->ppn_enabled ? $activeStore->ppn_rate.'%' : 'Inactive' }}</dd>
                             </dl>
                             @if (auth()->user()->isSuperuser())
                                 <a href="{{ route('admin.stores.edit', $activeStore) }}" class="btn btn-tonal btn-sm">
@@ -179,7 +179,7 @@
                 </div>
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
-                    <button type="submit" class="icon-btn" title="Keluar">
+                    <button type="submit" class="icon-btn" title="Log out">
                         <span class="material-symbols-rounded">logout</span>
                     </button>
                 </form>
@@ -212,7 +212,7 @@
                 <a class="status-bar-item status-bar-warning" href="{{ route('admin.eod.index', ['store' => $activeStore->id, 'date' => $business['locked_date']]) }}">
                     <span class="material-symbols-rounded">lock</span>
                     @php($lockedDateLabel = \Illuminate\Support\Carbon::parse($business['locked_date'])->locale('id')->translatedFormat('j F Y'))
-                    EOD {{ $activeStore->code }} {{ $lockedDateLabel }} belum dijalankan. Semua transaksi akan tercatat sebagai transaksi {{ $lockedDateLabel }}.
+                    EOD for {{ $activeStore->code }} {{ $lockedDateLabel }} has not been run. All transactions will be recorded as {{ $lockedDateLabel }} transactions.
                 </a>
             @endif
         </footer>

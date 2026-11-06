@@ -9,6 +9,7 @@ use App\Models\Store;
 use App\Support\ReportService;
 use Dompdf\Dompdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
 use Illuminate\View\View;
 use OpenSpout\Common\Entity\Row;
@@ -48,8 +49,8 @@ class ReportController extends Controller
         $report = (string) $request->query('report');
         $format = (string) $request->query('format', 'xlsx');
 
-        abort_unless(array_key_exists($report, ReportService::REPORTS), 404, 'Laporan tidak dikenal.');
-        abort_unless(in_array($format, ['xlsx', 'pdf'], true), 404, 'Format tidak didukung.');
+        abort_unless(array_key_exists($report, ReportService::REPORTS), 404, 'Unknown report.');
+        abort_unless(in_array($format, ['xlsx', 'pdf'], true), 404, 'Unsupported format.');
 
         [$from, $to] = ReportService::range($request->query('from'), $request->query('to'));
         $data = ReportService::build($report, $from, $to, $this->reportStoreIds($request));
@@ -76,7 +77,7 @@ class ReportController extends Controller
         return array_values(array_filter([$user->store_id]));
     }
 
-    private function reportStores(Request $request): \Illuminate\Support\Collection
+    private function reportStores(Request $request): Collection
     {
         if (! $request->user()->isOwner()) {
             return collect();
@@ -91,7 +92,7 @@ class ReportController extends Controller
         File::ensureDirectoryExists($dir);
         $path = $dir.DIRECTORY_SEPARATOR.$filename.'.xlsx';
 
-        $writer = new Writer();
+        $writer = new Writer;
         $writer->openToFile($path);
         $writer->addRow(Row::fromValues($data['columns']));
         foreach ($data['rows'] as $row) {
@@ -109,7 +110,7 @@ class ReportController extends Controller
             'company' => CompanyDetail::current(),
         ])->render();
 
-        $dompdf = new Dompdf();
+        $dompdf = new Dompdf;
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();

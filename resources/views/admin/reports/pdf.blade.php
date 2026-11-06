@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <style>
@@ -28,7 +28,7 @@
 
     @php
         $isMoney = function (string $col): bool {
-            foreach (['Total', 'Omzet', 'Subtotal', 'Kotor', 'Ongkir', 'Diskon', 'PPN', 'Retur', 'Net', 'Rata-rata', 'Belanja'] as $needle) {
+            foreach (['Total', 'Revenue', 'Subtotal', 'Gross', 'Shipping', 'Discount', 'VAT', 'Returns', 'Net', 'Average', 'Spend'] as $needle) {
                 if (str_contains($col, $needle)) return true;
             }
             return false;
@@ -57,7 +57,7 @@
                     @endforeach
                 </tr>
             @empty
-                <tr><td colspan="{{ count($data['columns']) }}">Tidak ada data.</td></tr>
+                <tr><td colspan="{{ count($data['columns']) }}">No data.</td></tr>
             @endforelse
         </tbody>
     </table>

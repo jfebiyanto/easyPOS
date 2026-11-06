@@ -38,7 +38,7 @@ class LoginController extends Controller
 
         if (! $user || ! $passwordValid || ! $user->is_active) {
             throw ValidationException::withMessages([
-                'username' => 'Username atau password salah, atau akun tidak aktif.',
+                'username' => 'Incorrect username or password, or the account is inactive.',
             ]);
         }
 

@@ -2,12 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\ActivityLog;
 use App\Models\NumberingConfig;
 use App\Support\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class NumberingApiController extends ApiController
 {
@@ -22,7 +20,7 @@ class NumberingApiController extends ApiController
 
         $this->updateConfigs($request);
 
-        return response()->json(['message' => 'Konfigurasi penomoran diperbarui.', 'data' => NumberingConfig::allTypes()->values()]);
+        return response()->json(['message' => 'Numbering configuration updated.', 'data' => NumberingConfig::allTypes()->values()]);
     }
 
     /**
@@ -30,7 +28,7 @@ class NumberingApiController extends ApiController
      */
     public function next(string $transactionType): JsonResponse
     {
-        abort_unless(array_key_exists($transactionType, NumberingConfig::TYPES), 404, 'Tipe transaksi tidak dikenal.');
+        abort_unless(array_key_exists($transactionType, NumberingConfig::TYPES), 404, 'Unknown transaction type.');
 
         return response()->json([
             'transaction_type' => $transactionType,

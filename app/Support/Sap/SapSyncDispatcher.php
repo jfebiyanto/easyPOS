@@ -49,7 +49,7 @@ class SapSyncDispatcher
         $run->update([
             'status' => SapSyncRun::STATUS_CANCELLED,
             'finished_at' => now(),
-            'error' => 'Dibatalkan oleh pengguna.',
+            'error' => 'Cancelled by the user.',
         ]);
 
         if (config('queue.default') === 'database') {

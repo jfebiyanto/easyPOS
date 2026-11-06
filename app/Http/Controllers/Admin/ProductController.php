@@ -82,9 +82,9 @@ class ProductController extends Controller
             throw $e;
         }
 
-        ActivityLogger::log('product.created', "Membuat produk: {$product->sku} · {$product->name} (harga Rp ".number_format($product->base_price, 0, ',', '.').')', $product);
+        ActivityLogger::log('product.created', "Created product: {$product->sku} · {$product->name} (price Rp ".number_format($product->base_price, 0, ',', '.').')', $product);
 
-        return redirect()->route('admin.products.index')->with('success', 'Produk berhasil dibuat.');
+        return redirect()->route('admin.products.index')->with('success', 'Product created successfully.');
     }
 
     public function edit(Product $product): View
@@ -138,13 +138,13 @@ class ProductController extends Controller
             $this->deleteImageFile($oldImagePath);
         }
 
-        ActivityLogger::log('product.updated', "Mengubah produk: {$product->sku} · {$product->name}", $product, [
+        ActivityLogger::log('product.updated', "Updated product: {$product->sku} · {$product->name}", $product, [
             'base_price_changed' => $oldBasePrice != $product->base_price,
             'old_base_price' => $oldBasePrice,
             'new_base_price' => $product->base_price,
         ]);
 
-        return redirect()->route('admin.products.index')->with('success', 'Produk berhasil diperbarui.');
+        return redirect()->route('admin.products.index')->with('success', 'Product updated successfully.');
     }
 
     public function destroy(Product $product): RedirectResponse
@@ -155,9 +155,9 @@ class ProductController extends Controller
         $product->delete();
         $this->deleteImageFile($product->image_path);
 
-        ActivityLogger::log('product.deleted', "Menghapus produk: {$label}", $product);
+        ActivityLogger::log('product.deleted', "Deleted product: {$label}", $product);
 
-        return redirect()->route('admin.products.index')->with('success', 'Produk berhasil dihapus.');
+        return redirect()->route('admin.products.index')->with('success', 'Product deleted successfully.');
     }
 
     private function deleteImageFile(?string $path): void

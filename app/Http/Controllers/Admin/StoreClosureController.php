@@ -74,7 +74,7 @@ class StoreClosureController extends Controller
     public function store(Request $request)
     {
         $storeId = $this->resolveStoreId($request, $request->input('store_id'));
-        abort_unless($storeId && in_array($storeId, $this->allowedStoreIds($request), true), 422, 'Store tidak valid.');
+        abort_unless($storeId && in_array($storeId, $this->allowedStoreIds($request), true), 422, 'Invalid store.');
 
         $data = $request->validate([
             'business_date' => ['required', 'date'],
@@ -89,7 +89,7 @@ class StoreClosureController extends Controller
         $businessDate = $data['business_date'];
 
         if (StoreClosure::isClosed($store->id, $businessDate)) {
-            return back()->withInput()->with('error', "EOD tanggal {$businessDate} sudah ditutup. Buka ulang EOD terlebih dahulu.");
+            return back()->withInput()->with('error', "EOD for {$businessDate} is already closed. Reopen EOD first.");
         }
 
         $pending = Sale::where('store_id', $store->id)
@@ -98,7 +98,7 @@ class StoreClosureController extends Controller
             ->count();
 
         if ($pending > 0 && ! ($request->boolean('override_review') && $request->user()->isOwner())) {
-            return back()->withInput()->with('error', "Masih ada {$pending} transaksi review yang belum diselesaikan.");
+            return back()->withInput()->with('error', "There are still {$pending} transactions pending review.");
         }
 
         $salesTotal = (float) Sale::where('store_id', $store->id)
@@ -167,7 +167,7 @@ class StoreClosureController extends Controller
         ActivityLogger::log('store.closed', "Tutup toko {$store->code} tanggal {$businessDate}", $store);
 
         return redirect()->route('admin.eod.index', ['store' => $store->id, 'date' => $businessDate])
-            ->with('success', 'Tutup toko berhasil. Kas dihitung: Rp '.number_format($cashCounted, 0, ',', '.'));
+            ->with('success', 'Store closed successfully. Counted cash: Rp '.number_format($cashCounted, 0, ',', '.'));
     }
 
     /**
@@ -176,7 +176,7 @@ class StoreClosureController extends Controller
     public function reopen(Request $request): RedirectResponse
     {
         $storeId = $this->resolveStoreId($request, $request->input('store_id'));
-        abort_unless($storeId && in_array($storeId, $this->allowedStoreIds($request), true), 422, 'Store tidak valid.');
+        abort_unless($storeId && in_array($storeId, $this->allowedStoreIds($request), true), 422, 'Invalid store.');
 
         $data = $request->validate([
             'business_date' => ['required', 'date'],
@@ -187,7 +187,7 @@ class StoreClosureController extends Controller
         $businessDate = Carbon::parse($data['business_date'])->toDateString();
 
         if ($businessDate !== company_today()) {
-            return back()->with('error', "EOD tanggal {$businessDate} tidak dapat dibuka ulang. Hanya EOD tanggal bisnis hari ini (".company_today().') yang dapat dibuka ulang.');
+            return back()->with('error', "EOD for {$businessDate} cannot be reopened. Only EOD for today's business date (".company_today().') can be reopened.');
         }
 
         $closure = StoreClosure::where('store_id', $store->id)
@@ -196,7 +196,7 @@ class StoreClosureController extends Controller
             ->first();
 
         if (! $closure) {
-            return back()->with('error', "EOD tanggal {$businessDate} belum ditutup.");
+            return back()->with('error', "EOD for {$businessDate} has not been closed.");
         }
 
         $closure->update([
@@ -209,7 +209,7 @@ class StoreClosureController extends Controller
         ActivityLogger::log('store.reopened', "Buka ulang EOD {$store->code} tanggal {$businessDate}: {$data['reopen_reason']}", $store);
 
         return redirect()->route('admin.eod.index', ['store' => $store->id, 'date' => $businessDate])
-            ->with('success', 'EOD berhasil dibuka ulang. Transaksi POS dapat dilanjutkan.');
+            ->with('success', 'EOD reopened successfully. POS transactions can continue.');
     }
 
     private function reportStores(Request $request): Collection

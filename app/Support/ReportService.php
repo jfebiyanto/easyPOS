@@ -16,10 +16,10 @@ use Illuminate\Support\Facades\DB;
 class ReportService
 {
     public const REPORTS = [
-        'sales_by_store' => 'Penjualan per Gerai',
-        'sales_by_sku' => 'Penjualan per SKU',
-        'best_sellers' => 'Produk Terlaris',
-        'customer_spend' => 'Rata-rata Belanja Pelanggan',
+        'sales_by_store' => 'Sales by Store',
+        'sales_by_sku' => 'Sales by SKU',
+        'best_sellers' => 'Best Sellers',
+        'customer_spend' => 'Average Customer Spend',
     ];
 
     public static function range(?string $from, ?string $to): array
@@ -32,7 +32,7 @@ class ReportService
 
     public static function build(string $report, string $from, string $to, array $storeIds): array
     {
-        abort_unless(array_key_exists($report, self::REPORTS), 404, 'Laporan tidak dikenal.');
+        abort_unless(array_key_exists($report, self::REPORTS), 404, 'Unknown report.');
 
         $data = match ($report) {
             'sales_by_store' => self::salesByStore($from, $to, $storeIds),
@@ -89,10 +89,10 @@ class ReportService
         })->all();
 
         return [
-            'columns' => ['Gerai', 'Transaksi', 'Penjualan Kotor', 'Diskon', 'Penjualan Neto', 'PPN', 'Ongkir', 'Omzet', 'Retur', 'Net'],
+            'columns' => ['Store', 'Transactions', 'Gross Sales', 'Discount', 'Net Sales', 'VAT', 'Shipping', 'Revenue', 'Returns', 'Net'],
             'rows' => $rows,
             'numeric' => [1, 2, 3, 4, 5, 6, 7, 8, 9],
-            'notes' => 'Penjualan Kotor − Diskon = Penjualan Neto (tanpa PPN). Penjualan Neto + PPN + Ongkir = Omzet. Net = Omzet − Retur. Retur dihitung pada tanggal retur dibuat (zona waktu perusahaan).',
+            'notes' => 'Gross Sales − Discount = Net Sales (excluding VAT). Net Sales + VAT + Shipping = Revenue. Net = Revenue − Returns. Returns are counted on the date the return was created (company timezone).',
         ];
     }
 
@@ -125,7 +125,7 @@ class ReportService
 
         usort($rows, fn ($a, $b) => strnatcmp((string) $a[0], (string) $b[0]));
 
-        return ['columns' => ['SKU', 'Produk', 'Qty', 'Omzet'], 'rows' => $rows, 'numeric' => [2, 3]];
+        return ['columns' => ['SKU', 'Product', 'Qty', 'Revenue'], 'rows' => $rows, 'numeric' => [2, 3]];
     }
 
     private static function bestSellers(string $from, string $to, array $storeIds): array
@@ -135,7 +135,7 @@ class ReportService
         usort($data['rows'], fn ($a, $b) => [$b[2], $b[3]] <=> [$a[2], $a[3]] ?: strnatcmp((string) $a[0], (string) $b[0]));
 
         $data['rows'] = array_slice($data['rows'], 0, 20);
-        $data['title'] = 'Produk Terlaris (Top 20)';
+        $data['title'] = 'Best Sellers (Top 20)';
 
         return $data;
     }
@@ -178,7 +178,7 @@ class ReportService
 
         usort($rows, fn ($a, $b) => $b[2] <=> $a[2]);
 
-        return ['columns' => ['Pelanggan', 'Transaksi', 'Total Belanja', 'Rata-rata'], 'rows' => $rows, 'numeric' => [1, 2, 3]];
+        return ['columns' => ['Customer', 'Transactions', 'Total Spend', 'Average'], 'rows' => $rows, 'numeric' => [1, 2, 3]];
     }
 
     /**

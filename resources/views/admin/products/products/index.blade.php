@@ -1,15 +1,15 @@
 @extends('layouts.admin')
 
-@section('title', 'Daftar Produk')
-@section('page_title', 'Daftar Produk')
+@section('title', 'Product Catalog')
+@section('page_title', 'Product Catalog')
 
 @section('content')
 <div class="table-toolbar">
     <form method="GET" action="{{ route('admin.products.index') }}" class="search-box">
         <div class="field" style="margin-bottom:0; display:flex; gap:8px;">
-            <input type="text" name="q" placeholder="Cari nama, SKU, atau barcode..." value="{{ request('q') }}">
+            <input type="text" name="q" placeholder="Search name, SKU or barcode..." value="{{ request('q') }}">
             <select name="group" style="max-width: 180px;" onchange="this.form.submit()">
-                <option value="">Semua Group</option>
+                <option value="">All Groups</option>
                 @foreach ($groups as $group)
                     <option value="{{ $group->id }}" @selected(request('group') == $group->id)>{{ $group->name }}</option>
                 @endforeach
@@ -19,7 +19,7 @@
     </form>
     @unless ($readOnly)
     <a href="{{ route('admin.products.create') }}" class="btn btn-filled">
-        <span class="material-symbols-rounded">add</span> Tambah Produk
+        <span class="material-symbols-rounded">add</span> Add Product
     </a>
     @endunless
 </div>
@@ -27,7 +27,7 @@
 <div class="table-wrap">
     <table class="md-table">
         <thead>
-            <tr><th>Gambar</th><th>{!! sort_link('SKU', 'sku') !!}</th><th>{!! sort_link('Nama', 'name') !!}</th><th>Group</th><th>Brand</th><th>Unit</th><th>{!! sort_link('Harga Dasar', 'base_price') !!}</th><th>{!! sort_link('Status', 'is_active') !!}</th><th style="text-align:right;">Aksi</th></tr>
+            <tr><th>Image</th><th>{!! sort_link('SKU', 'sku') !!}</th><th>{!! sort_link('Nama', 'name') !!}</th><th>Group</th><th>Brand</th><th>Unit</th><th>{!! sort_link('Harga Dasar', 'base_price') !!}</th><th>{!! sort_link('Status', 'is_active') !!}</th><th style="text-align:right;">Actions</th></tr>
         </thead>
         <tbody>
             @forelse ($products as $product)
@@ -52,14 +52,14 @@
                             <a href="{{ route('admin.products.edit', $product) }}" class="btn btn-tonal btn-sm">Edit</a>
                             <form method="POST" action="{{ route('admin.products.destroy', $product) }}" onsubmit="return confirm('Hapus produk ini?')">
                                 @csrf @method('DELETE')
-                                <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
+                                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                             </form>
                             @endunless
                         </div>
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="9"><div class="empty-state"><span class="material-symbols-rounded">inventory_2</span><p>Belum ada produk.</p></div></td></tr>
+                <tr><td colspan="9"><div class="empty-state"><span class="material-symbols-rounded">inventory_2</span><p>No products yet.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>

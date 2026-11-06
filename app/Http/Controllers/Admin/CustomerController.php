@@ -74,7 +74,7 @@ class CustomerController extends Controller
 
         SapCustomerSync::queue($customer);
 
-        return redirect()->route('admin.customers.index')->with('success', 'Customer berhasil dibuat.');
+        return redirect()->route('admin.customers.index')->with('success', 'Customer created successfully.');
     }
 
     public function show(Customer $customer): View
@@ -118,7 +118,7 @@ class CustomerController extends Controller
             SapCustomerSync::queue($customer);
         }
 
-        return redirect()->route('admin.customers.index')->with('success', 'Customer berhasil diperbarui.');
+        return redirect()->route('admin.customers.index')->with('success', 'Customer updated successfully.');
     }
 
     /**
@@ -130,7 +130,7 @@ class CustomerController extends Controller
 
         SapCustomerSync::queue($customer);
 
-        return back()->with('success', 'Customer dijadwalkan untuk dikirim ke SAP B1.');
+        return back()->with('success', 'Customer scheduled to be sent to SAP B1.');
     }
 
     public function adjustPoints(Request $request, Customer $customer)
@@ -144,7 +144,7 @@ class CustomerController extends Controller
 
         ActivityLogger::log('customer.points_adjusted', "Penyesuaian poin {$customer->name} ({$data['points']})", $customer);
 
-        return redirect()->route('admin.customers.show', $customer)->with('success', 'Poin berhasil disesuaikan.');
+        return redirect()->route('admin.customers.show', $customer)->with('success', 'Points adjusted successfully.');
     }
 
     private function validated(Request $request, ?string $id = null): array
@@ -162,7 +162,7 @@ class CustomerController extends Controller
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
-        abort_if(blank($data['phone'] ?? null) && blank($data['code'] ?? null), 422, 'Nomor HP atau kode customer wajib diisi.');
+        abort_if(blank($data['phone'] ?? null) && blank($data['code'] ?? null), 422, 'Mobile number or customer code is required.');
 
         $companyId = current_company_id();
 
@@ -171,14 +171,14 @@ class CustomerController extends Controller
             if ($id) {
                 $phoneQuery->whereKeyNot($id);
             }
-            abort_if($phoneQuery->exists(), 422, 'Nomor HP sudah terdaftar.');
+            abort_if($phoneQuery->exists(), 422, 'Mobile number is already registered.');
         }
         if (filled($data['code'] ?? null)) {
             $codeQuery = Customer::where('company_id', $companyId)->where('code', $data['code']);
             if ($id) {
                 $codeQuery->whereKeyNot($id);
             }
-            abort_if($codeQuery->exists(), 422, 'Kode customer sudah dipakai.');
+            abort_if($codeQuery->exists(), 422, 'Customer code is already in use.');
         }
 
         return $data;

@@ -194,17 +194,17 @@ class PosSessionTest extends TestCase
 
         $this->actingAs($this->owner)->get(route('admin.pos-sessions.index'))
             ->assertOk()
-            ->assertSee('Sesi Kasir')
+            ->assertSee('Cashier Sessions')
             ->assertSee('Chrome 142 · Windows')
             ->assertSee('Firefox 130 · Linux')
             ->assertSee('10.0.0.5')
             ->assertSee('192.168.1.9')
-            ->assertSee('Diambil alih');
+            ->assertSee('Taken over');
 
         $this->get(route('admin.pos-sessions.index', ['status' => 'active']))
             ->assertOk()
             ->assertSee('192.168.1.9')
-            ->assertDontSee('Berakhir ·');
+            ->assertDontSee('Ended ·');
     }
 
     public function test_halaman_audit_sesi_kasir_hanya_untuk_owner(): void

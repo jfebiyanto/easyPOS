@@ -76,7 +76,7 @@ class SapSalePostingTest extends TestCase
             'is_member' => false, 'is_active' => true, 'source' => Customer::SOURCE_SAP,
         ]);
         $this->store = Store::create([
-            'company_id' => $this->company->id, 'code' => 'STR001', 'name' => 'Gerai', 'pic_name' => 'PIC',
+            'company_id' => $this->company->id, 'code' => 'STR001', 'name' => 'Store', 'pic_name' => 'PIC',
             'currency' => 'IDR', 'warehouse_id' => $warehouse->id, 'default_customer_id' => $this->customer->id,
         ]);
         $this->owner = User::create([
@@ -559,12 +559,12 @@ class SapSalePostingTest extends TestCase
             ->get(route('admin.sap-postings.index'))
             ->assertOk()
             ->assertSee('Integration Monitor')
-            ->assertSee('Gagal (1)')
+            ->assertSee('Failed (1)')
             ->assertSee($sale->number)
             ->assertSeeInOrder(['A/R Invoice SAP', 'Incoming Payment SAP'])
             ->assertSee('2600001')
             ->assertDontSee('A/R Invoice 2600001')
-            ->assertSee('Kirim Ulang');
+            ->assertSee('Resend');
 
         $this->actingAs($this->cashier)
             ->post(route('admin.sap-postings.retry', $sale))

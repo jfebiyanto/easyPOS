@@ -56,7 +56,7 @@ class PromotionApiController extends ApiController
 
         ActivityLogger::log('promotion.deleted', "Menghapus promosi (API): {$label}", $promotion);
 
-        return response()->json(['message' => 'Promosi dihapus.']);
+        return response()->json(['message' => 'Promotion deleted.']);
     }
 
     private function validated(Request $request, ?string $id = null): array

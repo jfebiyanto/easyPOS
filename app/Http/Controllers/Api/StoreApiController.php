@@ -34,7 +34,7 @@ class StoreApiController extends ApiController
             'is_active' => $request->boolean('is_active', true),
         ]);
 
-        ActivityLogger::log('store.created', "Membuat store baru (API): {$store->code} · {$store->name}", $store);
+        ActivityLogger::log('store.created', "Created new store (API): {$store->code} · {$store->name}", $store);
 
         return response()->json(['data' => $store], 201);
     }
@@ -57,13 +57,13 @@ class StoreApiController extends ApiController
         $this->authorizeCompany($request, $store->company_id);
 
         if ($store->users()->exists()) {
-            return response()->json(['message' => 'Store masih memiliki user, tidak dapat dihapus.'], 422);
+            return response()->json(['message' => 'Store still has users and cannot be deleted.'], 422);
         }
 
         ActivityLogger::log('store.deleted', "Menghapus store (API): {$store->code} · {$store->name}", $store);
         $store->delete();
 
-        return response()->json(['message' => 'Store dihapus.']);
+        return response()->json(['message' => 'Store deleted.']);
     }
 
     private function validated(Request $request, ?string $id = null): array

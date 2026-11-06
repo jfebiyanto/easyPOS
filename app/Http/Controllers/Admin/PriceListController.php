@@ -44,7 +44,7 @@ class PriceListController extends Controller
 
         ActivityLogger::log('price_list.created', "Membuat price list: {$priceList->code} · {$priceList->name}", $priceList, $data);
 
-        return redirect()->route('admin.price-lists.index')->with('success', 'Price list berhasil dibuat.');
+        return redirect()->route('admin.price-lists.index')->with('success', 'Price list created successfully.');
     }
 
     public function edit(PriceList $priceList): View
@@ -62,7 +62,7 @@ class PriceListController extends Controller
 
         ActivityLogger::log('price_list.updated', "Mengubah price list: {$priceList->code} · {$priceList->name}", $priceList);
 
-        return redirect()->route('admin.price-lists.index')->with('success', 'Price list berhasil diperbarui.');
+        return redirect()->route('admin.price-lists.index')->with('success', 'Price list updated successfully.');
     }
 
     public function show(PriceList $priceList): View
@@ -94,11 +94,11 @@ class PriceListController extends Controller
 
         $product = Product::find($data['product_id']);
 
-        ActivityLogger::log('price_list.item_changed', "Mengubah harga {$product?->sku} menjadi Rp ".number_format($data['price'], 0, ',', '.')." di price list {$priceList->code}", $item, [
+        ActivityLogger::log('price_list.item_changed', "Changed price of {$product?->sku} to Rp ".number_format($data['price'], 0, ',', '.')." in price list {$priceList->code}", $item, [
             'price_list_id' => $priceList->id, 'product_id' => $data['product_id'], 'price' => $data['price'], 'min_qty' => $data['min_qty'],
         ]);
 
-        return redirect()->route('admin.price-lists.show', $priceList)->with('success', 'Item harga berhasil disimpan.');
+        return redirect()->route('admin.price-lists.show', $priceList)->with('success', 'Price item saved successfully.');
     }
 
     public function destroyItem(PriceList $priceList, PriceListItem $item)
@@ -111,7 +111,7 @@ class PriceListController extends Controller
 
         ActivityLogger::log('price_list.item_deleted', "Menghapus {$label}", $item, ['price_list_id' => $priceList->id]);
 
-        return redirect()->route('admin.price-lists.show', $priceList)->with('success', 'Item harga berhasil dihapus.');
+        return redirect()->route('admin.price-lists.show', $priceList)->with('success', 'Price item deleted successfully.');
     }
 
     public function destroy(PriceList $priceList)
@@ -123,7 +123,7 @@ class PriceListController extends Controller
 
         ActivityLogger::log('price_list.deleted', "Menghapus price list: {$label}", $priceList);
 
-        return redirect()->route('admin.price-lists.index')->with('success', 'Price list berhasil dihapus.');
+        return redirect()->route('admin.price-lists.index')->with('success', 'Price list deleted successfully.');
     }
 
     private function validated(Request $request, ?string $id = null): array

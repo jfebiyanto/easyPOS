@@ -57,19 +57,19 @@ if (root) {
         // Kartu 1 — Total penjualan
         const salesDelta = delta(sales.delta_pct);
         setText('[data-ts-sales-total]', formatRupiah(sales.total));
-        setText('[data-ts-sales-count]', `${formatNumber(sales.transactions)} transaksi`);
+        setText('[data-ts-sales-count]', `${formatNumber(sales.transactions)} transactions`);
         renderArrow('[data-ts-sales-arrow]', salesDelta);
         renderDelta('[data-ts-sales-delta]', salesDelta);
-        charts.sales.updateSeries([{ name: 'Penjualan', data: sales.hourly }]);
+        charts.sales.updateSeries([{ name: 'Sales', data: sales.hourly }]);
 
         // Kartu 2 — Produk terlaris
         const top = products.top;
         const productDelta = delta(top?.delta_pct ?? null);
-        setText('[data-ts-product-name]', top ? top.name.toUpperCase() : 'BELUM ADA PRODUK TERJUAL');
+        setText('[data-ts-product-name]', top ? top.name.toUpperCase() : 'NO PRODUCTS SOLD YET');
         setText('[data-ts-product-total]', top ? formatRupiah(top.omzet) : formatRupiah(0));
         setText('[data-ts-product-qty]', top ? `${formatNumber(top.qty)} terjual${top.sku ? ` · ${top.sku}` : ''}` : '—');
         renderDelta('[data-ts-product-delta]', productDelta);
-        charts.products.updateSeries([{ name: top ? top.name : 'Produk', data: products.hourly }]);
+        charts.products.updateSeries([{ name: top ? top.name : 'Product', data: products.hourly }]);
 
         // Kartu 3 — Ringkasan performa
         $('[data-ts-ring="net"]').innerHTML = ring(performance.net_target_pct ?? 0, 'warm', 'lg');
@@ -99,8 +99,8 @@ if (root) {
         }
     };
 
-    charts.sales = sparkline($('[data-ts-chart="sales"]'), COLORS.green, 'Penjualan');
-    charts.products = sparkline($('[data-ts-chart="products"]'), COLORS.amber, 'Produk');
+    charts.sales = sparkline($('[data-ts-chart="sales"]'), COLORS.green, 'Sales');
+    charts.products = sparkline($('[data-ts-chart="products"]'), COLORS.amber, 'Product');
     Object.values(charts).forEach((chart) => chart.render());
 
     // Menu kartu (ikon hamburger): muat ulang data atau buka laporan.

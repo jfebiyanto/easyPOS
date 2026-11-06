@@ -46,7 +46,7 @@ class UserApiController extends ApiController
 
         $user = User::create($data);
 
-        ActivityLogger::log('user.created', "Membuat user baru (API): {$user->username} ({$user->role})", $user);
+        ActivityLogger::log('user.created', "Created new user (API): {$user->username} ({$user->role})", $user);
 
         return response()->json(['data' => $user], 201);
     }
@@ -85,7 +85,7 @@ class UserApiController extends ApiController
 
         ActivityLogger::log('user.password_reset', "Reset password user (API): {$user->username}", $user);
 
-        return response()->json(['message' => "Password {$user->username} berhasil direset."]);
+        return response()->json(['message' => "Password for {$user->username} was reset successfully."]);
     }
 
     public function destroy(Request $request, User $user): JsonResponse
@@ -94,18 +94,18 @@ class UserApiController extends ApiController
         $this->authorizeCompany($request, $user->company_id);
 
         if ($user->id === $request->user('sanctum')->id) {
-            return response()->json(['message' => 'Tidak dapat menghapus akun sendiri.'], 422);
+            return response()->json(['message' => 'You cannot delete your own account.'], 422);
         }
 
         if ($user->isOwner() && $this->activeOwnerCount() <= 1) {
-            return response()->json(['message' => 'Minimal harus ada 1 Owner aktif.'], 422);
+            return response()->json(['message' => 'There must be at least 1 active Owner.'], 422);
         }
 
         ActivityLogger::log('user.deleted', "Menghapus user (API): {$user->username}", $user);
 
         $user->delete();
 
-        return response()->json(['message' => 'User dihapus.']);
+        return response()->json(['message' => 'User deleted.']);
     }
 
     private function guardLastOwner(User $user, array $data): void
@@ -114,7 +114,7 @@ class UserApiController extends ApiController
             && (($data['role'] ?? $user->role) !== User::ROLE_OWNER || ! ($data['is_active'] ?? $user->is_active));
 
         if ($willNotBeActiveOwner && $this->activeOwnerCount() <= 1) {
-            abort(422, 'Minimal harus ada 1 Owner aktif.');
+            abort(422, 'There must be at least 1 active Owner.');
         }
     }
 

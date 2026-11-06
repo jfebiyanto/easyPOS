@@ -1,19 +1,19 @@
 @extends('layouts.admin')
 
 @section('title', 'Stores')
-@section('page_title', 'Daftar Gerai')
+@section('page_title', 'Stores')
 
 @section('content')
 <div class="table-toolbar">
     <div>
-        <h2 style="margin:0; font-size:16px;">Daftar Store</h2>
+        <h2 style="margin:0; font-size:16px;">Store List</h2>
         <p style="margin:2px 0 0; font-size:13px; color:var(--md-on-surface-variant);">
-            Data master (produk, price list, promosi) bekerja pada <strong>store aktif</strong> di bawah.
+            Master data (products, price lists, promotions) works on the <strong>active store</strong> below.
         </p>
     </div>
     @if (auth()->user()->isSuperuser())
         <a href="{{ route('admin.stores.create') }}" class="btn btn-filled">
-            <span class="material-symbols-rounded">add_business</span> Tambah Store
+            <span class="material-symbols-rounded">add_business</span> Add Store
         </a>
     @endif
 </div>
@@ -27,8 +27,8 @@
                 <th>{!! sort_link('Store Manager', 'pic_name') !!}</th>
                 <th>{!! sort_link('PPN', 'ppn_enabled') !!}</th>
                 <th>{!! sort_link('User', 'users_count') !!}</th>
-                <th>Status Konteks</th>
-                <th style="text-align:right;">Aksi</th>
+                <th>Context Status</th>
+                <th style="text-align:right;">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -44,7 +44,7 @@
                     <td>{{ $store->users_count }}</td>
                     <td>
                         @if ($store->id === $activeStoreId)
-                            <span class="badge active">Store Aktif</span>
+                            <span class="badge active">Active Store</span>
                         @else
                             <span class="badge inactive">-</span>
                         @endif
@@ -54,21 +54,21 @@
                             @if ($store->id !== $activeStoreId && auth()->user()->isSuperuser())
                                 <form method="POST" action="{{ route('admin.stores.switch', $store) }}">
                                     @csrf
-                                    <button type="submit" class="btn btn-tonal btn-sm">Jadikan Aktif</button>
+                                    <button type="submit" class="btn btn-tonal btn-sm">Set Active</button>
                                 </form>
                             @endif
                             @if (auth()->user()->isSuperuser())
                                 <a href="{{ route('admin.stores.edit', $store) }}" class="btn btn-tonal btn-sm">Edit</a>
                                 <form method="POST" action="{{ route('admin.stores.destroy', $store) }}" onsubmit="return confirm('Hapus store {{ $store->code }}?')">
                                     @csrf @method('DELETE')
-                                    <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
+                                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                                 </form>
                             @endif
                         </div>
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="7"><div class="empty-state"><span class="material-symbols-rounded">store</span><p>Belum ada store. <a href="{{ route('admin.stores.create') }}">Tambah store pertama</a>.</p></div></td></tr>
+                <tr><td colspan="7"><div class="empty-state"><span class="material-symbols-rounded">store</span><p>No stores yet. <a href="{{ route('admin.stores.create') }}">Add the first store</a>.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>

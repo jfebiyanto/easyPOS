@@ -46,7 +46,7 @@ class ProductApiController extends ApiController
 
         PriceListSync::syncBasePrice($product);
 
-        ActivityLogger::log('product.created', "Membuat produk (API): {$product->sku}", $product);
+        ActivityLogger::log('product.created', "Created product (API): {$product->sku}", $product);
 
         return response()->json(['data' => $product->fresh(['group', 'brand', 'unit'])], 201);
     }
@@ -62,7 +62,7 @@ class ProductApiController extends ApiController
             PriceListSync::syncBasePrice($product);
         }
 
-        ActivityLogger::log('product.updated', "Mengubah produk (API): {$product->sku}", $product, [
+        ActivityLogger::log('product.updated', "Updated product (API): {$product->sku}", $product, [
             'old_base_price' => $oldBasePrice, 'new_base_price' => $product->base_price,
         ]);
 
@@ -76,9 +76,9 @@ class ProductApiController extends ApiController
         $label = $product->sku;
         $product->delete();
 
-        ActivityLogger::log('product.deleted', "Menghapus produk (API): {$label}", $product);
+        ActivityLogger::log('product.deleted', "Deleted product (API): {$label}", $product);
 
-        return response()->json(['message' => 'Produk dihapus.']);
+        return response()->json(['message' => 'Product deleted.']);
     }
 
     private function validated(Request $request, ?string $id = null): array

@@ -191,7 +191,7 @@ class SapImportService
     private function abortIfCancelled(): void
     {
         if ($this->isCancelled()) {
-            throw new SapImportCancelled('Impor dibatalkan.');
+            throw new SapImportCancelled('Import cancelled.');
         }
     }
 

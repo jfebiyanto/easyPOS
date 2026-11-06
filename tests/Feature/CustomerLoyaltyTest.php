@@ -321,9 +321,9 @@ class CustomerLoyaltyTest extends TestCase
             ->get(route('admin.member-levels.index'))
             ->assertOk()
             ->assertSeeInOrder([
-                '<label for="expiry_days">Masa berlaku poin (hari)</label>',
+                '<label for="expiry_days">Points validity (days)</label>',
                 'id="expiry_days"',
-                '<div class="hint">Kosongkan jika poin tanpa kedaluwarsa.</div>',
+                '<div class="hint">Leave blank if points never expire.</div>',
             ], false);
     }
 }

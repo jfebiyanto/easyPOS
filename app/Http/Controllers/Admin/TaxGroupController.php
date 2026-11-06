@@ -53,7 +53,7 @@ class TaxGroupController extends Controller
 
         ActivityLogger::log('tax_group.created', "Membuat Tax Group: {$taxGroup->code}", $taxGroup);
 
-        return redirect()->route('admin.tax-groups.index')->with('success', 'Tax Group berhasil dibuat.');
+        return redirect()->route('admin.tax-groups.index')->with('success', 'Tax Group created successfully.');
     }
 
     public function edit(Request $request, TaxGroup $taxGroup): View
@@ -68,25 +68,25 @@ class TaxGroupController extends Controller
     {
         $this->ensureSuperuser($request);
         $this->ensureCompany($taxGroup->company_id);
-        abort_if($taxGroup->isFromSap(), 403, 'Tax Group dari SAP B1 tidak dapat diubah.');
+        abort_if($taxGroup->isFromSap(), 403, 'A Tax Group from SAP B1 cannot be changed.');
 
         $taxGroup->update($this->validated($request, $taxGroup->id));
         self::syncCompanyRate($taxGroup);
 
         ActivityLogger::log('tax_group.updated', "Mengubah Tax Group: {$taxGroup->code}", $taxGroup);
 
-        return redirect()->route('admin.tax-groups.index')->with('success', 'Tax Group berhasil diperbarui.');
+        return redirect()->route('admin.tax-groups.index')->with('success', 'Tax Group updated successfully.');
     }
 
     public function destroy(Request $request, TaxGroup $taxGroup)
     {
         $this->ensureSuperuser($request);
         $this->ensureCompany($taxGroup->company_id);
-        abort_if($taxGroup->isFromSap(), 403, 'Tax Group dari SAP B1 tidak dapat dihapus.');
+        abort_if($taxGroup->isFromSap(), 403, 'A Tax Group from SAP B1 cannot be deleted.');
 
         if (CompanyDetail::where('tax_group_id', $taxGroup->id)->exists()
             || SaleLine::where('tax_group_code', $taxGroup->code)->exists()) {
-            return back()->with('error', 'Tax Group sudah dipakai, nonaktifkan saja.');
+            return back()->with('error', 'Tax Group is already in use; deactivate it instead.');
         }
 
         $code = $taxGroup->code;
@@ -94,7 +94,7 @@ class TaxGroupController extends Controller
 
         ActivityLogger::log('tax_group.deleted', "Menghapus Tax Group: {$code}", $taxGroup);
 
-        return redirect()->route('admin.tax-groups.index')->with('success', 'Tax Group berhasil dihapus.');
+        return redirect()->route('admin.tax-groups.index')->with('success', 'Tax Group deleted successfully.');
     }
 
     /**

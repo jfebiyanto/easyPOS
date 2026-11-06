@@ -59,7 +59,7 @@ class CustomerGroupController extends Controller
 
         ActivityLogger::log('customer_group.created', "Membuat Customer Group: {$group->code}", $group);
 
-        return redirect()->route('admin.customer-groups.index')->with('success', 'Customer Group berhasil dibuat.');
+        return redirect()->route('admin.customer-groups.index')->with('success', 'Customer Group created successfully.');
     }
 
     public function edit(Request $request, CustomerGroup $customerGroup): View
@@ -84,17 +84,17 @@ class CustomerGroupController extends Controller
 
         ActivityLogger::log('customer_group.updated', "Mengubah Customer Group: {$customerGroup->code}", $customerGroup);
 
-        return redirect()->route('admin.customer-groups.index')->with('success', 'Customer Group berhasil diperbarui.');
+        return redirect()->route('admin.customer-groups.index')->with('success', 'Customer Group updated successfully.');
     }
 
     public function destroy(Request $request, CustomerGroup $customerGroup): RedirectResponse
     {
         $this->ensureSuperuser($request);
         $this->ensureCompany($customerGroup->company_id);
-        abort_if($customerGroup->isFromSap(), 403, 'Customer Group dari SAP B1 tidak dapat dihapus.');
+        abort_if($customerGroup->isFromSap(), 403, 'A Customer Group from SAP B1 cannot be deleted.');
 
         if (Customer::where('customer_group_id', $customerGroup->id)->exists()) {
-            return back()->with('error', 'Customer Group masih dipakai customer, nonaktifkan saja.');
+            return back()->with('error', 'Customer Group is still used by customers; deactivate it instead.');
         }
 
         $code = $customerGroup->code;
@@ -102,7 +102,7 @@ class CustomerGroupController extends Controller
 
         ActivityLogger::log('customer_group.deleted', "Menghapus Customer Group: {$code}", $customerGroup);
 
-        return redirect()->route('admin.customer-groups.index')->with('success', 'Customer Group berhasil dihapus.');
+        return redirect()->route('admin.customer-groups.index')->with('success', 'Customer Group deleted successfully.');
     }
 
     /**
@@ -111,7 +111,7 @@ class CustomerGroupController extends Controller
     private function applyDefault(CustomerGroup $group, bool $isDefault): void
     {
         if ($isDefault) {
-            abort_unless($group->is_active, 422, 'Grup nonaktif tidak dapat dijadikan default.');
+            abort_unless($group->is_active, 422, 'An inactive group cannot be the default.');
 
             CustomerGroup::where('company_id', $group->company_id)->whereKeyNot($group->id)->update(['is_default' => false]);
         }

@@ -116,7 +116,7 @@ class DashboardTest extends TestCase
     {
         $this->actingAs($this->owner)->get(route('admin.dashboard'))
             ->assertOk()
-            ->assertSee('Penjualan Hari Ini · STR001')
+            ->assertSee("Today's Sales · STR001", false)
             ->assertSee(route('admin.dashboard.today'), false);
     }
 
@@ -221,9 +221,9 @@ class DashboardTest extends TestCase
         $this->actingAs($this->owner)->get(route('admin.dashboard'))
             ->assertOk()
             ->assertSee('data-ov-url="'.route('admin.dashboard.overview').'"', false)
-            ->assertSee('Transaksi Penjualan Hari Ini')
-            ->assertSee('Transaksi Retur Hari Ini')
-            ->assertSee('Perbandingan Penjualan Antar Gerai')
+            ->assertSee("Today's Sales Transactions", false)
+            ->assertSee("Today's Return Transactions", false)
+            ->assertSee('Sales Comparison Across Stores')
             ->assertSee('data-ov-chart="stores"', false);
     }
 
@@ -231,9 +231,9 @@ class DashboardTest extends TestCase
     {
         $this->actingAs($this->manager($this->store))->get(route('admin.dashboard'))
             ->assertOk()
-            ->assertSee('Transaksi Penjualan Hari Ini')
-            ->assertSee('Transaksi Retur Hari Ini')
-            ->assertDontSee('Perbandingan Penjualan Antar Gerai')
+            ->assertSee("Today's Sales Transactions", false)
+            ->assertSee("Today's Return Transactions", false)
+            ->assertDontSee('Sales Comparison Across Stores')
             ->assertDontSee('data-ov-chart="stores"', false);
     }
 }

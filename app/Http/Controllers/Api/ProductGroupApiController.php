@@ -51,14 +51,14 @@ class ProductGroupApiController extends ApiController
         $this->authorizeCompany($request, $group->company_id);
 
         if ($group->products()->exists()) {
-            return response()->json(['message' => 'Group masih memiliki produk.'], 422);
+            return response()->json(['message' => 'Group still has products.'], 422);
         }
 
         $group->delete();
 
         ActivityLogger::log('product_group.deleted', "Menghapus product group (API): {$group->code}", $group);
 
-        return response()->json(['message' => 'Product group dihapus.']);
+        return response()->json(['message' => 'Product group deleted.']);
     }
 
     private function validated(Request $request, ?string $id = null): array

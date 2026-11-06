@@ -59,6 +59,6 @@ class NumberingController extends Controller
             }
         }
 
-        return redirect()->route('admin.numberings.index')->with('success', 'Konfigurasi penomoran transaksi berhasil disimpan.');
+        return redirect()->route('admin.numberings.index')->with('success', 'Transaction numbering configuration saved successfully.');
     }
 }

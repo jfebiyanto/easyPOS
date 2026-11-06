@@ -43,7 +43,7 @@ class WarehouseController extends Controller
 
         ActivityLogger::log('warehouse.created', "Membuat warehouse: {$warehouse->code} · {$warehouse->name}", $warehouse);
 
-        return redirect()->route('admin.warehouses.index')->with('success', 'Warehouse berhasil dibuat.');
+        return redirect()->route('admin.warehouses.index')->with('success', 'Warehouse created successfully.');
     }
 
     public function edit(Request $request, Warehouse $warehouse): View
@@ -63,7 +63,7 @@ class WarehouseController extends Controller
 
         ActivityLogger::log('warehouse.updated', "Mengubah warehouse: {$warehouse->code} · {$warehouse->name}", $warehouse);
 
-        return redirect()->route('admin.warehouses.index')->with('success', 'Warehouse berhasil diperbarui.');
+        return redirect()->route('admin.warehouses.index')->with('success', 'Warehouse updated successfully.');
     }
 
     public function destroy(Request $request, Warehouse $warehouse)
@@ -72,7 +72,7 @@ class WarehouseController extends Controller
         $this->ensureCompany($warehouse->company_id);
 
         if ($warehouse->store()->exists()) {
-            return back()->with('error', 'Warehouse masih dipakai oleh gerai, tidak dapat dihapus.');
+            return back()->with('error', 'Warehouse is still used by a store and cannot be deleted.');
         }
 
         $label = $warehouse->code.' · '.$warehouse->name;
@@ -80,7 +80,7 @@ class WarehouseController extends Controller
 
         ActivityLogger::log('warehouse.deleted', "Menghapus warehouse: {$label}", $warehouse);
 
-        return redirect()->route('admin.warehouses.index')->with('success', 'Warehouse berhasil dihapus.');
+        return redirect()->route('admin.warehouses.index')->with('success', 'Warehouse deleted successfully.');
     }
 
     private function validated(Request $request, ?string $id = null): array

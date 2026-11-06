@@ -29,13 +29,13 @@ class ValidStoreCurrency implements ValidationRule
                 return;
             }
 
-            $fail('Mata uang yang dipilih tidak terdaftar di modul Mata Uang.');
+            $fail('The selected currency is not registered in the Currencies module.');
 
             return;
         }
 
         if (! $currency->is_active && $code !== $current) {
-            $fail('Mata uang yang dipilih sedang tidak aktif di modul Mata Uang.');
+            $fail('The selected currency is inactive in the Currencies module.');
         }
     }
 }

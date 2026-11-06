@@ -19,11 +19,11 @@ class EnsureBackofficeAccess
         $routeName = $request->route()?->getName();
 
         if ($user->isStoreManager() && ! $user->store_id) {
-            abort(403, 'Akun Anda belum ditugaskan ke gerai. Hubungi Owner.');
+            abort(403, 'Your account has not been assigned to a store. Contact the Owner.');
         }
 
         if (! BackofficeAccess::allows($user, $routeName, $request->method())) {
-            abort(403, 'Anda tidak memiliki akses ke halaman atau aksi ini.');
+            abort(403, 'You do not have access to this page or action.');
         }
 
         View::share('readOnly', BackofficeAccess::isReadOnly($user, $routeName));

@@ -168,7 +168,7 @@ class DashboardService
                 'total' => (float) $s->total,
                 'discount_total' => (float) $s->discount_total,
                 'hour' => ($s->sold_at ?? $s->created_at)->copy()->setTimezone($timezone)->hour,
-                'cashier_name' => $s->cashier_name ?? 'Tanpa kasir',
+                'cashier_name' => $s->cashier_name ?? 'No cashier',
             ]);
     }
 

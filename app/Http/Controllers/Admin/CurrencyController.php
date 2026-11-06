@@ -47,7 +47,7 @@ class CurrencyController extends Controller
 
         ActivityLogger::log('currency.created', "Membuat mata uang: {$currency->code} ({$currency->symbol})", $currency);
 
-        return redirect()->route('admin.currencies.index')->with('success', 'Mata uang berhasil dibuat.');
+        return redirect()->route('admin.currencies.index')->with('success', 'Currency created successfully.');
     }
 
     public function show(Currency $currency): View
@@ -79,7 +79,7 @@ class CurrencyController extends Controller
 
         ActivityLogger::log('currency.updated', "Mengubah mata uang: {$currency->code} ({$currency->symbol})", $currency);
 
-        return redirect()->route('admin.currencies.index')->with('success', 'Mata uang berhasil diperbarui.');
+        return redirect()->route('admin.currencies.index')->with('success', 'Currency updated successfully.');
     }
 
     public function storeDenomination(Request $request, Currency $currency)
@@ -103,7 +103,7 @@ class CurrencyController extends Controller
             'currency_id' => $currency->id, 'value' => $data['value'],
         ]);
 
-        return redirect()->route('admin.currencies.show', $currency)->with('success', 'Nominal pecahan berhasil ditambahkan.');
+        return redirect()->route('admin.currencies.show', $currency)->with('success', 'Denomination added successfully.');
     }
 
     public function destroyDenomination(Currency $currency, CurrencyDenomination $denomination)
@@ -117,7 +117,7 @@ class CurrencyController extends Controller
 
         ActivityLogger::log('currency.denomination_deleted', "Menghapus {$label}", $denomination, ['currency_id' => $currency->id]);
 
-        return redirect()->route('admin.currencies.show', $currency)->with('success', 'Nominal pecahan berhasil dihapus.');
+        return redirect()->route('admin.currencies.show', $currency)->with('success', 'Denomination deleted successfully.');
     }
 
     public function destroy(Currency $currency)
@@ -130,7 +130,7 @@ class CurrencyController extends Controller
 
         ActivityLogger::log('currency.deleted', "Menghapus mata uang: {$label}", $currency);
 
-        return redirect()->route('admin.currencies.index')->with('success', 'Mata uang berhasil dihapus.');
+        return redirect()->route('admin.currencies.index')->with('success', 'Currency deleted successfully.');
     }
 
     private function validated(Request $request, ?string $id = null): array

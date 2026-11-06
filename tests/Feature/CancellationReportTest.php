@@ -191,12 +191,12 @@ class CancellationReportTest extends TestCase
 
         $this->actingAs($this->owner)->get(route('admin.cancellations.index'))
             ->assertOk()
-            ->assertSee('Pembatalan Transaksi')
+            ->assertSee('Voids & Cancellations')
             ->assertSee('STR001 · Gerai A')->assertSee('STR002 · Gerai B')
             ->assertSee('BUDI')->assertSee('SITI')
             ->assertSee('10.0.0.9')->assertSee('Chrome 142 · Windows')
             ->assertSee('Barang X')
-            ->assertSee('Void penjualan')->assertSee('Batal sebelum bayar');
+            ->assertSee('Sale void')->assertSee('Cancelled before payment');
 
         $this->get(route('admin.cancellations.index', ['store' => $this->storeB->id]))->assertOk()->assertSee('SITI')->assertDontSee('BUDI');
         $this->get(route('admin.cancellations.index', ['cashier' => $this->cashierA->id]))->assertOk()->assertSee('BUDI')->assertDontSee('SITI');
@@ -253,7 +253,7 @@ class CancellationReportTest extends TestCase
 
         $response->assertSeeInOrder(['STR001 · Gerai A', '2 pembatalan', 'Rp 12.000', '1 void', '1 batal sebelum bayar', 'STR002 · Gerai B', '1 pembatalan', 'Rp 1.000']);
         $this->assertSame(2, substr_count($response->getContent(), 'class="cancel-group"'));
-        $response->assertSee('Buka semua')->assertSee('Tutup semua');
+        $response->assertSee('Expand all')->assertSee('Collapse all');
     }
 
     public function test_gerai_dengan_banyak_pembatalan_menampilkan_terbaru_dan_catatan_batas(): void
@@ -265,7 +265,7 @@ class CancellationReportTest extends TestCase
         $response = $this->actingAs($this->owner)->get(route('admin.cancellations.index'))->assertOk();
 
         $response->assertSee('PLG-055')->assertDontSee('PLG-005');
-        $response->assertSee('Menampilkan 50 terbaru dari 55');
+        $response->assertSee('Showing the latest 50 of 55');
 
         // Memilih satu gerai menampilkan lebih banyak baris per gerai.
         $this->get(route('admin.cancellations.index', ['store' => $this->storeA->id]))->assertOk()->assertSee('PLG-001')->assertDontSee('Menampilkan 50 terbaru');

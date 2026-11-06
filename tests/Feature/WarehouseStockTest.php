@@ -149,7 +149,7 @@ class WarehouseStockTest extends TestCase
         $this->actingAs($this->owner)
             ->get(route('admin.stock.index', ['store' => $this->store->id]))
             ->assertOk()
-            ->assertSee('belum dihubungkan ke warehouse');
+            ->assertSee('is not linked to a warehouse yet');
     }
 
     public function test_pergerakan_dicatat_di_buku_besar_dan_memperbarui_saldo(): void

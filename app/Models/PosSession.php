@@ -24,9 +24,9 @@ class PosSession extends MasterModel
     public const ENDED_EXPIRED = 'expired';
 
     public const ENDED_LABELS = [
-        self::ENDED_LOGOUT => 'Keluar',
-        self::ENDED_TAKEN_OVER => 'Diambil alih',
-        self::ENDED_EXPIRED => 'Kedaluwarsa',
+        self::ENDED_LOGOUT => 'Logged out',
+        self::ENDED_TAKEN_OVER => 'Taken over',
+        self::ENDED_EXPIRED => 'Expired',
     ];
 
     protected $fillable = [
@@ -92,10 +92,10 @@ class PosSession extends MasterModel
     public function statusLabel(): string
     {
         if ($this->ended_at !== null) {
-            return 'Berakhir · '.(self::ENDED_LABELS[$this->ended_reason] ?? $this->ended_reason);
+            return 'Ended · '.(self::ENDED_LABELS[$this->ended_reason] ?? $this->ended_reason);
         }
 
-        return $this->isStale() ? 'Tidak aktif (tanpa detak)' : 'Aktif';
+        return $this->isStale() ? 'Inactive (no heartbeat)' : 'Active';
     }
 
     /** Mulai sesi baru untuk request ini. */

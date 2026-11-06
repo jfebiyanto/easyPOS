@@ -80,7 +80,7 @@ class LoyaltyService
             return;
         }
 
-        self::apply($customer, 'earn', $points, 'sale', $sale->id, "Poin transaksi {$sale->number}", $sale->cashier_id);
+        self::apply($customer, 'earn', $points, 'sale', $sale->id, "Points for sale {$sale->number}", $sale->cashier_id);
         $sale->update(['points_earned' => $points]);
     }
 

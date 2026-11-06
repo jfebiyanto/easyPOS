@@ -5,10 +5,10 @@
 
 @section('content')
 <div class="table-toolbar">
-    <h2 style="margin:0; font-size:16px;">Grup Pelanggan (Customer Group)</h2>
+    <h2 style="margin:0; font-size:16px;">Customer Groups</h2>
     @unless ($readOnly)
     <a href="{{ route('admin.customer-groups.create') }}" class="btn btn-filled">
-        <span class="material-symbols-rounded">add</span> Tambah Grup
+        <span class="material-symbols-rounded">add</span> Add Group
     </a>
     @endunless
 </div>
@@ -20,9 +20,9 @@
                 <th>{!! sort_link('Kode', 'code') !!}</th>
                 <th>{!! sort_link('Nama', 'name') !!}</th>
                 <th>{!! sort_link('Sumber', 'source') !!}</th>
-                <th style="text-align:right;">Pelanggan</th>
+                <th style="text-align:right;">Customer</th>
                 <th>{!! sort_link('Status', 'is_active') !!}</th>
-                <th style="text-align:right;">Aksi</th>
+                <th style="text-align:right;">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -43,7 +43,7 @@
                             @unless ($group->isFromSap())
                                 <form method="POST" action="{{ route('admin.customer-groups.destroy', $group) }}" onsubmit="return confirm('Hapus grup pelanggan ini?')">
                                     @csrf @method('DELETE')
-                                    <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
+                                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                                 </form>
                             @endunless
                             @endunless
@@ -51,7 +51,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="6"><div class="empty-state"><span class="material-symbols-rounded">diversity_3</span><p>Belum ada grup pelanggan.</p></div></td></tr>
+                <tr><td colspan="6"><div class="empty-state"><span class="material-symbols-rounded">diversity_3</span><p>No customer groups yet.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>

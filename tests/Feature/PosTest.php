@@ -235,7 +235,7 @@ class PosTest extends TestCase
     public function test_hierarki_promosi_perusahaan_menentukan_pemenang_di_server(): void
     {
         $volume = $this->sapVolumePromotion();
-        $special = Promotion::create(['company_id' => $this->company->id, 'code' => 'SP-1', 'name' => 'Harga Khusus', 'type' => 'special_price', 'value' => 3000, 'product_id' => $this->product->id, 'is_active' => true]);
+        $special = Promotion::create(['company_id' => $this->company->id, 'code' => 'SP-1', 'name' => 'Special Price', 'type' => 'special_price', 'value' => 3000, 'product_id' => $this->product->id, 'is_active' => true]);
         $line = fn (Promotion $winner, float $discount) => [['product_id' => $this->product->id, 'qty' => 5, 'promotion_id' => $winner->id, 'discount' => $discount]];
         $payments = [['payment_type_id' => $this->cash->id, 'amount' => 30000, 'status' => 'confirmed']];
 
@@ -445,7 +445,7 @@ class PosTest extends TestCase
 
         $this->actingAs($user)->getJson('/pos/bootstrap')
             ->assertStatus(422)
-            ->assertJsonPath('message', 'Akun Anda belum ditugaskan ke gerai. Hubungi Owner.');
+            ->assertJsonPath('message', 'Your account has not been assigned to a store. Contact the Owner.');
 
         $this->actingAs($user)->postJson('/pos/sales', $this->salePayload())->assertStatus(422);
         $this->assertSame(0, Sale::count());
@@ -459,7 +459,7 @@ class PosTest extends TestCase
 
         $this->actingAs($user)->getJson('/pos/customers')
             ->assertStatus(422)
-            ->assertJsonPath('message', 'Gerai Anda sedang nonaktif. Hubungi Owner.');
+            ->assertJsonPath('message', 'Your store is inactive. Contact the Owner.');
     }
 
     public function test_owner_tanpa_gerai_tetap_memakai_gerai_pertama(): void

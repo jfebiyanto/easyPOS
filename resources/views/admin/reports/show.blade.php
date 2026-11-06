@@ -6,7 +6,7 @@
 @section('content')
 @php
     $isMoney = function (string $col): bool {
-        foreach (['Total', 'Omzet', 'Subtotal', 'Kotor', 'Ongkir', 'Diskon', 'PPN', 'Retur', 'Net', 'Rata-rata', 'Belanja'] as $needle) {
+        foreach (['Total', 'Revenue', 'Subtotal', 'Gross', 'Shipping', 'Discount', 'VAT', 'Returns', 'Net', 'Average', 'Spend'] as $needle) {
             if (str_contains($col, $needle)) return true;
         }
         return false;
@@ -29,25 +29,25 @@
 <div class="table-toolbar">
     <form method="GET" action="{{ route('admin.reports.show', ['report' => $data['report']]) }}" style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
         <div class="field" style="margin:0;">
-            <label for="from">Dari</label>
+            <label for="from">From</label>
             <input type="date" id="from" name="from" value="{{ $data['from'] }}">
         </div>
         <div class="field" style="margin:0;">
-            <label for="to">Sampai</label>
+            <label for="to">To</label>
             <input type="date" id="to" name="to" value="{{ $data['to'] }}">
         </div>
         @if ($stores->isNotEmpty())
             <div class="field" style="margin:0;">
-                <label for="store">Gerai</label>
+                <label for="store">Store</label>
                 <select id="store" name="store">
-                    <option value="">Semua Gerai</option>
+                    <option value="">All Stores</option>
                     @foreach ($stores as $store)
                         <option value="{{ $store->id }}" @selected($selectedStore == $store->id)>{{ $store->code }}</option>
                     @endforeach
                 </select>
             </div>
         @endif
-        <button type="submit" class="btn btn-tonal">Terapkan</button>
+        <button type="submit" class="btn btn-tonal">Apply</button>
     </form>
 
     <div style="display:flex; gap:8px;">
@@ -79,7 +79,7 @@
                     @endforeach
                 </tr>
             @empty
-                <tr><td colspan="{{ count($data['columns']) }}"><div class="empty-state">Tidak ada data pada periode ini.</div></td></tr>
+                <tr><td colspan="{{ count($data['columns']) }}"><div class="empty-state">No data in this period.</div></td></tr>
             @endforelse
         </tbody>
     </table>

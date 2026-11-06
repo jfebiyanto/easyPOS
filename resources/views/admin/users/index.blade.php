@@ -1,21 +1,21 @@
 @extends('layouts.admin')
 
 @section('title', 'Users')
-@section('page_title', 'Daftar User')
+@section('page_title', 'Users')
 
 @section('content')
 <div class="table-toolbar">
-    <h2 style="margin:0; font-size:16px;">Daftar User</h2>
+    <h2 style="margin:0; font-size:16px;">User List</h2>
     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
         <form method="GET" action="{{ route('admin.users.index') }}" style="display:flex; gap:8px; align-items:center;">
             <select name="store" class="field" style="margin:0; padding:9px 12px; min-width:160px;" onchange="this.form.submit()">
-                <option value="">Semua Store</option>
+                <option value="">All Stores</option>
                 @foreach ($stores as $store)
                     <option value="{{ $store->id }}" @selected(request('store') == $store->id)>{{ $store->code }} · {{ $store->name }}</option>
                 @endforeach
             </select>
             <select name="role" class="field" style="margin:0; padding:9px 12px;" onchange="this.form.submit()">
-                <option value="">Semua Role</option>
+                <option value="">All Roles</option>
                 @foreach ($roles as $role)
                     <option value="{{ $role }}" @selected(request('role') === $role)>{{ ucfirst(str_replace('_', ' ', $role)) }}</option>
                 @endforeach
@@ -23,7 +23,7 @@
         </form>
         @unless ($readOnly)
         <a href="{{ route('admin.users.create') }}" class="btn btn-filled">
-            <span class="material-symbols-rounded">person_add</span> Tambah User
+            <span class="material-symbols-rounded">person_add</span> Add User
         </a>
         @endunless
     </div>
@@ -38,7 +38,7 @@
                 <th>Store</th>
                 <th>{!! sort_link('Role', 'role') !!}</th>
                 <th>{!! sort_link('Status', 'is_active') !!}</th>
-                <th style="text-align:right;">Aksi</th>
+                <th style="text-align:right;">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -58,7 +58,7 @@
                             @if ($user->id !== auth()->id())
                                 <form method="POST" action="{{ route('admin.users.destroy', $user) }}" onsubmit="return confirm('Hapus user ini?')">
                                     @csrf @method('DELETE')
-                                    <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
+                                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                                 </form>
                             @endif
                             @endunless
@@ -66,7 +66,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="6"><div class="empty-state"><span class="material-symbols-rounded">group_off</span><p>Belum ada user.</p></div></td></tr>
+                <tr><td colspan="6"><div class="empty-state"><span class="material-symbols-rounded">group_off</span><p>No users yet.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>

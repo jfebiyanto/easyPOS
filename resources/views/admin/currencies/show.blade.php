@@ -6,40 +6,40 @@
 @section('content')
 @if (auth()->user()->isSuperuser())
     <div class="card">
-        <h2 class="card-title">Tambah Nominal Pecahan</h2>
-        <p class="card-subtitle">Mata uang: <strong>{{ $currency->code }} ({{ $currency->symbol }})</strong> — daftar pecahan uang yang diterima di kasir.</p>
+        <h2 class="card-title">Add Denomination</h2>
+        <p class="card-subtitle">Currency: <strong>{{ $currency->code }} ({{ $currency->symbol }})</strong> — daftar pecahan uang yang diterima di kasir.</p>
 
         <form method="POST" action="{{ route('admin.currencies.denominations.store', $currency) }}">
             @csrf
             <div class="form-grid">
                 <div class="field @error('value') has-error @enderror">
-                    <label for="value">Nominal Pecahan *</label>
+                    <label for="value">Denomination *</label>
                     <input type="number" id="value" name="value" step="0.01" min="0.01" required value="{{ old('value') }}" placeholder="100000">
                     @error('value') <div class="error">{{ $message }}</div> @enderror
                 </div>
                 <div class="field">
                     <div class="checkbox-row">
                         <input type="checkbox" id="is_active" name="is_active" value="1" @checked(old('is_active', true))>
-                        <label for="is_active">Aktif</label>
+                        <label for="is_active">Active</label>
                     </div>
                 </div>
             </div>
             <div class="form-actions">
-                <button type="submit" class="btn btn-filled"><span class="material-symbols-rounded">save</span> Simpan Pecahan</button>
+                <button type="submit" class="btn btn-filled"><span class="material-symbols-rounded">save</span> Save Denomination</button>
             </div>
         </form>
     </div>
 @else
     <div class="md-snackbar error">
         <span class="material-symbols-rounded">lock</span>
-        Anda adalah Admin non-superuser: nominal pecahan bersifat read-only.
+        You are a non-superuser Admin: denominations are read-only.
     </div>
 @endif
 
 <div class="table-wrap">
     <table class="md-table">
         <thead>
-            <tr><th>Nominal</th><th>Status</th><th style="text-align:right;">Aksi</th></tr>
+            <tr><th>Amount</th><th>Status</th><th style="text-align:right;">Actions</th></tr>
         </thead>
         <tbody>
             @forelse ($currency->denominations as $denomination)
@@ -51,20 +51,20 @@
                             @if (auth()->user()->isSuperuser())
                                 <form method="POST" action="{{ route('admin.currencies.denominations.destroy', [$currency, $denomination]) }}" onsubmit="return confirm('Hapus nominal pecahan ini?')">
                                     @csrf @method('DELETE')
-                                    <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
+                                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                                 </form>
                             @endif
                         </div>
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="3"><div class="empty-state"><span class="material-symbols-rounded">payments</span><p>Belum ada nominal pecahan.</p></div></td></tr>
+                <tr><td colspan="3"><div class="empty-state"><span class="material-symbols-rounded">payments</span><p>No denominations yet.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>
 </div>
 
 <div class="form-actions" style="margin-top: 16px;">
-    <a href="{{ route('admin.currencies.index') }}" class="btn btn-outline">Kembali</a>
+    <a href="{{ route('admin.currencies.index') }}" class="btn btn-outline">Back</a>
 </div>
 @endsection

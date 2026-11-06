@@ -25,7 +25,7 @@ class CustomerGroupTest extends TestCase
         parent::setUp();
 
         $this->company = CompanyDetail::create(['name' => 'Test Co']);
-        $this->store = Store::create(['company_id' => $this->company->id, 'code' => 'GR01', 'name' => 'Gerai', 'pic_name' => 'PIC', 'currency' => 'IDR']);
+        $this->store = Store::create(['company_id' => $this->company->id, 'code' => 'GR01', 'name' => 'Store', 'pic_name' => 'PIC', 'currency' => 'IDR']);
         $this->owner = $this->user('owner1', User::ROLE_OWNER);
     }
 

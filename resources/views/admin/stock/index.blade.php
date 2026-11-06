@@ -1,13 +1,13 @@
 @extends('layouts.admin')
 
-@section('title', 'Saldo Stok')
-@section('page_title', 'Saldo Stok')
+@section('title', 'Stock Balance')
+@section('page_title', 'Stock Balance')
 
 @section('content')
 @if ($stores->isNotEmpty())
     <div class="table-toolbar">
         <form method="GET" action="{{ route('admin.stock.index') }}" style="display:flex; gap:8px; align-items:center;">
-            <label style="font-size:13px; color:var(--color-text-muted);">Gerai:</label>
+            <label style="font-size:13px; color:var(--color-text-muted);">Store:</label>
             <select name="store" onchange="this.form.submit()" style="padding:9px 12px; border:1px solid var(--md-outline); border-radius:var(--md-radius-sm); background:var(--md-surface-container-high);">
                 @foreach ($stores as $s)
                     <option value="{{ $s->id }}" @selected($storeId === $s->id)>{{ $s->code }} · {{ $s->name }}</option>
@@ -20,7 +20,7 @@
 @if ($store && ! $warehouse)
     <div class="md-snackbar error">
         <span class="material-symbols-rounded">warning</span>
-        Gerai ini belum dihubungkan ke warehouse. Atur di Daftar Gerai agar saldo stok tampil.
+        This store is not linked to a warehouse yet. Set it under Stores so the stock balance appears.
     </div>
 @elseif ($warehouse)
     <p class="hint" style="margin-bottom:8px;">Warehouse: <strong>{{ $warehouse->code }} · {{ $warehouse->name }}</strong></p>
@@ -33,13 +33,13 @@
         <thead>
             <tr>
                 <th>SKU</th>
-                <th>Nama Produk</th>
-                <th>Satuan</th>
-                <th style="text-align:right;">Saldo</th>
-                <th style="text-align:right;">Komitmen</th>
-                <th style="text-align:right;">Dipesan</th>
-                <th style="text-align:right;">Saldo SAP</th>
-                <th style="text-align:right;">Selisih</th>
+                <th>Product Name</th>
+                <th>Unit</th>
+                <th style="text-align:right;">Balance</th>
+                <th style="text-align:right;">Committed</th>
+                <th style="text-align:right;">Ordered</th>
+                <th style="text-align:right;">SAP Balance</th>
+                <th style="text-align:right;">Difference</th>
             </tr>
         </thead>
         <tbody>
@@ -58,14 +58,14 @@
                     <td style="text-align:right;" class="money">{{ $stock?->sap_on_hand !== null ? $fmt($stock->sap_on_hand) : '-' }}</td>
                     <td style="text-align:right;" class="money {{ $difference ? 'neg' : '' }}">
                         @if ($difference)
-                            <span title="Saldo easyPOS berbeda dengan saldo SAP B1 saat pengecekan terakhir">{{ $difference > 0 ? '+' : '' }}{{ $fmt($difference) }}</span>
+                            <span title="easyPOS balance differed from the SAP B1 balance at the last check">{{ $difference > 0 ? '+' : '' }}{{ $fmt($difference) }}</span>
                         @else
                             -
                         @endif
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="8"><div class="empty-state"><span class="material-symbols-rounded">warehouse</span><p>Belum ada produk yang dilacak stoknya.</p></div></td></tr>
+                <tr><td colspan="8"><div class="empty-state"><span class="material-symbols-rounded">warehouse</span><p>No stock-tracked products yet.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>

@@ -1,10 +1,10 @@
 @extends('layouts.admin')
 
-@section('title', 'Sesi Kasir')
-@section('page_title', 'Sesi Kasir')
+@section('title', 'Cashier Sessions')
+@section('page_title', 'Cashier Sessions')
 
 @php
-    $tabs = ['' => 'Semua', 'active' => 'Aktif', 'ended' => 'Berakhir / tidak aktif'];
+    $tabs = ['' => 'All', 'active' => 'Active', 'ended' => 'Ended / inactive'];
     $statusChip = fn ($s) => $s->ended_at === null ? ($s->isStale() ? 'chip-neutral' : 'chip-success') : ($s->ended_reason === 'taken_over' ? 'chip-danger' : 'chip-neutral');
 @endphp
 
@@ -18,8 +18,8 @@
 <div class="table-toolbar">
     <form method="GET" action="{{ route('admin.pos-sessions.index') }}" class="search-form" style="display:flex; gap:8px; flex:0 1 57%; min-width:320px;">
         @if ($status) <input type="hidden" name="status" value="{{ $status }}"> @endif
-        <input class="search-box" style="flex:1; min-width:0; max-width:none;" type="search" name="q" value="{{ request('q') }}" placeholder="Cari kasir, browser, atau IP…">
-        <button type="submit" class="btn btn-tonal">Cari</button>
+        <input class="search-box" style="flex:1; min-width:0; max-width:none;" type="search" name="q" value="{{ request('q') }}" placeholder="Search cashier, browser or IP…">
+        <button type="submit" class="btn btn-tonal">Search</button>
     </form>
 </div>
 
@@ -27,12 +27,12 @@
     <table class="md-table sap-monitor">
         <thead>
             <tr>
-                <th>Kasir</th>
-                <th>Gerai</th>
+                <th>Cashier</th>
+                <th>Store</th>
                 <th>Browser</th>
                 <th>IP</th>
-                <th>Mulai</th>
-                <th>Terakhir aktif</th>
+                <th>Started</th>
+                <th>Last active</th>
                 <th>Status</th>
             </tr>
         </thead>
@@ -48,7 +48,7 @@
                     <td><span class="chip {{ $statusChip($session) }}">{{ $session->statusLabel() }}</span></td>
                 </tr>
             @empty
-                <tr><td colspan="7"><div class="empty-state"><span class="material-symbols-rounded">devices</span><p>Belum ada sesi POS.</p></div></td></tr>
+                <tr><td colspan="7"><div class="empty-state"><span class="material-symbols-rounded">devices</span><p>No POS sessions yet.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>

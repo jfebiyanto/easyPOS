@@ -32,7 +32,7 @@ class UserAgentLabelTest extends TestCase
 
     public function test_user_agent_kosong_tidak_diketahui(): void
     {
-        $this->assertSame('Tidak diketahui', UserAgentLabel::describe(null));
-        $this->assertSame('Tidak diketahui', UserAgentLabel::describe(''));
+        $this->assertSame('Unknown', UserAgentLabel::describe(null));
+        $this->assertSame('Unknown', UserAgentLabel::describe(''));
     }
 }

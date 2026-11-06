@@ -1,13 +1,13 @@
 @extends('layouts.admin')
 
-@section('title', 'Penyesuaian Stok')
-@section('page_title', 'Penyesuaian Stok')
+@section('title', 'Stock Adjustments')
+@section('page_title', 'Stock Adjustments')
 
 @section('content')
 <div class="table-toolbar">
-    <h2 style="margin:0; font-size:16px;">Daftar Penyesuaian</h2>
+    <h2 style="margin:0; font-size:16px;">Adjustment List</h2>
     <a href="{{ route('admin.stock-adjustments.create') }}" class="btn btn-filled">
-        <span class="material-symbols-rounded">add</span> Buat Penyesuaian
+        <span class="material-symbols-rounded">add</span> Create Adjustment
     </a>
 </div>
 
@@ -15,13 +15,13 @@
     <table class="md-table">
         <thead>
             <tr>
-                <th>Tanggal</th>
-                <th>Nomor</th>
-                <th>Gerai</th>
-                <th>Alasan</th>
-                <th>Item</th>
+                <th>Date</th>
+                <th>Number</th>
+                <th>Store</th>
+                <th>Reason</th>
+                <th>Items</th>
                 <th>Status</th>
-                <th style="text-align:right;">Aksi</th>
+                <th style="text-align:right;">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -41,9 +41,9 @@
                     </td>
                     <td style="text-align:right;">
                         @if (! $adj->isPosted())
-                            <form method="POST" action="{{ route('admin.stock-adjustments.post', $adj) }}" onsubmit="return confirm('Posting adjustment ini? Stok akan berubah dan tidak dapat diedit.')">
+                            <form method="POST" action="{{ route('admin.stock-adjustments.post', $adj) }}" onsubmit="return confirm('Post this adjustment? Stock will change and it can no longer be edited.')">
                                 @csrf
-                                <button type="submit" class="btn btn-filled btn-sm">Posting</button>
+                                <button type="submit" class="btn btn-filled btn-sm">Post</button>
                             </form>
                         @else
                             <span style="color:var(--color-text-muted); font-size:12px;">Final</span>
@@ -51,7 +51,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="7"><div class="empty-state"><span class="material-symbols-rounded">tune</span><p>Belum ada penyesuaian stok.</p></div></td></tr>
+                <tr><td colspan="7"><div class="empty-state"><span class="material-symbols-rounded">tune</span><p>No stock adjustments yet.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>

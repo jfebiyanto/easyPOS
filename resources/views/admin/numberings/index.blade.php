@@ -1,14 +1,14 @@
 @extends('layouts.admin')
 
-@section('title', 'Penomoran')
-@section('page_title', 'Penomoran')
+@section('title', 'Numbering')
+@section('page_title', 'Numbering')
 
 @section('content')
 <div class="card">
-    <h2 class="card-title">Konfigurasi Penomoran</h2>
+    <h2 class="card-title">Numbering Configuration</h2>
     <p class="card-subtitle">
-        Format nomor per tipe transaksi: <code>PREFIX{{ $configs->first()?->separator ?: '/' }}PERIODE{{ $configs->first()?->separator ?: '/' }}NOMOR</code>.
-        Bagian periode otomatis hilang jika reset = "Tidak pernah", dan counter ter-reset otomatis saat periode berganti.
+        Number format per transaction type: <code>PREFIX{{ $configs->first()?->separator ?: '/' }}PERIODE{{ $configs->first()?->separator ?: '/' }}NOMOR</code>.
+        The period part is dropped automatically when reset = "Never", and the counter resets automatically when the period changes.
     </p>
 
     <form method="POST" action="{{ route('admin.numberings.update') }}">
@@ -19,14 +19,14 @@
             <table class="md-table">
                 <thead>
                     <tr>
-                        <th>Tipe Transaksi</th>
+                        <th>Transaction Type</th>
                         <th>Prefix</th>
-                        <th>Jumlah Digit</th>
+                        <th>Digits</th>
                         <th>Separator</th>
-                        <th>No. Terakhir</th>
-                        <th>No. Berikutnya</th>
+                        <th>Last No.</th>
+                        <th>Next No.</th>
                         <th>Reset</th>
-                        <th>Contoh</th>
+                        <th>Example</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -67,7 +67,7 @@
 
         <div class="form-actions" style="margin-top: 20px;">
             <button type="submit" class="btn btn-filled">
-                <span class="material-symbols-rounded">save</span> Simpan Semua
+                <span class="material-symbols-rounded">save</span> Save All
             </button>
         </div>
     </form>

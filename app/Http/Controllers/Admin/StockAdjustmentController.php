@@ -49,7 +49,7 @@ class StockAdjustmentController extends Controller
     public function store(Request $request)
     {
         $storeId = $this->resolveStoreId($request, $request->input('store_id'));
-        abort_unless($storeId && in_array($storeId, $this->allowedStoreIds($request), true), 422, 'Store tidak valid.');
+        abort_unless($storeId && in_array($storeId, $this->allowedStoreIds($request), true), 422, 'Invalid store.');
 
         $data = $request->validate([
             'date' => ['required', 'date'],
@@ -89,19 +89,19 @@ class StockAdjustmentController extends Controller
         if ($created === 0) {
             $adjustment->delete();
 
-            return back()->withInput()->with('error', 'Tidak ada baris valid untuk disimpan.');
+            return back()->withInput()->with('error', 'There are no valid lines to save.');
         }
 
         ActivityLogger::log('stock.adjustment_created', "Membuat draft adjustment #{$adjustment->id}", $adjustment);
 
-        return redirect()->route('admin.stock-adjustments.index')->with('success', 'Adjustment dibuat (draft). Lakukan posting untuk menerapkan.');
+        return redirect()->route('admin.stock-adjustments.index')->with('success', 'Adjustment created (draft). Post it to apply.');
     }
 
     public function post(Request $request, StockAdjustment $stockAdjustment)
     {
         $this->ensureCompany($stockAdjustment->company_id);
         abort_unless(in_array($stockAdjustment->store_id, $this->allowedStoreIds($request), true), 403);
-        abort_if($stockAdjustment->isPosted(), 422, 'Adjustment sudah diposting.');
+        abort_if($stockAdjustment->isPosted(), 422, 'The adjustment has already been posted.');
 
         foreach ($stockAdjustment->lines as $line) {
             StockService::assertNonNegative($stockAdjustment->store_id, $line->product_id, (float) $line->delta);
@@ -129,6 +129,6 @@ class StockAdjustmentController extends Controller
 
         ActivityLogger::log('stock.adjustment_posted', "Posting adjustment {$stockAdjustment->number}", $stockAdjustment);
 
-        return redirect()->route('admin.stock-adjustments.index')->with('success', 'Adjustment berhasil diposting.');
+        return redirect()->route('admin.stock-adjustments.index')->with('success', 'Adjustment posted successfully.');
     }
 }

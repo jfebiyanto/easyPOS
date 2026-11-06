@@ -1,13 +1,13 @@
 @extends('layouts.admin')
 
-@section('title', 'Riwayat Stok')
+@section('title', 'Stock History')
 @section('page_title', 'Riwayat Stok · '.$product->sku)
 
 @section('content')
 <div class="card">
     <h2 class="card-title">{{ $product->name }}</h2>
     <p class="card-subtitle">
-        Gerai: <strong>{{ $store?->code ?? '-' }}</strong> · Saldo saat ini:
+        Store: <strong>{{ $store?->code ?? '-' }}</strong> · Current balance:
         <strong class="money">{{ rtrim(rtrim(number_format($balance, 3, ',', '.'), '0'), ',') }}</strong>
     </p>
 
@@ -15,12 +15,12 @@
         <table class="md-table">
             <thead>
                 <tr>
-                    <th>Waktu</th>
-                    <th>Tipe</th>
+                    <th>Time</th>
+                    <th>Type</th>
                     <th style="text-align:right;">Qty</th>
-                    <th>Referensi</th>
-                    <th>Oleh</th>
-                    <th>Catatan</th>
+                    <th>Reference</th>
+                    <th>By</th>
+                    <th>Notes</th>
                 </tr>
             </thead>
             <tbody>
@@ -36,14 +36,14 @@
                         <td>{{ $entry->note ?? '-' }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="6"><div class="empty-state"><span class="material-symbols-rounded">history</span><p>Belum ada pergerakan stok.</p></div></td></tr>
+                    <tr><td colspan="6"><div class="empty-state"><span class="material-symbols-rounded">history</span><p>No stock movements yet.</p></div></td></tr>
                 @endforelse
             </tbody>
         </table>
     </div>
 
     <div class="form-actions" style="margin-top:16px;">
-        <a href="{{ route('admin.stock.index', ['store' => $storeId]) }}" class="btn btn-outline">Kembali</a>
+        <a href="{{ route('admin.stock.index', ['store' => $storeId]) }}" class="btn btn-outline">Back</a>
     </div>
 </div>
 @endsection

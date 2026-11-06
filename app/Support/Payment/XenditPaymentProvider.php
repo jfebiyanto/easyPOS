@@ -26,7 +26,7 @@ class XenditPaymentProvider implements PaymentProvider
     public function createQrisCharge(SalePayment $payment): array
     {
         if (! $this->isConfigured()) {
-            throw new RuntimeException('Xendit belum dikonfigurasi (belum terdaftar).');
+            throw new RuntimeException('Xendit is not configured (not registered).');
         }
 
         // Placeholder integrasi live: panggil POST /qr_codes (dynamic QRIS).

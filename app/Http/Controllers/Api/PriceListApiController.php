@@ -57,7 +57,7 @@ class PriceListApiController extends ApiController
 
         ActivityLogger::log('price_list.deleted', "Menghapus price list (API): {$label}", $priceList);
 
-        return response()->json(['message' => 'Price list dihapus.']);
+        return response()->json(['message' => 'Price list deleted.']);
     }
 
     public function items(Request $request, PriceList $priceList): JsonResponse
@@ -80,7 +80,7 @@ class PriceListApiController extends ApiController
         abort_unless(
             Product::whereKey($data['product_id'])->where('company_id', $priceList->company_id)->exists(),
             422,
-            'Produk tidak berada pada company yang sama dengan price list.'
+            'The product does not belong to the same company as the price list.'
         );
 
         $item = $priceList->items()->updateOrCreate(
@@ -88,7 +88,7 @@ class PriceListApiController extends ApiController
             ['price' => $data['price']]
         );
 
-        ActivityLogger::log('price_list.item_changed', "Mengubah harga (API) produk {$data['product_id']} menjadi Rp {$data['price']} di {$priceList->code}", $item, $data);
+        ActivityLogger::log('price_list.item_changed', "Changed price (API) of product {$data['product_id']} to Rp {$data['price']} in {$priceList->code}", $item, $data);
 
         return response()->json(['data' => $item->fresh('product')], 201);
     }
@@ -101,9 +101,9 @@ class PriceListApiController extends ApiController
 
         $item->delete();
 
-        ActivityLogger::log('price_list.item_deleted', "Menghapus item harga (API) dari {$priceList->code}", $item);
+        ActivityLogger::log('price_list.item_deleted', "Deleted price item (API) from {$priceList->code}", $item);
 
-        return response()->json(['message' => 'Item harga dihapus.']);
+        return response()->json(['message' => 'Price item deleted.']);
     }
 
     private function validated(Request $request, ?string $id = null): array

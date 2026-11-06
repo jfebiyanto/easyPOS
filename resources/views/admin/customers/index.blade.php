@@ -1,22 +1,22 @@
 @extends('layouts.admin')
 
-@section('title', 'Daftar Pelanggan')
-@section('page_title', 'Daftar Pelanggan')
+@section('title', 'Customers')
+@section('page_title', 'Customers')
 
 @section('content')
 <div class="tabs">
-    <a href="{{ route('admin.customers.index') }}" class="active">Pelanggan</a>
+    <a href="{{ route('admin.customers.index') }}" class="active">Customer</a>
     @if (auth()->user()->isSuperuser())
-        <a href="{{ route('admin.member-levels.index') }}">Level Member</a>
+        <a href="{{ route('admin.member-levels.index') }}">Member Tier</a>
     @endif
 </div>
 
 <div class="table-toolbar">
     <form method="GET" action="{{ route('admin.customers.index') }}" class="search-box">
         <div class="field" style="margin-bottom:0; display:flex; gap:8px;">
-            <input type="text" name="q" placeholder="Cari nama, HP, atau kode…" value="{{ request('q') }}">
+            <input type="text" name="q" placeholder="Search name, mobile or code…" value="{{ request('q') }}">
             <select name="level" style="max-width:180px;" onchange="this.form.submit()">
-                <option value="">Semua Level</option>
+                <option value="">All Tiers</option>
                 @foreach ($levels as $level)
                     <option value="{{ $level->id }}" @selected(request('level') == $level->id)>{{ $level->name }}</option>
                 @endforeach
@@ -26,7 +26,7 @@
     </form>
     @unless ($readOnly)
     <a href="{{ route('admin.customers.create') }}" class="btn btn-filled">
-        <span class="material-symbols-rounded">person_add</span> Tambah Pelanggan
+        <span class="material-symbols-rounded">person_add</span> Add Customer
     </a>
     @endunless
 </div>
@@ -38,10 +38,10 @@
                 <th>{!! sort_link('Kode', 'code') !!}</th>
                 <th>{!! sort_link('Nama', 'name') !!}</th>
                 <th>{!! sort_link('No. HP', 'phone') !!}</th>
-                <th>Level</th>
+                <th>Tier</th>
                 <th>{!! sort_link('Poin', 'points_balance') !!}</th>
                 <th>{!! sort_link('Status', 'is_active') !!}</th>
-                <th style="text-align:right;">Aksi</th>
+                <th style="text-align:right;">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -60,19 +60,19 @@
                     <td><span class="badge {{ $customer->is_active ? 'active' : 'inactive' }}">{{ $customer->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
                     <td style="text-align:right;">
                         <div class="actions-cell">
-                            <a href="{{ route('admin.customers.show', $customer) }}" class="btn btn-tonal btn-sm">Detail</a>
+                            <a href="{{ route('admin.customers.show', $customer) }}" class="btn btn-tonal btn-sm">Details</a>
                             @unless ($readOnly)
                             <a href="{{ route('admin.customers.edit', $customer) }}" class="btn btn-tonal btn-sm">Edit</a>
                             <form method="POST" action="{{ route('admin.customers.destroy', $customer) }}" onsubmit="return confirm('Hapus pelanggan ini?')">
                                 @csrf @method('DELETE')
-                                <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
+                                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                             </form>
                             @endunless
                         </div>
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="7"><div class="empty-state"><span class="material-symbols-rounded">person_off</span><p>Belum ada pelanggan.</p></div></td></tr>
+                <tr><td colspan="7"><div class="empty-state"><span class="material-symbols-rounded">person_off</span><p>No customers yet.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>

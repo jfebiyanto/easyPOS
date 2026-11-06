@@ -72,9 +72,9 @@ class StoreController extends Controller
             $request->session()->put('active_store_id', $store->id);
         }
 
-        ActivityLogger::log('store.created', "Membuat store baru: {$store->code} · {$store->name}", $store);
+        ActivityLogger::log('store.created', "Created new store: {$store->code} · {$store->name}", $store);
 
-        return redirect()->route('admin.stores.index')->with('success', 'Store berhasil dibuat.');
+        return redirect()->route('admin.stores.index')->with('success', 'Store created successfully.');
     }
 
     public function edit(Store $store): View
@@ -106,7 +106,7 @@ class StoreController extends Controller
 
         ActivityLogger::log('store.updated', "Mengubah store: {$store->code} · {$store->name}", $store);
 
-        return redirect()->route('admin.stores.index')->with('success', 'Konfigurasi store berhasil diperbarui.');
+        return redirect()->route('admin.stores.index')->with('success', 'Store configuration updated successfully.');
     }
 
     public function destroy(Store $store)
@@ -115,7 +115,7 @@ class StoreController extends Controller
         $this->ensureCompany($store->company_id);
 
         if (User::where('store_id', $store->id)->exists()) {
-            return back()->with('error', 'Store masih memiliki user, tidak dapat dihapus.');
+            return back()->with('error', 'Store still has users and cannot be deleted.');
         }
 
         $store->priceLists()->detach();
@@ -127,7 +127,7 @@ class StoreController extends Controller
 
         ActivityLogger::log('store.deleted', "Menghapus store: {$store->code} · {$store->name}", $store);
 
-        return redirect()->route('admin.stores.index')->with('success', 'Store berhasil dihapus.');
+        return redirect()->route('admin.stores.index')->with('success', 'Store deleted successfully.');
     }
 
     public function switch(Request $request, Store $store)
@@ -141,7 +141,7 @@ class StoreController extends Controller
 
         // Kembali ke halaman asal (bisa dari Daftar Gerai atau dropdown store aktif di top bar).
         return redirect()->back(fallback: route('admin.stores.index'))
-            ->with('success', 'Store aktif: '.$store->code.' · '.$store->name);
+            ->with('success', 'Active store: '.$store->code.' · '.$store->name);
     }
 
     private function syncPriceLists(Store $store, Request $request): void
@@ -242,7 +242,7 @@ class StoreController extends Controller
 
         $options[$current] = $registered
             ? $registered->code.' - '.$registered->symbol.' (nonaktif)'
-            : $current.' (belum terdaftar di modul Mata Uang)';
+            : $current.' (not registered in the Currencies module)';
 
         return $options;
     }

@@ -485,7 +485,7 @@ class SapImportTest extends TestCase
         $this->actingAs($this->owner)
             ->get(route('admin.sap-import.index'))
             ->assertOk()
-            ->assertSee('Impor Data Awal');
+            ->assertSee('Initial Data Import');
 
         $this->company->update(['sap_enabled' => false]);
 

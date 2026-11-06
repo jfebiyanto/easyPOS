@@ -1,26 +1,26 @@
 @extends('layouts.admin')
 
-@section('title', 'Laporan')
-@section('page_title', 'Laporan Penjualan')
+@section('title', 'Reports')
+@section('page_title', 'Sales Reports')
 
 @section('content')
 <div class="card">
-    <h2 class="card-title">Filter Periode</h2>
+    <h2 class="card-title">Period Filter</h2>
     <form method="GET" action="{{ route('admin.reports.index') }}">
         <div class="form-grid">
             <div class="field">
-                <label for="from">Dari Tanggal</label>
+                <label for="from">From Date</label>
                 <input type="date" id="from" name="from" value="{{ $from }}">
             </div>
             <div class="field">
-                <label for="to">Sampai Tanggal</label>
+                <label for="to">To Date</label>
                 <input type="date" id="to" name="to" value="{{ $to }}">
             </div>
             @if ($stores->isNotEmpty())
                 <div class="field">
-                    <label for="store">Gerai (opsional)</label>
+                    <label for="store">Store (optional)</label>
                     <select id="store" name="store">
-                        <option value="">Semua Gerai</option>
+                        <option value="">All Stores</option>
                         @foreach ($stores as $store)
                             <option value="{{ $store->id }}" @selected(request('store') == $store->id)>{{ $store->code }} · {{ $store->name }}</option>
                         @endforeach
@@ -37,7 +37,7 @@
             <div class="stat-icon"><span class="material-symbols-rounded">bar_chart</span></div>
             <div>
                 <div class="stat-value" style="font-size:15px;">{{ $label }}</div>
-                <div class="stat-label">Lihat & ekspor</div>
+                <div class="stat-label">View &amp; export</div>
             </div>
         </a>
     @endforeach

@@ -17,8 +17,8 @@ class PosCancellation extends MasterModel
     public const TYPE_SALE_VOID = 'sale_void';
 
     public const TYPE_LABELS = [
-        self::TYPE_CART => 'Batal sebelum bayar',
-        self::TYPE_SALE_VOID => 'Void penjualan',
+        self::TYPE_CART => 'Cancelled before payment',
+        self::TYPE_SALE_VOID => 'Sale void',
     ];
 
     /** Kejadian yang dicatat lebih dari ini setelah terjadinya (mis. dari antrean offline) ditandai terlambat. */

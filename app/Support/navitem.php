@@ -26,7 +26,7 @@ if (! function_exists('navitem')) {
 
         return '<a href="'.$url.'" class="'.($active ? 'active' : '').'">
             <span class="material-symbols-rounded">'.$icon.'</span>
-            <span>'.$label.'</span>
+            <span>'.e($label).'</span>
         </a>';
     }
 }

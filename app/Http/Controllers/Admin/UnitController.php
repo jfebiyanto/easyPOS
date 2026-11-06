@@ -13,6 +13,7 @@ use Illuminate\View\View;
 class UnitController extends Controller
 {
     use AuthorizesCompany;
+
     public function index(): View
     {
         return view('admin.units.index', [
@@ -27,7 +28,7 @@ class UnitController extends Controller
 
     public function create(): View
     {
-        return view('admin.units.form', ['unit' => new Unit()]);
+        return view('admin.units.form', ['unit' => new Unit]);
     }
 
     public function store(Request $request)
@@ -36,7 +37,7 @@ class UnitController extends Controller
 
         ActivityLogger::log('unit.created', "Membuat satuan: {$unit->code} · {$unit->name}", $unit);
 
-        return redirect()->route('admin.units.index')->with('success', 'Satuan berhasil dibuat.');
+        return redirect()->route('admin.units.index')->with('success', 'Unit created successfully.');
     }
 
     public function edit(Unit $unit): View
@@ -54,7 +55,7 @@ class UnitController extends Controller
 
         ActivityLogger::log('unit.updated', "Mengubah satuan: {$unit->code} · {$unit->name}", $unit);
 
-        return redirect()->route('admin.units.index')->with('success', 'Satuan berhasil diperbarui.');
+        return redirect()->route('admin.units.index')->with('success', 'Unit updated successfully.');
     }
 
     public function destroy(Unit $unit)
@@ -62,7 +63,7 @@ class UnitController extends Controller
         $this->ensureCompany($unit->company_id);
 
         if ($unit->products()->exists()) {
-            return back()->with('error', 'Satuan masih dipakai produk, tidak dapat dihapus.');
+            return back()->with('error', 'Unit is still used by products and cannot be deleted.');
         }
 
         $label = $unit->code.' · '.$unit->name;
@@ -70,7 +71,7 @@ class UnitController extends Controller
 
         ActivityLogger::log('unit.deleted', "Menghapus satuan: {$label}", $unit);
 
-        return redirect()->route('admin.units.index')->with('success', 'Satuan berhasil dihapus.');
+        return redirect()->route('admin.units.index')->with('success', 'Unit deleted successfully.');
     }
 
     private function validated(Request $request, ?string $id = null): array

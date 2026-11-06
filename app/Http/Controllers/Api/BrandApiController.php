@@ -51,14 +51,14 @@ class BrandApiController extends ApiController
         $this->authorizeCompany($request, $brand->company_id);
 
         if ($brand->products()->exists()) {
-            return response()->json(['message' => 'Brand masih dipakai produk.'], 422);
+            return response()->json(['message' => 'Brand is still used by products.'], 422);
         }
 
         $brand->delete();
 
         ActivityLogger::log('brand.deleted', "Menghapus brand (API): {$brand->code}", $brand);
 
-        return response()->json(['message' => 'Brand dihapus.']);
+        return response()->json(['message' => 'Brand deleted.']);
     }
 
     private function validated(Request $request, ?string $id = null): array

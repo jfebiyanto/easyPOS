@@ -13,6 +13,7 @@ use Illuminate\View\View;
 class BrandController extends Controller
 {
     use AuthorizesCompany;
+
     public function index(): View
     {
         return view('admin.products.brands.index', [
@@ -27,7 +28,7 @@ class BrandController extends Controller
 
     public function create(): View
     {
-        return view('admin.products.brands.form', ['brand' => new Brand()]);
+        return view('admin.products.brands.form', ['brand' => new Brand]);
     }
 
     public function store(Request $request)
@@ -36,7 +37,7 @@ class BrandController extends Controller
 
         ActivityLogger::log('brand.created', "Membuat brand: {$brand->code} · {$brand->name}", $brand);
 
-        return redirect()->route('admin.brands.index')->with('success', 'Brand berhasil dibuat.');
+        return redirect()->route('admin.brands.index')->with('success', 'Brand created successfully.');
     }
 
     public function edit(Brand $brand): View
@@ -54,7 +55,7 @@ class BrandController extends Controller
 
         ActivityLogger::log('brand.updated', "Mengubah brand: {$brand->code} · {$brand->name}", $brand);
 
-        return redirect()->route('admin.brands.index')->with('success', 'Brand berhasil diperbarui.');
+        return redirect()->route('admin.brands.index')->with('success', 'Brand updated successfully.');
     }
 
     public function destroy(Brand $brand)
@@ -62,7 +63,7 @@ class BrandController extends Controller
         $this->ensureCompany($brand->company_id);
 
         if ($brand->products()->exists()) {
-            return back()->with('error', 'Brand masih dipakai oleh produk, tidak dapat dihapus.');
+            return back()->with('error', 'Brand is still used by products and cannot be deleted.');
         }
 
         $label = $brand->code.' · '.$brand->name;
@@ -70,7 +71,7 @@ class BrandController extends Controller
 
         ActivityLogger::log('brand.deleted', "Menghapus brand: {$label}", $brand);
 
-        return redirect()->route('admin.brands.index')->with('success', 'Brand berhasil dihapus.');
+        return redirect()->route('admin.brands.index')->with('success', 'Brand deleted successfully.');
     }
 
     private function validated(Request $request, ?string $id = null): array

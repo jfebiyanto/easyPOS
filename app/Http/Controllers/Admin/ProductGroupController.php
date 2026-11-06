@@ -13,6 +13,7 @@ use Illuminate\View\View;
 class ProductGroupController extends Controller
 {
     use AuthorizesCompany;
+
     public function index(): View
     {
         return view('admin.products.groups.index', [
@@ -27,7 +28,7 @@ class ProductGroupController extends Controller
 
     public function create(): View
     {
-        return view('admin.products.groups.form', ['group' => new ProductGroup()]);
+        return view('admin.products.groups.form', ['group' => new ProductGroup]);
     }
 
     public function store(Request $request)
@@ -36,7 +37,7 @@ class ProductGroupController extends Controller
 
         ActivityLogger::log('product_group.created', "Membuat product group: {$group->code} · {$group->name}", $group);
 
-        return redirect()->route('admin.groups.index')->with('success', 'Product group berhasil dibuat.');
+        return redirect()->route('admin.groups.index')->with('success', 'Product group created successfully.');
     }
 
     public function edit(ProductGroup $group): View
@@ -54,7 +55,7 @@ class ProductGroupController extends Controller
 
         ActivityLogger::log('product_group.updated', "Mengubah product group: {$group->code} · {$group->name}", $group);
 
-        return redirect()->route('admin.groups.index')->with('success', 'Product group berhasil diperbarui.');
+        return redirect()->route('admin.groups.index')->with('success', 'Product group updated successfully.');
     }
 
     public function destroy(ProductGroup $group)
@@ -62,7 +63,7 @@ class ProductGroupController extends Controller
         $this->ensureCompany($group->company_id);
 
         if ($group->products()->exists()) {
-            return back()->with('error', 'Group masih memiliki produk, tidak dapat dihapus.');
+            return back()->with('error', 'Group still has products and cannot be deleted.');
         }
 
         $code = $group->code.' · '.$group->name;
@@ -70,7 +71,7 @@ class ProductGroupController extends Controller
 
         ActivityLogger::log('product_group.deleted', "Menghapus product group: {$code}", $group);
 
-        return redirect()->route('admin.groups.index')->with('success', 'Product group berhasil dihapus.');
+        return redirect()->route('admin.groups.index')->with('success', 'Product group deleted successfully.');
     }
 
     private function validated(Request $request, ?string $id = null): array

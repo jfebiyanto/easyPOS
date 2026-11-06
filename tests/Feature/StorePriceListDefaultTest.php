@@ -33,7 +33,7 @@ class StorePriceListDefaultTest extends TestCase
             'currency' => 'IDR',
         ]);
         $other = PriceList::create(['company_id' => $company->id, 'code' => 'PL1', 'name' => 'Umum', 'is_active' => true]);
-        $default = PriceList::create(['company_id' => $company->id, 'code' => 'PL2', 'name' => 'Gerai', 'is_active' => true]);
+        $default = PriceList::create(['company_id' => $company->id, 'code' => 'PL2', 'name' => 'Store', 'is_active' => true]);
 
         $this->actingAs($admin)
             ->put(route('admin.stores.update', $store), [

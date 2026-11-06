@@ -94,7 +94,7 @@ class StoreCurrencyTest extends TestCase
         $this->actingAs($this->admin)
             ->get(route('admin.stores.edit', $store))
             ->assertOk()
-            ->assertSee('OLD (belum terdaftar di modul Mata Uang)');
+            ->assertSee('OLD (not registered in the Currencies module)');
 
         $this->put(route('admin.stores.update', $store), $this->validPayload([
             'code' => 'GR01',

@@ -71,7 +71,7 @@ class CancellationReportController extends Controller
 
         $writer = new Writer;
         $writer->openToFile($path);
-        $writer->addRow(Row::fromValues(['Waktu', 'Jenis', 'Gerai', 'Kasir', 'Pelanggan', 'No. Penjualan', 'Alasan', 'Jumlah Barang', 'Isi Barang', 'Total', 'IP', 'Perangkat', 'Dicatat Terlambat']));
+        $writer->addRow(Row::fromValues(['Time', 'Type', 'Store', 'Cashier', 'Customer', 'Sale No.', 'Reason', 'Item Count', 'Items', 'Total', 'IP', 'Device', 'Recorded Late']));
 
         $this->filtered($request, $from, $to)->reorder()->orderBy('store_label')->latest('occurred_at')->limit(self::EXPORT_LIMIT)->get()->each(function (PosCancellation $c) use ($writer, $timezone) {
             $writer->addRow(Row::fromValues([
@@ -87,7 +87,7 @@ class CancellationReportController extends Controller
                 (float) $c->total,
                 $c->ip_address,
                 $c->browser,
-                $c->isLate() ? 'Ya' : 'Tidak',
+                $c->isLate() ? 'Yes' : 'No',
             ]));
         });
         $writer->close();

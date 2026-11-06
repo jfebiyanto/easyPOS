@@ -89,7 +89,7 @@ class CompanySapSettingsTest extends TestCase
         ]));
 
         $response->assertRedirect(route('admin.company.edit'));
-        $response->assertSessionHas('success', 'Konfigurasi SAP B1 berhasil disimpan.');
+        $response->assertSessionHas('success', 'SAP B1 configuration saved successfully.');
 
         $company = $this->company->fresh();
         $this->assertTrue($company->sap_enabled);
@@ -122,15 +122,15 @@ class CompanySapSettingsTest extends TestCase
         $this->actingAs($this->owner)
             ->get(route('admin.company.edit'))
             ->assertSee('Database SAP B1 tidak dapat diubah.')
-            ->assertSee('Ubah Koneksi SAP')
-            ->assertSee('Konfirmasi Perubahan SAP B1');
+            ->assertSee('Change SAP Connection')
+            ->assertSee('Confirm SAP B1 Change');
     }
 
     public function test_halaman_tidak_mengunci_koneksi_sebelum_impor_awal(): void
     {
         $this->actingAs($this->owner)
             ->get(route('admin.company.edit'))
-            ->assertSee('Simpan Integrasi SAP')
+            ->assertSee('Save SAP Integration')
             ->assertDontSee('Ubah Koneksi SAP')
             ->assertDontSee('Konfirmasi Perubahan SAP B1');
     }
@@ -155,7 +155,7 @@ class CompanySapSettingsTest extends TestCase
                 'sap_db_name' => 'SBO_LAIN',
                 'current_password' => 'rahasia-owner',
             ]))
-            ->assertSessionHasErrors(['sap_db_name' => 'Database SAP B1 tidak dapat diubah setelah impor data awal.']);
+            ->assertSessionHasErrors(['sap_db_name' => 'The SAP B1 database cannot be changed after the initial data import.']);
 
         $this->assertSame('SBO_LIVE', $this->company->fresh()->sap_db_name);
     }
@@ -170,7 +170,7 @@ class CompanySapSettingsTest extends TestCase
                 'sap_username' => 'posintegrasi',
                 'current_password' => 'salah',
             ]))
-            ->assertSessionHasErrors(['current_password' => 'Password akun easyPOS salah.']);
+            ->assertSessionHasErrors(['current_password' => 'Incorrect easyPOS account password.']);
 
         $this->assertSame('manager', $this->company->fresh()->sap_username);
         Http::assertNothingSent();
@@ -189,7 +189,7 @@ class CompanySapSettingsTest extends TestCase
         ]));
 
         $response->assertRedirect(route('admin.company.edit'));
-        $response->assertSessionHas('success', 'Konfigurasi SAP B1 berhasil disimpan.');
+        $response->assertSessionHas('success', 'SAP B1 configuration saved successfully.');
 
         $company = $this->company->fresh();
         $this->assertSame('posintegrasi', $company->sap_username);
@@ -215,7 +215,7 @@ class CompanySapSettingsTest extends TestCase
                 'sap_password' => 'sap-salah',
                 'current_password' => 'rahasia-owner',
             ]))
-            ->assertSessionHasErrors(['sap_connection' => 'SAP B1 merespons, tetapi login gagal (HTTP 401). Periksa kredensial atau URL.']);
+            ->assertSessionHasErrors(['sap_connection' => 'SAP B1 responded, but login failed (HTTP 401). Check the credentials or URL.']);
 
         $this->assertSame('sap-lama', $this->company->fresh()->sap_password);
     }
@@ -247,7 +247,7 @@ class CompanySapSettingsTest extends TestCase
 
         $this->actingAs($this->owner)
             ->put(route('admin.company.update-sap'), $this->sapPayload(['current_password' => 'rahasia-owner']))
-            ->assertSessionHas('success', 'Integrasi SAP B1 diaktifkan kembali. Mutasi stok SAP B1 selama integrasi mati akan disalin pada sinkronisasi berikutnya.');
+            ->assertSessionHas('success', 'SAP B1 integration re-enabled. SAP B1 stock movements made while it was off will be copied on the next sync.');
 
         $this->assertTrue($this->company->fresh()->sap_enabled);
         Http::assertSentCount(1);
@@ -261,7 +261,7 @@ class CompanySapSettingsTest extends TestCase
         $this->actingAs($this->owner)
             ->put(route('admin.company.update-sap'), $this->sapPayload())
             ->assertSessionHasNoErrors()
-            ->assertSessionHas('success', 'Tidak ada perubahan pada konfigurasi SAP B1.');
+            ->assertSessionHas('success', 'No changes to the SAP B1 configuration.');
 
         $this->assertSame(0, ActivityLog::where('action', 'company.sap_updated')->count());
     }

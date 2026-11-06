@@ -1,13 +1,13 @@
 @extends('layouts.admin')
 
-@section('title', 'Transfer Stok')
-@section('page_title', 'Transfer Stok')
+@section('title', 'Stock Transfers')
+@section('page_title', 'Stock Transfers')
 
 @section('content')
 <div class="table-toolbar">
-    <h2 style="margin:0; font-size:16px;">Daftar Transfer</h2>
+    <h2 style="margin:0; font-size:16px;">Transfer List</h2>
     <a href="{{ route('admin.stock-transfers.create') }}" class="btn btn-filled">
-        <span class="material-symbols-rounded">add</span> Buat Transfer
+        <span class="material-symbols-rounded">add</span> Create Transfer
     </a>
 </div>
 
@@ -25,12 +25,12 @@
     <table class="md-table">
         <thead>
             <tr>
-                <th>Nomor</th>
-                <th>Dari</th>
-                <th>Ke</th>
-                <th>Item</th>
+                <th>Number</th>
+                <th>From</th>
+                <th>To</th>
+                <th>Items</th>
                 <th>Status</th>
-                <th style="text-align:right;">Aksi</th>
+                <th style="text-align:right;">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -47,22 +47,22 @@
                             @if (in_array($tr->status, ['draft', 'requested']))
                                 <form method="POST" action="{{ route('admin.stock-transfers.ship', $tr) }}" onsubmit="return confirm('Kirim transfer ini? Stok keluar dari gerai asal.')">
                                     @csrf
-                                    <button type="submit" class="btn btn-filled btn-sm">Kirim</button>
+                                    <button type="submit" class="btn btn-filled btn-sm">Ship</button>
                                 </form>
                                 <form method="POST" action="{{ route('admin.stock-transfers.cancel', $tr) }}" onsubmit="return confirm('Batalkan transfer ini?')">
                                     @csrf
-                                    <button type="submit" class="btn btn-outline btn-sm">Batal</button>
+                                    <button type="submit" class="btn btn-outline btn-sm">Cancel</button>
                                 </form>
                             @elseif ($tr->status === 'shipped')
-                                <a href="{{ route('admin.stock-transfers.receive-form', $tr) }}" class="btn btn-filled btn-sm">Terima</a>
+                                <a href="{{ route('admin.stock-transfers.receive-form', $tr) }}" class="btn btn-filled btn-sm">Receive</a>
                             @else
-                                <span style="color:var(--color-text-muted); font-size:12px;">Selesai</span>
+                                <span style="color:var(--color-text-muted); font-size:12px;">Completed</span>
                             @endif
                         </div>
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="6"><div class="empty-state"><span class="material-symbols-rounded">swap_horiz</span><p>Belum ada transfer stok.</p></div></td></tr>
+                <tr><td colspan="6"><div class="empty-state"><span class="material-symbols-rounded">swap_horiz</span><p>No stock transfers yet.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>

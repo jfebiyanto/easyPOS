@@ -214,7 +214,7 @@ class FoundationTest extends TestCase
     {
         $this->actingAs($this->owner)
             ->post(route('admin.users.store'), $this->userFormInput($role, null))
-            ->assertSessionHasErrors(['store_id' => 'Kasir dan Store Manager wajib ditugaskan ke satu gerai aktif.']);
+            ->assertSessionHasErrors(['store_id' => 'Cashiers and Store Managers must be assigned to one active store.']);
 
         $this->assertDatabaseMissing('users', ['username' => 'staf1']);
     }
@@ -225,7 +225,7 @@ class FoundationTest extends TestCase
 
         $this->actingAs($this->owner)
             ->post(route('admin.users.store'), $this->userFormInput(User::ROLE_CASHIER, $inactive->id))
-            ->assertSessionHasErrors(['store_id' => 'Gerai yang dipilih tidak aktif atau tidak tersedia.']);
+            ->assertSessionHasErrors(['store_id' => 'The selected store is inactive or unavailable.']);
 
         $this->assertDatabaseMissing('users', ['username' => 'staf1']);
     }
@@ -373,7 +373,7 @@ class FoundationTest extends TestCase
 
         $this->actingAs($this->owner)->get(route('admin.dashboard'))
             ->assertOk()
-            ->assertSee('EOD STR001 15 September 2026 belum dijalankan. Semua transaksi akan tercatat sebagai transaksi 15 September 2026.');
+            ->assertSee('EOD for STR001 15 September 2026 has not been run. All transactions will be recorded as 15 September 2026 transactions.');
     }
 
     public function test_pencarian_log_aktivitas_tetap_menghormati_filter_aksi(): void

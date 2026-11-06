@@ -60,7 +60,7 @@ class PromotionHierarchyTest extends TestCase
 
         $this->actingAs($this->owner)->get(route('admin.promotion-hierarchy.edit'))
             ->assertOk()
-            ->assertSeeInOrder(['Harga Khusus (easyPOS)', 'Period & Volume Discount (SAP B1)', 'Discount Group (SAP B1)']);
+            ->assertSeeInOrder(['Special Price (easyPOS)', 'Period & Volume Discount (SAP B1)', 'Discount Group (SAP B1)']);
     }
 
     public function test_owner_dapat_mengubah_hierarki(): void
@@ -107,7 +107,7 @@ class PromotionHierarchyTest extends TestCase
             ->assertOk()
             ->assertSee('05/11/2026 ~ 08/11/2026')
             ->assertSee('SAP B1')
-            ->assertSee('Hanya-baca')
+            ->assertSee('Read-only')
             ->assertSee('customer group 102');
 
         $this->get(route('admin.promotions.edit', $promotion))->assertForbidden();

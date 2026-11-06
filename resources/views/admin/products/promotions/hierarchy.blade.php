@@ -1,15 +1,15 @@
 @extends('layouts.admin')
 
-@section('title', 'Hierarki Promosi')
-@section('page_title', 'Hierarki Promosi')
+@section('title', 'Promo Priority')
+@section('page_title', 'Promo Priority')
 
 @section('content')
 <div class="card" style="max-width: 760px;">
-    <h2 class="card-title">Urutan Prioritas Sumber Diskon</h2>
+    <h2 class="card-title">Discount Source Priority Order</h2>
     <p class="card-subtitle">
-        Bila satu barang di kasir memenuhi beberapa diskon, sumber yang paling atas dan menghasilkan diskon pada barang itu yang dipakai.
-        Nilai potongannya tidak dibandingkan dengan sumber di bawahnya; sumber yang tidak berlaku dilewati.
-        Dalam sumber yang sama, potongan terbesar menang.
+        When an item at the register qualifies for several discounts, the highest source that produces a discount on that item is used.
+        Its discount value is not compared with the sources below it; sources that do not apply are skipped.
+        Within the same source, the largest discount wins.
     </p>
 
     <form method="POST" action="{{ route('admin.promotion-hierarchy.update') }}">
@@ -31,9 +31,9 @@
 
         <div class="form-actions">
             @unless ($readOnly)
-            <button type="submit" class="btn btn-filled"><span class="material-symbols-rounded">save</span> Simpan</button>
+            <button type="submit" class="btn btn-filled"><span class="material-symbols-rounded">save</span> Save</button>
             @endunless
-            <a href="{{ route('admin.promotions.index') }}" class="btn btn-outline">Kembali</a>
+            <a href="{{ route('admin.promotions.index') }}" class="btn btn-outline">Back</a>
         </div>
     </form>
 </div>

@@ -37,7 +37,7 @@ class RunSapImport implements ShouldQueue
         SapSyncRun::whereKey($this->runId)->update([
             'status' => SapSyncRun::STATUS_FAILED,
             'finished_at' => now(),
-            'error' => $e ? mb_substr($e->getMessage(), 0, 500) : 'Job gagal.',
+            'error' => $e ? mb_substr($e->getMessage(), 0, 500) : 'Job failed.',
         ]);
     }
 }

@@ -21,11 +21,11 @@ class PaymentWebhookController extends Controller
         $provider = PaymentManager::for('xendit');
 
         if (! $provider instanceof XenditPaymentProvider || ! $provider->isConfigured()) {
-            return response()->json(['message' => 'Payment provider belum dikonfigurasi.'], 503);
+            return response()->json(['message' => 'Payment provider is not configured.'], 503);
         }
 
         if (! $provider->verifyWebhook($request->headers->all())) {
-            return response()->json(['message' => 'Token webhook tidak valid.'], 403);
+            return response()->json(['message' => 'Invalid webhook token.'], 403);
         }
 
         $data = $request->validate([

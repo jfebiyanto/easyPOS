@@ -38,7 +38,7 @@ class SapCustomerSyncTest extends TestCase
             'sap_username' => 'manager',
             'sap_password' => 'secret',
         ]);
-        $store = Store::create(['company_id' => $this->company->id, 'code' => 'GR01', 'name' => 'Gerai', 'pic_name' => 'PIC', 'currency' => 'IDR']);
+        $store = Store::create(['company_id' => $this->company->id, 'code' => 'GR01', 'name' => 'Store', 'pic_name' => 'PIC', 'currency' => 'IDR']);
         $this->owner = User::create([
             'company_id' => $this->company->id,
             'store_id' => $store->id,

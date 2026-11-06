@@ -52,7 +52,7 @@ class PaymentTypeController extends Controller
 
         ActivityLogger::log('payment_type.created', "Membuat tipe pembayaran: {$paymentType->code}", $paymentType);
 
-        return redirect()->route('admin.payment-types.index')->with('success', 'Tipe pembayaran berhasil dibuat.');
+        return redirect()->route('admin.payment-types.index')->with('success', 'Payment method created successfully.');
     }
 
     public function edit(PaymentType $paymentType): View
@@ -79,7 +79,7 @@ class PaymentTypeController extends Controller
 
         ActivityLogger::log('payment_type.updated', "Mengubah tipe pembayaran: {$paymentType->code}", $paymentType);
 
-        return redirect()->route('admin.payment-types.index')->with('success', 'Tipe pembayaran berhasil diperbarui.');
+        return redirect()->route('admin.payment-types.index')->with('success', 'Payment method updated successfully.');
     }
 
     public function destroy(PaymentType $paymentType)
@@ -92,7 +92,7 @@ class PaymentTypeController extends Controller
 
         ActivityLogger::log('payment_type.deleted', "Menghapus tipe pembayaran: {$label}", $paymentType);
 
-        return redirect()->route('admin.payment-types.index')->with('success', 'Tipe pembayaran berhasil dihapus.');
+        return redirect()->route('admin.payment-types.index')->with('success', 'Payment method deleted successfully.');
     }
 
     private function validated(Request $request, ?string $id = null): array

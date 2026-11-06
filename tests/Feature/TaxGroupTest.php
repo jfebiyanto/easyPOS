@@ -69,7 +69,7 @@ class TaxGroupTest extends TestCase
         $this->delete(route('admin.tax-groups.destroy', $taxGroup))->assertForbidden();
 
         $this->assertSame('11.0000', $taxGroup->refresh()->rate);
-        $this->get(route('admin.tax-groups.index'))->assertOk()->assertSee('Hanya-baca (dari SAP)');
+        $this->get(route('admin.tax-groups.index'))->assertOk()->assertSee('Read-only (from SAP)');
     }
 
     public function test_setting_pajak_memakai_tarif_dari_tax_group_terpilih(): void

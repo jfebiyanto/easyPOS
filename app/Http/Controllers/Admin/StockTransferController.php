@@ -49,7 +49,7 @@ class StockTransferController extends Controller
     public function store(Request $request)
     {
         $fromId = $this->resolveStoreId($request, $request->input('from_store_id'));
-        abort_unless($fromId && in_array($fromId, $this->allowedStoreIds($request), true), 422, 'Store asal tidak valid.');
+        abort_unless($fromId && in_array($fromId, $this->allowedStoreIds($request), true), 422, 'Invalid source store.');
 
         $data = $request->validate([
             'to_store_id' => ['required', 'different:from_store_id', Rule::exists('stores', 'id')->where('company_id', current_company_id())],
@@ -84,19 +84,19 @@ class StockTransferController extends Controller
         if ($created === 0) {
             $transfer->delete();
 
-            return back()->withInput()->with('error', 'Tidak ada baris valid untuk disimpan.');
+            return back()->withInput()->with('error', 'There are no valid lines to save.');
         }
 
-        ActivityLogger::log('stock.transfer_created', "Membuat draft transfer stok #{$transfer->id}", $transfer);
+        ActivityLogger::log('stock.transfer_created', "Created stock transfer draft #{$transfer->id}", $transfer);
 
-        return redirect()->route('admin.stock-transfers.index')->with('success', 'Transfer dibuat (draft).');
+        return redirect()->route('admin.stock-transfers.index')->with('success', 'Transfer created (draft).');
     }
 
     public function ship(Request $request, StockTransfer $stockTransfer)
     {
         $this->ensureCompany($stockTransfer->company_id);
         $this->authorizeTransfer($request, $stockTransfer, 'from');
-        abort_unless(in_array($stockTransfer->status, [StockTransfer::STATUS_DRAFT, StockTransfer::STATUS_REQUESTED], true), 422, 'Transfer tidak dapat dikirim pada status ini.');
+        abort_unless(in_array($stockTransfer->status, [StockTransfer::STATUS_DRAFT, StockTransfer::STATUS_REQUESTED], true), 422, 'The transfer cannot be shipped in this status.');
 
         foreach ($stockTransfer->lines as $line) {
             StockService::assertNonNegative($stockTransfer->from_store_id, $line->product_id, -(float) $line->qty_requested);
@@ -121,14 +121,14 @@ class StockTransferController extends Controller
 
         ActivityLogger::log('stock.transfer_shipped', "Mengirim transfer {$stockTransfer->number}", $stockTransfer);
 
-        return redirect()->route('admin.stock-transfers.index')->with('success', 'Transfer dikirim. Stok keluar dari gerai asal.');
+        return redirect()->route('admin.stock-transfers.index')->with('success', 'Transfer shipped. Stock has left the source store.');
     }
 
     public function receiveForm(Request $request, StockTransfer $stockTransfer): View
     {
         $this->ensureCompany($stockTransfer->company_id);
         $this->authorizeTransfer($request, $stockTransfer, 'to');
-        abort_unless($stockTransfer->status === StockTransfer::STATUS_SHIPPED, 422, 'Transfer belum dikirim.');
+        abort_unless($stockTransfer->status === StockTransfer::STATUS_SHIPPED, 422, 'The transfer has not been shipped.');
 
         return view('admin.stock.transfers.receive', [
             'transfer' => $stockTransfer->load('lines.product', 'fromStore', 'toStore'),
@@ -139,7 +139,7 @@ class StockTransferController extends Controller
     {
         $this->ensureCompany($stockTransfer->company_id);
         $this->authorizeTransfer($request, $stockTransfer, 'to');
-        abort_unless($stockTransfer->status === StockTransfer::STATUS_SHIPPED, 422, 'Transfer belum dikirim.');
+        abort_unless($stockTransfer->status === StockTransfer::STATUS_SHIPPED, 422, 'The transfer has not been shipped.');
 
         $data = $request->validate([
             'lines' => ['required', 'array'],
@@ -158,7 +158,7 @@ class StockTransferController extends Controller
             $shipped = (float) $line->qty_shipped;
 
             if ($received !== $shipped && blank($row['variance_reason'] ?? null)) {
-                return back()->withInput()->withErrors(['lines' => "Alasan selisih wajib diisi untuk produk {$line->product?->sku}."]);
+                return back()->withInput()->withErrors(['lines' => "A difference reason is required for product {$line->product?->sku}."]);
             }
 
             if ($received > 0) {
@@ -184,20 +184,20 @@ class StockTransferController extends Controller
 
         ActivityLogger::log('stock.transfer_received', "Menerima transfer {$stockTransfer->number}", $stockTransfer);
 
-        return redirect()->route('admin.stock-transfers.index')->with('success', 'Transfer diterima. Stok masuk ke gerai tujuan.');
+        return redirect()->route('admin.stock-transfers.index')->with('success', 'Transfer received. Stock has entered the destination store.');
     }
 
     public function cancel(Request $request, StockTransfer $stockTransfer)
     {
         $this->ensureCompany($stockTransfer->company_id);
         $this->authorizeTransfer($request, $stockTransfer, 'from');
-        abort_if($stockTransfer->isShipped(), 422, 'Transfer yang sudah dikirim tidak dapat dibatalkan. Terima penuh lalu kirim balik.');
+        abort_if($stockTransfer->isShipped(), 422, 'A shipped transfer cannot be cancelled. Receive it in full, then send it back.');
 
         $stockTransfer->update(['status' => StockTransfer::STATUS_CANCELLED]);
 
         ActivityLogger::log('stock.transfer_cancelled', "Membatalkan transfer #{$stockTransfer->id}", $stockTransfer);
 
-        return redirect()->route('admin.stock-transfers.index')->with('success', 'Transfer dibatalkan.');
+        return redirect()->route('admin.stock-transfers.index')->with('success', 'Transfer cancelled.');
     }
 
     /**

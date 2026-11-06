@@ -74,7 +74,7 @@ class CompanyController extends Controller
         ActivityLogger::log('company.updated', "Mengubah konfigurasi perusahaan: {$company->name}", $company);
 
         return redirect()->route('admin.company.edit')
-            ->with('success', 'Konfigurasi perusahaan berhasil disimpan.');
+            ->with('success', 'Company configuration saved successfully.');
     }
 
     /**
@@ -123,13 +123,13 @@ class CompanyController extends Controller
             ]);
 
             return redirect()->route('admin.company.edit')
-                ->with('success', 'Konfigurasi SAP B1 berhasil disimpan.');
+                ->with('success', 'SAP B1 configuration saved successfully.');
         }
 
         // Data hasil impor terikat ke database ini; pindah database = reimplementasi easyPOS.
         if ($request->has('sap_db_name') && $settings['sap_db_name'] !== $company->sap_db_name) {
             throw ValidationException::withMessages([
-                'sap_db_name' => 'Database SAP B1 tidak dapat diubah setelah impor data awal.',
+                'sap_db_name' => 'The SAP B1 database cannot be changed after the initial data import.',
             ]);
         }
         unset($settings['sap_db_name']);
@@ -142,7 +142,7 @@ class CompanyController extends Controller
 
         if ($changedFields === []) {
             return redirect()->route('admin.company.edit')
-                ->with('success', 'Tidak ada perubahan pada konfigurasi SAP B1.');
+                ->with('success', 'No changes to the SAP B1 configuration.');
         }
 
         $this->confirmAccountPassword($request);
@@ -167,8 +167,8 @@ class CompanyController extends Controller
 
         $message = match (true) {
             $wasEnabled && ! $company->sap_enabled => 'Integrasi SAP B1 dinonaktifkan.',
-            ! $wasEnabled && $company->sap_enabled => 'Integrasi SAP B1 diaktifkan kembali. Mutasi stok SAP B1 selama integrasi mati akan disalin pada sinkronisasi berikutnya.',
-            default => 'Konfigurasi SAP B1 berhasil disimpan.',
+            ! $wasEnabled && $company->sap_enabled => 'SAP B1 integration re-enabled. SAP B1 stock movements made while it was off will be copied on the next sync.',
+            default => 'SAP B1 configuration saved successfully.',
         };
 
         return redirect()->route('admin.company.edit')->with('success', $message);
@@ -196,7 +196,7 @@ class CompanyController extends Controller
         if ($endpoint === '' || $dbName === '' || $username === '' || $password === '') {
             return response()->json([
                 'success' => false,
-                'message' => 'Konfigurasi SAP B1 belum lengkap. Lengkapi Endpoint URL, Database, Username, dan Password.',
+                'message' => 'SAP B1 configuration is incomplete. Fill in the Endpoint URL, Database, Username and Password.',
             ], 422);
         }
 
@@ -235,7 +235,7 @@ class CompanyController extends Controller
             RateLimiter::hit($limiterKey, 60);
 
             throw ValidationException::withMessages([
-                'current_password' => 'Password akun easyPOS salah.',
+                'current_password' => 'Incorrect easyPOS account password.',
             ]);
         }
 
@@ -249,7 +249,7 @@ class CompanyController extends Controller
     {
         if ($endpoint === '' || $dbName === '' || $username === '' || $password === '') {
             throw ValidationException::withMessages([
-                'sap_connection' => 'Konfigurasi SAP B1 belum lengkap. Lengkapi Endpoint URL, Username, dan Password.',
+                'sap_connection' => 'SAP B1 configuration is incomplete. Fill in the Endpoint URL, Username and Password.',
             ]);
         }
 
@@ -294,18 +294,18 @@ class CompanyController extends Controller
                 'success' => $success,
                 'http_status' => $status,
                 'message' => $success
-                    ? "Koneksi ke SAP B1 berhasil (HTTP {$status})."
-                    : "SAP B1 merespons, tetapi login gagal (HTTP {$status}). Periksa kredensial atau URL.",
+                    ? "Connection to SAP B1 succeeded (HTTP {$status})."
+                    : "SAP B1 responded, but login failed (HTTP {$status}). Check the credentials or URL.",
             ];
         } catch (ConnectionException $e) {
             return [
                 'success' => false,
-                'message' => 'Tidak dapat terhubung ke SAP B1: '.Str::limit($e->getMessage(), 180),
+                'message' => 'Unable to connect to SAP B1: '.Str::limit($e->getMessage(), 180),
             ];
         } catch (\Throwable $e) {
             return [
                 'success' => false,
-                'message' => 'Gagal menguji koneksi: '.Str::limit($e->getMessage(), 180),
+                'message' => 'Connection test failed: '.Str::limit($e->getMessage(), 180),
             ];
         }
     }

@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
-@section('title', 'Identitas Perusahaan')
-@section('page_title', 'Identitas Perusahaan')
+@section('title', 'Company Profile')
+@section('page_title', 'Company Profile')
 
 @section('content')
 
@@ -10,7 +10,7 @@
 @if (! $canManage)
     <div class="md-snackbar error">
         <span class="material-symbols-rounded">lock</span>
-        Anda tidak memiliki hak Owner: halaman ini bersifat read-only.
+        You do not have Owner rights: this page is read-only.
     </div>
 @endif
 
@@ -19,27 +19,27 @@
     @method('PUT')
 
     <div class="card">
-        <h2 class="card-title">Informasi Perusahaan</h2>
-        <p class="card-subtitle">Identitas badan usaha perusahaan (Head Office).</p>
+        <h2 class="card-title">Company Information</h2>
+        <p class="card-subtitle">Legal identity of the company (Head Office).</p>
 
         <div class="form-grid">
             <div class="field @error('name') has-error @enderror" style="grid-column: 1 / -1;">
-                <label for="name">Nama Perusahaan *</label>
+                <label for="name">Company Name *</label>
                 <input type="text" id="name" name="name" value="{{ old('name', $company->name) }}" required @disabled(! $canManage)>
                 @error('name') <div class="error">{{ $message }}</div> @enderror
             </div>
             <div class="field @error('address') has-error @enderror" style="grid-column: 1 / -1;">
-                <label for="address">Alamat Perusahaan</label>
+                <label for="address">Company Address</label>
                 <textarea id="address" name="address" rows="2" @disabled(! $canManage)>{{ old('address', $company->address) }}</textarea>
                 @error('address') <div class="error">{{ $message }}</div> @enderror
             </div>
             <div class="field @error('npwp_number') has-error @enderror">
-                <label for="npwp_number">Nomor NPWP</label>
+                <label for="npwp_number">Tax ID (NPWP)</label>
                 <input type="text" id="npwp_number" name="npwp_number" value="{{ old('npwp_number', $company->npwp_number) }}" maxlength="30" placeholder="00.000.000.0-000.000" @disabled(! $canManage)>
                 @error('npwp_number') <div class="error">{{ $message }}</div> @enderror
             </div>
             <div class="field @error('phone') has-error @enderror">
-                <label for="phone">Telepon</label>
+                <label for="phone">Phone</label>
                 <input type="text" id="phone" name="phone" value="{{ old('phone', $company->phone) }}" maxlength="30" @disabled(! $canManage)>
                 @error('phone') <div class="error">{{ $message }}</div> @enderror
             </div>
@@ -52,21 +52,21 @@
     </div>
 
     <div class="card">
-        <h2 class="card-title">Setting Pajak</h2>
-        <p class="card-subtitle">Setting PPN level perusahaan akan menjadi acuan default untuk store.</p>
+        <h2 class="card-title">Tax Settings</h2>
+        <p class="card-subtitle">The company-level VAT setting is the default for every store.</p>
 
         <div class="form-grid">
             <div class="field">
                 <div class="checkbox-row">
                     <input type="checkbox" id="ppn_enabled" name="ppn_enabled" value="1" @checked(old('ppn_enabled', $company->ppn_enabled)) @disabled(! $canManage)>
-                    <label for="ppn_enabled">Aktifkan PPN</label>
+                    <label for="ppn_enabled">Enable VAT</label>
                 </div>
-                <div class="hint">Jika aktif, transaksi penjualan dikenakan PPN sesuai Tax Group di samping (termasuk 0%).</div>
+                <div class="hint">When enabled, sales are charged VAT according to the Tax Group beside it (including 0%).</div>
             </div>
             <div class="field @error('tax_group_id') has-error @enderror">
                 <label for="tax_group_id">Tax Group (Output Tax)</label>
                 <select id="tax_group_id" name="tax_group_id" @disabled(! $canManage)>
-                    <option value="">- Pilih Tax Group -</option>
+                    <option value="">- Select Tax Group -</option>
                     @foreach ($taxGroups as $tg)
                         <option value="{{ $tg->id }}" @selected(old('tax_group_id', $company->tax_group_id) == $tg->id)>{{ $tg->label() }}</option>
                     @endforeach
@@ -81,12 +81,12 @@
     </div>
 
     <div class="card">
-        <h2 class="card-title">Konfigurasi Global</h2>
-        <p class="card-subtitle">Mata uang dasar, timezone, kebijakan stok, dan retur berlaku untuk seluruh gerai.</p>
+        <h2 class="card-title">Global Configuration</h2>
+        <p class="card-subtitle">Base currency, timezone, stock policy and return rules apply to all stores.</p>
 
         <div class="form-grid">
             <div class="field @error('base_currency_code') has-error @enderror">
-                <label for="base_currency_code">Mata Uang Dasar *</label>
+                <label for="base_currency_code">Base Currency *</label>
                 <input type="text" id="base_currency_code" name="base_currency_code" value="{{ old('base_currency_code', $company->base_currency_code ?? 'IDR') }}" maxlength="10" @disabled(! $canManage)>
                 @error('base_currency_code') <div class="error">{{ $message }}</div> @enderror
             </div>
@@ -98,26 +98,26 @@
             <div class="field">
                 <div class="checkbox-row">
                     <input type="checkbox" id="ppn_inclusive" name="ppn_inclusive" value="1" @checked(old('ppn_inclusive', $company->ppn_inclusive)) @disabled(! $canManage)>
-                    <label for="ppn_inclusive">Harga jual sudah termasuk PPN (inclusive)</label>
+                    <label for="ppn_inclusive">Selling price includes VAT (inclusive)</label>
                 </div>
-                <div class="hint">Jika tidak dicentang, PPN ditambahkan di atas harga jual (exclusive).</div>
+                <div class="hint">When unchecked, VAT is added on top of the selling price (exclusive).</div>
             </div>
             <div class="field">
                 <div class="checkbox-row">
                     <input type="checkbox" id="allow_negative_stock" name="allow_negative_stock" value="1" @checked(old('allow_negative_stock', $company->allow_negative_stock)) @disabled(! $canManage)>
-                    <label for="allow_negative_stock">Izinkan stok negatif</label>
+                    <label for="allow_negative_stock">Allow negative stock</label>
                 </div>
-                <div class="hint">Jika aktif, transaksi offline yang membuat stok negatif dianggap sah tanpa review.</div>
+                <div class="hint">When enabled, offline sales that cause negative stock are accepted without review.</div>
             </div>
             <div class="field @error('return_window_days') has-error @enderror">
-                <label for="return_window_days">Batas waktu retur (hari)</label>
+                <label for="return_window_days">Return window (days)</label>
                 <input type="number" id="return_window_days" name="return_window_days" min="0" max="3650" value="{{ old('return_window_days', $company->return_window_days ?? 30) }}" @disabled(! $canManage)>
                 @error('return_window_days') <div class="error">{{ $message }}</div> @enderror
             </div>
             <div class="field">
                 <div class="checkbox-row">
                     <input type="checkbox" id="return_require_receipt" name="return_require_receipt" value="1" @checked(old('return_require_receipt', $company->return_require_receipt ?? true)) @disabled(! $canManage)>
-                    <label for="return_require_receipt">Retur wajib menunjukkan struk</label>
+                    <label for="return_require_receipt">Returns require a receipt</label>
                 </div>
             </div>
         </div>
@@ -126,7 +126,7 @@
     @if ($canManage)
         <div class="form-actions">
             <button type="submit" class="btn btn-filled">
-                <span class="material-symbols-rounded">save</span> Simpan Konfigurasi
+                <span class="material-symbols-rounded">save</span> Save Configuration
             </button>
         </div>
     @endif
@@ -145,10 +145,10 @@
     <input type="hidden" name="current_password" id="sap_current_password">
 
     <div class="card">
-        <h2 class="card-title">Integrasi SAP Business One (Opsional)</h2>
+        <h2 class="card-title">SAP Business One Integration (Optional)</h2>
         <p class="card-subtitle">
-            Sinkronisasi dengan SAP Business One.
-            Jika tidak diaktifkan, aplikasi berjalan <strong>standalone</strong> (tanpa SAP).
+            Synchronization with SAP Business One.
+            When disabled, the application runs <strong>standalone</strong> (without SAP).
         </p>
 
         @if ($sapLocked)
@@ -175,16 +175,16 @@
                        data-sap-field data-label="Integrasi SAP B1" data-original="{{ $company->sap_enabled ? '1' : '0' }}"
                        @checked(old('sap_enabled', $company->sap_enabled))
                        @disabled(! $canManage)>
-                <label for="sap_enabled"><strong>Aktifkan Integrasi SAP Business One via Service Layer</strong></label>
+                <label for="sap_enabled"><strong>Enable SAP Business One Integration via Service Layer</strong></label>
                 @if ($company->sapIntegrationActive())
-                    <span class="badge active">Aktif</span>
+                    <span class="badge active">Active</span>
                     <a href="{{ route('admin.sap-import.index') }}" class="btn btn-text">
-                        <span class="material-symbols-rounded">cloud_download</span> Impor Data SAP B1
+                        <span class="material-symbols-rounded">cloud_download</span> SAP B1 Import
                     </a>
                 @elseif ($company->sap_enabled && ! $company->hasSapConfig())
                     <span class="badge inactive">ON — kredensial belum lengkap</span>
                 @else
-                    <span class="badge inactive">Nonaktif (standalone)</span>
+                    <span class="badge inactive">Inactive (standalone)</span>
                 @endif
             </div>
         </div>
@@ -199,7 +199,7 @@
                     @error('sap_endpoint_url') <div class="error">{{ $message }}</div> @enderror
                 </div>
                 <div class="field @error('sap_db_name') has-error @enderror">
-                    <label for="sap_db_name">SAP Business One Database @if ($sapLocked)<span class="material-symbols-rounded" style="font-size: 14px; vertical-align: -2px;" title="Terkunci permanen">lock</span>@endif</label>
+                    <label for="sap_db_name">SAP Business One Database @if ($sapLocked)<span class="material-symbols-rounded" style="font-size: 14px; vertical-align: -2px;" title="Permanently locked">lock</span>@endif</label>
                     <input type="text" id="sap_db_name" name="sap_db_name" value="{{ old('sap_db_name', $company->sap_db_name) }}" maxlength="60"
                            @disabled(! $canManage) @readonly($sapLocked)>
                     @if ($sapLocked)
@@ -220,7 +220,7 @@
                            data-sap-field data-sap-unlockable data-sap-secret data-label="Password SAP B1" data-original=""
                            @disabled(! $canManage) @readonly($sapLocked)>
                     @error('sap_password') <div class="error">{{ $message }}</div> @enderror
-                    @if ($company->sap_password)<div class="hint">(biarkan kosong jika tidak diubah)</div>@endif
+                    @if ($company->sap_password)<div class="hint">(leave blank to keep unchanged)</div>@endif
                 </div>
             </div>
 
@@ -234,17 +234,17 @@
                 </div>
                 <div class="hint" style="display: none">
                     Server SAP B1 internal biasanya memakai self-signed certificate — centang ini agar tes koneksi tidak
-                    gagal dengan error SSL. <strong>Nonaktifkan hanya untuk jaringan internal yang tepercaya.</strong>
+                    fail with an SSL error. <strong>Disable only for trusted internal networks.</strong>
                 </div>
             </div>
 
             <div class="form-actions" style="margin-top: 4px;">
                 <button type="button" class="btn btn-tonal" id="btn-test-sap" data-url="{{ route('admin.company.test-sap') }}" data-csrf="{{ csrf_token() }}">
-                    <span class="material-symbols-rounded">network_check</span> Tes Koneksi SAP
+                    <span class="material-symbols-rounded">network_check</span> Test SAP Connection
                 </button>
                 @if ($sapLocked && $canManage)
                     <button type="button" class="btn btn-outline" id="btn-unlock-sap">
-                        <span class="material-symbols-rounded">edit</span> Ubah Koneksi SAP
+                        <span class="material-symbols-rounded">edit</span> Change SAP Connection
                     </button>
                 @endif
                 <div id="sap-test-result" style="display: none; flex: 1;"></div>
@@ -254,7 +254,7 @@
         @if ($canManage)
             <div class="form-actions">
                 <button type="submit" class="btn btn-filled" id="btn-save-sap">
-                    <span class="material-symbols-rounded">save</span> Simpan Integrasi SAP
+                    <span class="material-symbols-rounded">save</span> Save SAP Integration
                 </button>
             </div>
         @endif
@@ -265,28 +265,28 @@
     <dialog class="md-dialog" id="sap-confirm-dialog" aria-labelledby="sap-confirm-title">
         <form method="dialog" id="sap-confirm-form">
             <h3 class="md-dialog-title" id="sap-confirm-title">
-                <span class="material-symbols-rounded">shield_lock</span> Konfirmasi Perubahan SAP B1
+                <span class="material-symbols-rounded">shield_lock</span> Confirm SAP B1 Change
             </h3>
             <ul class="change-list" id="sap-change-list"></ul>
             <div class="md-snackbar warning" id="sap-warning-off" hidden>
                 <span class="material-symbols-rounded">warning</span>
-                <span>Jika integrasi dimatikan, transaksi tidak akan dikirim ke SAP B1 dan stok di easyPOS tidak lagi sama (tally) dengan SAP B1.</span>
+                <span>If the integration is turned off, transactions will not be sent to SAP B1 and easyPOS stock will no longer tally with SAP B1.</span>
             </div>
             <div class="md-snackbar warning" id="sap-warning-on" hidden>
                 <span class="material-symbols-rounded">warning</span>
-                <span>Mutasi stok SAP B1 selama integrasi mati akan disalin pada sinkronisasi berikutnya. Transaksi easyPOS selama integrasi mati tidak dikirim ke SAP B1, sehingga stok dapat berselisih dengan SAP B1.</span>
+                <span>SAP B1 stock movements made while the integration is off will be copied on the next sync. easyPOS transactions made while it is off are not sent to SAP B1, so stock may differ from SAP B1.</span>
             </div>
             <div class="md-snackbar success" id="sap-test-ok" hidden>
                 <span class="material-symbols-rounded">check_circle</span> <span id="sap-test-ok-text"></span>
             </div>
             <div class="field">
-                <label for="sap_confirm_password">Password akun easyPOS Anda</label>
+                <label for="sap_confirm_password">Your easyPOS account password</label>
                 <input type="password" id="sap_confirm_password" autocomplete="current-password" required>
             </div>
             <div class="md-dialog-actions">
-                <button type="button" class="btn btn-outline" id="sap-confirm-cancel">Batal</button>
+                <button type="button" class="btn btn-outline" id="sap-confirm-cancel">Cancel</button>
                 <button type="submit" class="btn btn-filled" id="sap-confirm-submit">
-                    <span class="material-symbols-rounded">lock_open</span> Konfirmasi &amp; Simpan
+                    <span class="material-symbols-rounded">lock_open</span> Confirm &amp; Save
                 </button>
             </div>
         </form>
@@ -397,7 +397,7 @@
                 }
 
                 function display(el, value) {
-                    if (el.type === 'checkbox') return value === '1' ? 'Ya' : 'Tidak';
+                    if (el.type === 'checkbox') return value === '1' ? 'Yes' : 'No';
                     return value === '' ? '(kosong)' : value;
                 }
 

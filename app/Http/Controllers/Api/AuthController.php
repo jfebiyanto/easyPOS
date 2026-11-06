@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -24,13 +25,13 @@ class AuthController extends Controller
             'device_name' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $user = \App\Models\User::where('username', $data['username'])->first();
+        $user = User::where('username', $data['username'])->first();
 
         $passwordValid = Hash::check($data['password'], $user?->password ?? self::DUMMY_HASH);
 
         if (! $user || ! $passwordValid || ! $user->is_active) {
             throw ValidationException::withMessages([
-                'username' => ['Username atau password salah, atau akun tidak aktif.'],
+                'username' => ['Incorrect username or password, or the account is inactive.'],
             ]);
         }
 
@@ -47,7 +48,7 @@ class AuthController extends Controller
     {
         $request->user('sanctum')->currentAccessToken()->delete();
 
-        return response()->json(['message' => 'Token dicabut.']);
+        return response()->json(['message' => 'Token revoked.']);
     }
 
     public function me(Request $request): JsonResponse
@@ -59,7 +60,7 @@ class AuthController extends Controller
         ]);
     }
 
-    private function userPayload(\App\Models\User $user): array
+    private function userPayload(User $user): array
     {
         return $user->only([
             'id', 'name', 'username', 'email', 'phone', 'role', 'is_active', 'store_id', 'company_id',

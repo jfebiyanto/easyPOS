@@ -24,7 +24,7 @@ class SapPostingController extends Controller
 
         if (! $company->sapIntegrationActive()) {
             return redirect()->route('admin.company.edit')
-                ->with('error', 'Aktifkan dan lengkapi konfigurasi integrasi SAP B1 terlebih dahulu.');
+                ->with('error', 'Enable and complete the SAP B1 integration configuration first.');
         }
 
         $status = $request->query('status');
@@ -50,10 +50,10 @@ class SapPostingController extends Controller
     {
         $this->ensureSuperuser($request);
         abort_unless($sale->company_id === current_company_id(), 404);
-        abort_if($sale->sap_post_status === Sale::SAP_POSTED, 422, 'Penjualan sudah terposting ke SAP B1.');
+        abort_if($sale->sap_post_status === Sale::SAP_POSTED, 422, 'The sale has already been posted to SAP B1.');
 
         SapSalePosting::queue($sale);
 
-        return back()->with('success', "Penjualan {$sale->number} dijadwalkan untuk diposting ulang ke SAP B1.");
+        return back()->with('success', "Sale {$sale->number} scheduled to be reposted to SAP B1.");
     }
 }

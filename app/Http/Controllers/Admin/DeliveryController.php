@@ -13,7 +13,7 @@ use Illuminate\View\View;
 
 class DeliveryController extends Controller
 {
-    use ScopesToStore, AuthorizesCompany;
+    use AuthorizesCompany, ScopesToStore;
 
     public const STATUSES = ['pending', 'shipped', 'delivered', 'cancelled'];
 
@@ -60,6 +60,6 @@ class DeliveryController extends Controller
 
         ActivityLogger::log('delivery.updated', "Ubah status pengiriman #{$delivery->id} menjadi {$data['status']}", $delivery);
 
-        return back()->with('success', 'Status pengiriman diperbarui.');
+        return back()->with('success', 'Delivery status updated.');
     }
 }

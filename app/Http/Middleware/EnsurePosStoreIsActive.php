@@ -20,8 +20,8 @@ class EnsurePosStoreIsActive
             return $next($request);
         }
 
-        abort_unless($user->store_id, 422, 'Akun Anda belum ditugaskan ke gerai. Hubungi Owner.');
-        abort_unless($user->store?->is_active, 422, 'Gerai Anda sedang nonaktif. Hubungi Owner.');
+        abort_unless($user->store_id, 422, 'Your account has not been assigned to a store. Contact the Owner.');
+        abort_unless($user->store?->is_active, 422, 'Your store is inactive. Contact the Owner.');
 
         return $next($request);
     }

@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
-@section('title', 'Impor Data SAP B1')
-@section('page_title', 'Impor Data SAP B1')
+@section('title', 'SAP B1 Import')
+@section('page_title', 'SAP B1 Import')
 
 @section('content')
 
@@ -11,24 +11,24 @@
     $entityLabels = array_map(fn ($e) => $e[0], $entities);
     $progressRun = $activeRun ?? $runs->first();
     $progressIcons = ['pending' => 'radio_button_unchecked', 'running' => 'progress_activity', 'done' => 'check_circle', 'failed' => 'error'];
-    $progressLabels = ['pending' => 'Menunggu', 'running' => 'Sedang diimpor', 'done' => 'Selesai', 'failed' => 'Gagal'];
-    $statusLabels = ['queued' => 'Antre', 'running' => 'Berjalan', 'success' => 'Berhasil', 'failed' => 'Gagal', 'cancelled' => 'Dibatalkan'];
+    $progressLabels = ['pending' => 'Pending', 'running' => 'Importing', 'done' => 'Done', 'failed' => 'Failed'];
+    $statusLabels = ['queued' => 'Queued', 'running' => 'Running', 'success' => 'Succeeded', 'failed' => 'Failed', 'cancelled' => 'Cancelled'];
 @endphp
 
 @if (! $canManage)
     <div class="md-snackbar error">
         <span class="material-symbols-rounded">lock</span>
-        Anda tidak memiliki hak Owner: halaman ini bersifat read-only.
+        You do not have Owner rights: this page is read-only.
     </div>
 @endif
 
 <div class="card">
-    <h2 class="card-title">Impor Data Awal</h2>
+    <h2 class="card-title">Initial Data Import</h2>
 
     <p>
-        Impor awal terakhir:
-        <strong>{{ $company->sap_initial_imported_at ? $company->sap_initial_imported_at->timezone(company_timezone())->format('d M Y H:i') : 'Belum pernah' }}</strong>
-        · Sinkronisasi terakhir:
+        Last initial import:
+        <strong>{{ $company->sap_initial_imported_at ? $company->sap_initial_imported_at->timezone(company_timezone())->format('d M Y H:i') : 'Never' }}</strong>
+        · Last sync:
         <strong>{{ $company->sap_last_synced_at ? $company->sap_last_synced_at->timezone(company_timezone())->format('d M Y H:i') : '-' }}</strong>
         · Mutasi stok terakhir:
         <strong>{{ $company->sap_stock_synced_at ? $company->sap_stock_synced_at->timezone(company_timezone())->format('d M Y H:i') : '-' }}</strong>
@@ -47,7 +47,7 @@
                     @csrf
                     <input type="hidden" name="mode" value="delta">
                     <button type="submit" class="btn btn-filled" @disabled($activeRun)>
-                        <span class="material-symbols-rounded">sync</span> Sinkronkan Perubahan Sekarang
+                        <span class="material-symbols-rounded">sync</span> Sync Changes Now
                     </button>
                 </form>
             @else
@@ -55,7 +55,7 @@
                     @csrf
                     <input type="hidden" name="mode" value="initial">
                     <button type="submit" class="btn btn-filled" @disabled($activeRun)>
-                        <span class="material-symbols-rounded">cloud_download</span> Mulai Impor Data Awal
+                        <span class="material-symbols-rounded">cloud_download</span> Start Initial Data Import
                     </button>
                 </form>
             @endif
@@ -64,7 +64,7 @@
 
     <div id="sap-run-status" style="margin-top: 12px; {{ $activeRun ? '' : 'display: none;' }}" class="md-snackbar info">
         <span class="material-symbols-rounded">hourglass_top</span>
-        <span id="sap-run-status-text">Impor sedang berjalan di latar belakang...</span>
+        <span id="sap-run-status-text">Import is running in the background...</span>
         @if ($canManage)
             <form method="POST" action="{{ route('admin.sap-import.cancel') }}" style="margin-left: auto;"
                   onsubmit="return confirm('Hentikan impor yang sedang berjalan?');">
@@ -76,19 +76,19 @@
         @endif
     </div>
     @if ($activeRun && $activeRun->status === 'queued' && $activeRun->created_at->lt(now()->subMinute()))
-        <p class="hint">Impor belum dimulai. Pastikan queue worker aktif (<code>php artisan queue:listen</code> atau <code>composer run dev</code>).</p>
+        <p class="hint">Import has not started. Make sure the queue worker is running (<code>php artisan queue:listen</code> or <code>composer run dev</code>).</p>
     @endif
 </div>
 
 <div class="card" id="sap-progress-card">
-    <h2 class="card-title">Progres Impor</h2>
+    <h2 class="card-title">Import Progress</h2>
     <p class="card-subtitle">
         @if ($progressRun)
             Impor {{ $progressRun->mode === 'initial' ? 'awal' : 'perubahan' }} ·
             {{ $progressRun->created_at->timezone(company_timezone())->format('d M Y H:i') }} ·
             {{ $statusLabels[$progressRun->status] ?? $progressRun->status }}
         @else
-            Belum ada impor yang dijalankan.
+            No import has been run yet.
         @endif
     </p>
 
@@ -103,13 +103,13 @@
             <thead>
                 <tr>
                     <th style="width: 48px;"></th>
-                    <th>Objek</th>
-                    <th>Tabel SAP</th>
+                    <th>Object</th>
+                    <th>SAP Table</th>
                     <th>Status</th>
-                    <th>Diambil</th>
-                    <th>Baru</th>
-                    <th>Diubah</th>
-                    <th>Dilewati</th>
+                    <th>Fetched</th>
+                    <th>New</th>
+                    <th>Updated</th>
+                    <th>Skipped</th>
                 </tr>
             </thead>
             <tbody>
@@ -135,10 +135,10 @@
 </div>
 
 <div class="card">
-    <h2 class="card-title">Sinkronisasi Berkala</h2>
+    <h2 class="card-title">Periodic Sync</h2>
     <p class="card-subtitle">
-        Setelah impor awal, perubahan data dari SAP B1 ditarik otomatis sesuai interval (default 30 menit).
-        Membutuhkan scheduler (<code>php artisan schedule:run</code> tiap menit) dan queue worker aktif.
+        After the initial import, changes from SAP B1 are pulled automatically at the configured interval (default 30 minutes).
+        Requires the scheduler (<code>php artisan schedule:run</code> every minute) and an active queue worker.
     </p>
 
     <form method="POST" action="{{ route('admin.sap-import.settings') }}">
@@ -146,7 +146,7 @@
         @method('PUT')
         <div class="form-grid">
             <div class="field @error('sap_sync_interval_minutes') has-error @enderror">
-                <label for="sap_sync_interval_minutes">Interval sinkronisasi (menit)</label>
+                <label for="sap_sync_interval_minutes">Sync interval (minutes)</label>
                 <input type="number" min="1" max="10080" id="sap_sync_interval_minutes" name="sap_sync_interval_minutes"
                        value="{{ old('sap_sync_interval_minutes', $company->sap_sync_interval_minutes) }}" required @disabled(! $canManage)>
                 @error('sap_sync_interval_minutes') <div class="error">{{ $message }}</div> @enderror
@@ -155,14 +155,14 @@
                 <div class="checkbox-row">
                     <input type="checkbox" id="sap_auto_sync" name="sap_auto_sync" value="1"
                            @checked(old('sap_auto_sync', $company->sap_auto_sync)) @disabled(! $canManage)>
-                    <label for="sap_auto_sync">Aktifkan sinkronisasi otomatis</label>
+                    <label for="sap_auto_sync">Enable automatic sync</label>
                 </div>
             </div>
         </div>
         @if ($canManage)
             <div class="form-actions">
                 <button type="submit" class="btn btn-filled">
-                    <span class="material-symbols-rounded">save</span> Simpan Pengaturan
+                    <span class="material-symbols-rounded">save</span> Save Settings
                 </button>
             </div>
         @endif
@@ -170,16 +170,16 @@
 </div>
 
 <div class="card">
-    <h2 class="card-title">Riwayat Impor</h2>
+    <h2 class="card-title">Import History</h2>
     <div class="table-wrap">
         <table class="md-table">
             <thead>
                 <tr>
-                    <th>Waktu</th>
+                    <th>Time</th>
                     <th>Mode</th>
-                    <th>Pemicu</th>
+                    <th>Trigger</th>
                     <th>Status</th>
-                    <th>Objek selesai</th>
+                    <th>Objects completed</th>
                 </tr>
             </thead>
             <tbody>
@@ -188,7 +188,7 @@
                     <tr>
                         <td>{{ $run->created_at->timezone(company_timezone())->format('d M Y H:i') }}</td>
                         <td>{{ $run->mode === 'initial' ? 'Awal' : 'Perubahan' }}</td>
-                        <td>{{ ['schedule' => 'Terjadwal', 'stock' => 'Mutasi stok'][$run->trigger] ?? 'Manual' }}</td>
+                        <td>{{ ['schedule' => 'Scheduled', 'stock' => 'Stock movement'][$run->trigger] ?? 'Manual' }}</td>
                         <td>
                             {{ $statusLabels[$run->status] ?? $run->status }}
                             @if ($run->error)
@@ -198,7 +198,7 @@
                         <td>{{ $doneCount }} / {{ count($entities) }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="5">Belum ada riwayat impor.</td></tr>
+                    <tr><td colspan="5">No import history yet.</td></tr>
                 @endforelse
             </tbody>
         </table>

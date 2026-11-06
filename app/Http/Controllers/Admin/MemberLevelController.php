@@ -41,7 +41,7 @@ class MemberLevelController extends Controller
 
         ActivityLogger::log('member_level.created', "Menambah level member: {$level->name}", $level);
 
-        return redirect()->route('admin.member-levels.index')->with('success', 'Level member berhasil dibuat.');
+        return redirect()->route('admin.member-levels.index')->with('success', 'Member tier created successfully.');
     }
 
     public function edit(MemberLevel $memberLevel): View
@@ -61,7 +61,7 @@ class MemberLevelController extends Controller
 
         ActivityLogger::log('member_level.updated', "Mengubah level member: {$memberLevel->name}", $memberLevel);
 
-        return redirect()->route('admin.member-levels.index')->with('success', 'Level member berhasil diperbarui.');
+        return redirect()->route('admin.member-levels.index')->with('success', 'Member tier updated successfully.');
     }
 
     public function destroy(MemberLevel $memberLevel)
@@ -69,14 +69,14 @@ class MemberLevelController extends Controller
         $this->ensureSuperuser(request());
 
         if ($memberLevel->customers()->exists()) {
-            return back()->with('error', 'Level masih dipakai customer, tidak dapat dihapus.');
+            return back()->with('error', 'Tier is still used by customers and cannot be deleted.');
         }
 
         $memberLevel->delete();
 
         ActivityLogger::log('member_level.deleted', "Menghapus level member: {$memberLevel->name}", $memberLevel);
 
-        return redirect()->route('admin.member-levels.index')->with('success', 'Level member berhasil dihapus.');
+        return redirect()->route('admin.member-levels.index')->with('success', 'Member tier deleted successfully.');
     }
 
     public function updateConfig(Request $request)
@@ -100,7 +100,7 @@ class MemberLevelController extends Controller
 
         ActivityLogger::log('loyalty.config_updated', 'Mengubah konfigurasi loyalitas', $config);
 
-        return redirect()->route('admin.member-levels.index')->with('success', 'Konfigurasi loyalitas disimpan.');
+        return redirect()->route('admin.member-levels.index')->with('success', 'Loyalty configuration saved.');
     }
 
     private function validated(Request $request, ?string $id = null): array

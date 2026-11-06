@@ -1,14 +1,14 @@
 @extends('layouts.admin')
 
-@section('title', 'Pengiriman')
-@section('page_title', 'Pengiriman')
+@section('title', 'Deliveries')
+@section('page_title', 'Deliveries')
 
 @section('content')
 <div class="table-toolbar">
     <form method="GET" action="{{ route('admin.deliveries.index') }}" style="display:flex; gap:8px; align-items:center;">
         <label style="font-size:13px; color:var(--color-text-muted);">Status:</label>
         <select name="status" onchange="this.form.submit()" style="padding:9px 12px; border:1px solid var(--md-outline); border-radius:var(--md-radius-sm); background:var(--md-surface-container-high);">
-            <option value="">Semua</option>
+            <option value="">All</option>
             @foreach ($statuses as $status)
                 <option value="{{ $status }}" @selected($selectedStatus === $status)>{{ ucfirst($status) }}</option>
             @endforeach
@@ -19,7 +19,7 @@
 <div class="table-wrap">
     <table class="md-table">
         <thead>
-            <tr><th>No. Transaksi</th><th>Penerima</th><th>Alamat</th><th>Gerai</th><th>Status</th><th style="text-align:right;">Ubah Status</th></tr>
+            <tr><th>Transaction No.</th><th>Recipient</th><th>Address</th><th>Store</th><th>Status</th><th style="text-align:right;">Update Status</th></tr>
         </thead>
         <tbody>
             @forelse ($deliveries as $delivery)
@@ -42,12 +42,12 @@
                                     <option value="{{ $status }}" @selected($delivery->status === $status)>{{ ucfirst($status) }}</option>
                                 @endforeach
                             </select>
-                            <button type="submit" class="btn btn-tonal btn-sm">Simpan</button>
+                            <button type="submit" class="btn btn-tonal btn-sm">Save</button>
                         </form>
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="6"><div class="empty-state"><span class="material-symbols-rounded">local_shipping</span><p>Belum ada pengiriman.</p></div></td></tr>
+                <tr><td colspan="6"><div class="empty-state"><span class="material-symbols-rounded">local_shipping</span><p>No deliveries yet.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>

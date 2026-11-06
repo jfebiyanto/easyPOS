@@ -14,7 +14,7 @@ abstract class ApiController extends Controller
     protected function ensureSuperuser(Request $request): void
     {
         if (! $request->user('sanctum')->isOwner()) {
-            abort(403, 'Aksi ini hanya dapat dilakukan oleh Owner.');
+            abort(403, 'This action can only be performed by an Owner.');
         }
     }
 

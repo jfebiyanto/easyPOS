@@ -14,7 +14,7 @@ class EnsureUserIsAdmin
         $user = $request->user() ?? $request->user('sanctum');
 
         if (! $user || ! $user->is_active || ! $user->isAdmin()) {
-            abort(403, 'Hanya user Owner/Store Manager yang dapat mengakses modul backoffice.');
+            abort(403, 'Only Owner/Store Manager users can access the backoffice.');
         }
 
         return $next($request);

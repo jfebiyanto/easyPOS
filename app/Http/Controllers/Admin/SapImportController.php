@@ -27,7 +27,7 @@ class SapImportController extends Controller
 
         if (! $company->sapIntegrationActive()) {
             return redirect()->route('admin.company.edit')
-                ->with('error', 'Aktifkan dan lengkapi konfigurasi integrasi SAP B1 terlebih dahulu.');
+                ->with('error', 'Enable and complete the SAP B1 integration configuration first.');
         }
 
         return view('admin.sap-import.index', [
@@ -47,13 +47,13 @@ class SapImportController extends Controller
         $data = $request->validate(['mode' => ['required', 'in:initial,delta']]);
 
         $company = CompanyDetail::current();
-        abort_unless($company->sapIntegrationActive(), 422, 'Integrasi SAP B1 belum aktif.');
+        abort_unless($company->sapIntegrationActive(), 422, 'SAP B1 integration is not active.');
 
         $mode = $data['mode'];
 
         // Impor awal tidak mencocokkan data, jadi hanya boleh sekali. Berikutnya memakai mode perubahan.
         if ($mode === SapSyncRun::MODE_INITIAL && $company->sap_initial_imported_at) {
-            return back()->with('error', 'Impor data awal sudah pernah dilakukan. Gunakan "Sinkronkan Perubahan Sekarang".');
+            return back()->with('error', 'The initial data import has already been run. Use "Sync Changes Now".');
         }
 
         if ($mode === SapSyncRun::MODE_DELTA && ! $company->sap_initial_imported_at) {
@@ -63,12 +63,12 @@ class SapImportController extends Controller
         $run = SapSyncDispatcher::start($company, $mode, 'manual');
 
         if (! $run) {
-            return back()->with('error', 'Impor SAP B1 sebelumnya masih berjalan.');
+            return back()->with('error', 'A previous SAP B1 import is still running.');
         }
 
         ActivityLogger::log('sap.import.started', "Memulai impor SAP B1 ({$mode})", $company, ['run_id' => $run->id]);
 
-        return back()->with('success', 'Impor dari SAP B1 dimulai. Proses berjalan di latar belakang.');
+        return back()->with('success', 'SAP B1 import started. It runs in the background.');
     }
 
     /**
@@ -82,12 +82,12 @@ class SapImportController extends Controller
         $run = SapSyncDispatcher::cancel($company);
 
         if (! $run) {
-            return back()->with('error', 'Tidak ada impor yang sedang berjalan.');
+            return back()->with('error', 'No import is currently running.');
         }
 
         ActivityLogger::log('sap.import.cancelled', 'Membatalkan impor SAP B1', $company, ['run_id' => $run->id]);
 
-        return back()->with('success', 'Impor SAP B1 dibatalkan. Anda dapat memulai impor baru.');
+        return back()->with('success', 'SAP B1 import cancelled. You can start a new import.');
     }
 
     public function updateSettings(Request $request): RedirectResponse
@@ -107,7 +107,7 @@ class SapImportController extends Controller
 
         ActivityLogger::log('sap.import.settings', "Mengubah interval sinkronisasi SAP B1: {$company->sap_sync_interval_minutes} menit", $company);
 
-        return back()->with('success', 'Pengaturan sinkronisasi disimpan.');
+        return back()->with('success', 'Sync settings saved.');
     }
 
     /**

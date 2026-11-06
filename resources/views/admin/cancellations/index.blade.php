@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
-@section('title', 'Pembatalan Transaksi')
-@section('page_title', 'Pembatalan Transaksi')
+@section('title', 'Voids & Cancellations')
+@section('page_title', 'Voids & Cancellations')
 
 @php
     $rupiah = fn ($n) => 'Rp '.number_format((float) $n, 0, ',', '.');
@@ -11,23 +11,23 @@
 
 @section('content')
 <div class="card" style="margin-bottom:16px;">
-    <h2 class="card-title">Laporan Pembatalan Transaksi</h2>
-    <p class="card-subtitle">Batal sebelum bayar (F9) dan void penjualan, lengkap dengan gerai, kasir, pelanggan, isi barang, waktu, IP, dan perangkat. Pembatalan yang terjadi saat offline dicatat setelah tersambung dan diberi tanda.</p>
+    <h2 class="card-title">Voids &amp; Cancellations Report</h2>
+    <p class="card-subtitle">Cancellations before payment (F9) and sale voids, with store, cashier, customer, items, time, IP and device. Cancellations made while offline are recorded once reconnected and flagged.</p>
 
     <form method="GET" action="{{ route('admin.cancellations.index') }}" style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
         <div class="field" style="margin:0;">
-            <label for="from">Dari</label>
+            <label for="from">From</label>
             <input type="date" id="from" name="from" value="{{ $from }}">
         </div>
         <div class="field" style="margin:0;">
-            <label for="to">Sampai</label>
+            <label for="to">To</label>
             <input type="date" id="to" name="to" value="{{ $to }}">
         </div>
         @if ($stores->isNotEmpty())
             <div class="field" style="margin:0;">
-                <label for="store">Gerai</label>
+                <label for="store">Store</label>
                 <select id="store" name="store">
-                    <option value="">Semua Gerai</option>
+                    <option value="">All Stores</option>
                     @foreach ($stores as $store)
                         <option value="{{ $store->id }}" @selected(request('store') == $store->id)>{{ $store->code }} · {{ $store->name }}</option>
                     @endforeach
@@ -35,28 +35,28 @@
             </div>
         @endif
         <div class="field" style="margin:0;">
-            <label for="cashier">Kasir</label>
+            <label for="cashier">Cashier</label>
             <select id="cashier" name="cashier">
-                <option value="">Semua Kasir</option>
+                <option value="">All Cashiers</option>
                 @foreach ($cashiers as $cashier)
                     <option value="{{ $cashier->id }}" @selected(request('cashier') == $cashier->id)>{{ $cashier->name }}</option>
                 @endforeach
             </select>
         </div>
         <div class="field" style="margin:0;">
-            <label for="type">Jenis</label>
+            <label for="type">Type</label>
             <select id="type" name="type">
-                <option value="">Semua Jenis</option>
+                <option value="">All Types</option>
                 @foreach (\App\Models\PosCancellation::TYPE_LABELS as $value => $label)
                     <option value="{{ $value }}" @selected(request('type') === $value)>{{ $label }}</option>
                 @endforeach
             </select>
         </div>
         <div class="field" style="margin:0; min-width:220px;">
-            <label for="q">Cari</label>
-            <input type="search" id="q" name="q" value="{{ request('q') }}" placeholder="Pelanggan, no. penjualan, IP, browser…">
+            <label for="q">Search</label>
+            <input type="search" id="q" name="q" value="{{ request('q') }}" placeholder="Customer, sale no., IP, browser…">
         </div>
-        <button type="submit" class="btn btn-tonal">Terapkan</button>
+        <button type="submit" class="btn btn-tonal">Apply</button>
     </form>
 </div>
 
@@ -66,8 +66,8 @@
         nilai <strong>{{ $rupiah($summary['total']) }}</strong>
     </div>
     <div style="display:flex; gap:8px;">
-        <button type="button" class="btn btn-tonal btn-sm" data-cancel-toggle="open">Buka semua</button>
-        <button type="button" class="btn btn-tonal btn-sm" data-cancel-toggle="close">Tutup semua</button>
+        <button type="button" class="btn btn-tonal btn-sm" data-cancel-toggle="open">Expand all</button>
+        <button type="button" class="btn btn-tonal btn-sm" data-cancel-toggle="close">Collapse all</button>
         <a class="btn btn-outline" href="{{ route('admin.cancellations.export', $qs + ['from' => $from, 'to' => $to]) }}">
             <span class="material-symbols-rounded">table_view</span> Excel
         </a>
@@ -93,13 +93,13 @@
             <table class="md-table sap-monitor">
                 <thead>
                     <tr>
-                        <th>Waktu</th>
-                        <th>Jenis</th>
-                        <th>Kasir</th>
-                        <th>Pelanggan</th>
-                        <th>Barang</th>
+                        <th>Time</th>
+                        <th>Type</th>
+                        <th>Cashier</th>
+                        <th>Customer</th>
+                        <th>Items</th>
                         <th style="text-align:right;">Total</th>
-                        <th>IP · Perangkat</th>
+                        <th>IP · Device</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -142,12 +142,12 @@
         </div>
 
         @if ($group->total_count > $group->rows->count())
-            <p class="hint cancel-more">Menampilkan {{ $group->rows->count() }} terbaru dari {{ number_format($group->total_count, 0, ',', '.') }}. Persempit periode, filter kasir atau jenis, atau unduh Excel untuk data lengkap.</p>
+            <p class="hint cancel-more">Showing the latest {{ $group->rows->count() }} of {{ number_format($group->total_count, 0, ',', '.') }}. Narrow the period, filter by cashier or type, or download the Excel file for the full data.</p>
         @endif
     </details>
 @empty
     <div class="table-wrap">
-        <div class="empty-state"><span class="material-symbols-rounded">block</span><p>Tidak ada pembatalan pada periode ini.</p></div>
+        <div class="empty-state"><span class="material-symbols-rounded">block</span><p>No cancellations in this period.</p></div>
     </div>
 @endforelse
 @endsection

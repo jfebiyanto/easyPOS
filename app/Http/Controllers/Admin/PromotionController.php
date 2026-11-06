@@ -40,7 +40,7 @@ class PromotionController extends Controller
 
         ActivityLogger::log('promotion.created', "Membuat promosi: {$promotion->code} · {$promotion->name}", $promotion);
 
-        return redirect()->route('admin.promotions.index')->with('success', 'Promosi berhasil dibuat.');
+        return redirect()->route('admin.promotions.index')->with('success', 'Promotion created successfully.');
     }
 
     public function edit(Promotion $promotion): View
@@ -63,7 +63,7 @@ class PromotionController extends Controller
 
         ActivityLogger::log('promotion.updated', "Mengubah promosi: {$promotion->code} · {$promotion->name}", $promotion);
 
-        return redirect()->route('admin.promotions.index')->with('success', 'Promosi berhasil diperbarui.');
+        return redirect()->route('admin.promotions.index')->with('success', 'Promotion updated successfully.');
     }
 
     public function destroy(Promotion $promotion)
@@ -76,7 +76,7 @@ class PromotionController extends Controller
 
         ActivityLogger::log('promotion.deleted', "Menghapus promosi: {$label}", $promotion);
 
-        return redirect()->route('admin.promotions.index')->with('success', 'Promosi berhasil dihapus.');
+        return redirect()->route('admin.promotions.index')->with('success', 'Promotion deleted successfully.');
     }
 
     /**
@@ -84,7 +84,7 @@ class PromotionController extends Controller
      */
     private function denyIfFromSap(Promotion $promotion): void
     {
-        abort_if($promotion->isFromSap(), 403, 'Diskon dari SAP B1 hanya-baca; ubah di SAP B1 lalu sinkronkan.');
+        abort_if($promotion->isFromSap(), 403, 'Discounts from SAP B1 are read-only; change them in SAP B1 and sync.');
     }
 
     private function validated(Request $request, ?string $id = null): array

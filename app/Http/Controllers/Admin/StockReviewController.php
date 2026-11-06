@@ -14,7 +14,7 @@ use Illuminate\View\View;
 
 class StockReviewController extends Controller
 {
-    use ScopesToStore, AuthorizesCompany;
+    use AuthorizesCompany, ScopesToStore;
 
     public function index(Request $request): View
     {
@@ -33,7 +33,7 @@ class StockReviewController extends Controller
     {
         abort_unless(in_array($sale->store_id, $this->allowedStoreIds($request), true), 403);
         $this->ensureCompany($sale->company_id);
-        abort_unless($sale->stock_review_status === 'pending', 422, 'Transaksi ini tidak dalam status review.');
+        abort_unless($sale->stock_review_status === 'pending', 422, 'This transaction is not in review status.');
 
         $data = $request->validate([
             'action' => ['required', Rule::in(['valid', 'void'])],
@@ -50,7 +50,7 @@ class StockReviewController extends Controller
             'resolved_at' => now(),
         ]);
 
-        ActivityLogger::log('stock.review_resolved', "Menyelesaikan review transaksi {$sale->number} ({$data['action']})", $sale);
+        ActivityLogger::log('stock.review_resolved', "Resolved review of transaction {$sale->number} ({$data['action']})", $sale);
 
         return redirect()->route('admin.stock-review.index')->with('success', "Review {$sale->number} diselesaikan ({$data['action']}).");
     }

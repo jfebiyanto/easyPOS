@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Traits\HasUuid7;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 /**
  * Konfigurasi penomoran transaksi — satu baris per tipe transaksi.
@@ -31,7 +33,7 @@ class NumberingConfig extends Model
         'daily' => 'Harian',
         'monthly' => 'Bulanan',
         'yearly' => 'Tahunan',
-        'never' => 'Tidak pernah',
+        'never' => 'Never',
     ];
 
     protected $fillable = [
@@ -49,7 +51,7 @@ class NumberingConfig extends Model
     /**
      * Ambil konfigurasi semua tipe transaksi, dibuat otomatis bila belum ada.
      */
-    public static function allTypes(?string $companyId = null): \Illuminate\Support\Collection
+    public static function allTypes(?string $companyId = null): Collection
     {
         $companyId = $companyId ?? current_company_id();
 
@@ -78,7 +80,7 @@ class NumberingConfig extends Model
 
     public function periodPart($now = null): string
     {
-        $now = $now ? \Illuminate\Support\Carbon::parse($now) : now();
+        $now = $now ? Carbon::parse($now) : now();
 
         return match ($this->reset_period) {
             'daily' => $now->format('Ymd'),
@@ -119,7 +121,7 @@ class NumberingConfig extends Model
 
         if (! $config) {
             if (! array_key_exists($transactionType, self::TYPES)) {
-                abort(404, 'Tipe transaksi tidak dikenal.');
+                abort(404, 'Unknown transaction type.');
             }
 
             $config = static::create([
@@ -133,7 +135,7 @@ class NumberingConfig extends Model
             ]);
         }
 
-        $now = $now ? \Illuminate\Support\Carbon::parse($now) : now();
+        $now = $now ? Carbon::parse($now) : now();
         $period = $config->periodPart($now);
 
         // Null-safe: nilai kosong diperlakukan sebagai 0, sehingga

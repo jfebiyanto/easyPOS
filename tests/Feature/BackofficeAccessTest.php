@@ -188,6 +188,22 @@ class BackofficeAccessTest extends TestCase
         }
     }
 
+    public function test_caption_menu_memakai_bahasa_inggris(): void
+    {
+        $response = $this->actingAs($this->owner)->get(route('admin.dashboard'))->assertOk();
+
+        foreach (['Settings', 'Products', 'Inventory', 'Operations', 'Reports'] as $group) {
+            $response->assertSee('<span class="nav-section-label">'.$group.'</span>', false);
+        }
+        foreach (['Company Profile', 'Stores', 'Users', 'Payment Methods', 'Product Catalog', 'Price Lists', 'Stock Balance', 'Stock Adjustments', 'Stock Transfers', 'Deliveries', 'Stock Review', 'End of Day', 'Sales Reports', 'Voids &amp; Cancellations', 'Activity Log', 'Cashier Sessions'] as $caption) {
+            $response->assertSee('<span>'.$caption.'</span>', false);
+        }
+        foreach (['Saldo Stok', 'Daftar Produk', 'Tutup Toko', 'Penyesuaian Stok'] as $old) {
+            $response->assertDontSee('<span>'.$old.'</span>', false);
+        }
+        $response->assertDontSee('<span class="nav-section-label">Konfigurasi</span>', false);
+    }
+
     public function test_menu_owner_tetap_lengkap(): void
     {
         $response = $this->actingAs($this->owner)->get(route('admin.dashboard'))->assertOk();

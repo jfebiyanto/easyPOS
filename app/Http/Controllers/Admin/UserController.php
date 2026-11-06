@@ -65,11 +65,11 @@ class UserController extends Controller
 
         $user = User::create($data);
 
-        ActivityLogger::log('user.created', "Membuat user baru: {$user->username} ({$user->role})", $user, [
+        ActivityLogger::log('user.created', "Created new user: {$user->username} ({$user->role})", $user, [
             'role' => $user->role, 'store_id' => $user->store_id,
         ]);
 
-        return redirect()->route('admin.users.index')->with('success', 'User berhasil dibuat.');
+        return redirect()->route('admin.users.index')->with('success', 'User created successfully.');
     }
 
     public function edit(Request $request, User $user): View
@@ -120,7 +120,7 @@ class UserController extends Controller
             ]);
         }
 
-        return redirect()->route('admin.users.index')->with('success', 'User berhasil diperbarui.');
+        return redirect()->route('admin.users.index')->with('success', 'User updated successfully.');
     }
 
     public function resetPassword(Request $request, User $user)
@@ -130,13 +130,13 @@ class UserController extends Controller
 
         $data = $request->validate([
             'password' => ['required', 'confirmed', Password::min(10)->letters()->numbers()],
-        ], [], ['password' => 'Password baru']);
+        ], [], ['password' => 'new password']);
 
         $user->update(['password' => $data['password']]);
 
         ActivityLogger::log('user.password_reset', "Reset password user: {$user->username}", $user);
 
-        return redirect()->route('admin.users.edit', $user)->with('success', "Password {$user->username} berhasil direset.");
+        return redirect()->route('admin.users.edit', $user)->with('success', "Password for {$user->username} was reset successfully.");
     }
 
     public function destroy(Request $request, User $user)
@@ -145,18 +145,18 @@ class UserController extends Controller
         $this->ensureCompany($user->company_id);
 
         if ($user->id === auth()->id()) {
-            return back()->with('error', 'Anda tidak dapat menghapus akun sendiri.');
+            return back()->with('error', 'You cannot delete your own account.');
         }
 
         if ($user->isOwner() && $this->activeOwnerCount() <= 1) {
-            return back()->with('error', 'Minimal harus ada 1 Owner aktif.');
+            return back()->with('error', 'There must be at least 1 active Owner.');
         }
 
         ActivityLogger::log('user.deleted', "Menghapus user: {$user->username} ({$user->name})", $user);
 
         $user->delete();
 
-        return redirect()->route('admin.users.index')->with('success', 'User berhasil dihapus.');
+        return redirect()->route('admin.users.index')->with('success', 'User deleted successfully.');
     }
 
     private function guardLastOwner(User $user, array $data): void
@@ -165,7 +165,7 @@ class UserController extends Controller
             && (($data['role'] ?? $user->role) !== User::ROLE_OWNER || ! ($data['is_active'] ?? $user->is_active));
 
         if ($willNotBeActiveOwner && $this->activeOwnerCount() <= 1) {
-            abort(422, 'Minimal harus ada 1 Owner aktif. Perubahan ditolak.');
+            abort(422, 'There must be at least 1 active Owner. Change rejected.');
         }
     }
 
@@ -203,8 +203,8 @@ class UserController extends Controller
             'is_active' => ['sometimes', 'boolean'],
             'password' => [$id ? 'nullable' : 'required', 'string', Password::min(10)->letters()->numbers()],
         ], [
-            'store_id.required' => 'Kasir dan Store Manager wajib ditugaskan ke satu gerai aktif.',
-            'store_id.exists' => 'Gerai yang dipilih tidak aktif atau tidak tersedia.',
+            'store_id.required' => 'Cashiers and Store Managers must be assigned to one active store.',
+            'store_id.exists' => 'The selected store is inactive or unavailable.',
         ]);
     }
 }

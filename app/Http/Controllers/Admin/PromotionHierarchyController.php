@@ -42,6 +42,6 @@ class PromotionHierarchyController extends Controller
 
         ActivityLogger::log('promotion.hierarchy_updated', 'Mengubah hierarki promosi: '.implode(' > ', $data['order']));
 
-        return redirect()->route('admin.promotion-hierarchy.edit')->with('success', 'Hierarki promosi disimpan.');
+        return redirect()->route('admin.promotion-hierarchy.edit')->with('success', 'Promo priority saved.');
     }
 }

@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', 'Terima Transfer')
+@section('title', 'Receive Transfer')
 @section('page_title', 'Terima Transfer · '.($transfer->number ?? 'Draft'))
 
 @section('content')
@@ -8,10 +8,10 @@
     @csrf
 
     <div class="card">
-        <h2 class="card-title">Penerimaan Barang</h2>
+        <h2 class="card-title">Goods Receipt</h2>
         <p class="card-subtitle">
-            Dari <strong>{{ $transfer->fromStore?->code }}</strong> ke <strong>{{ $transfer->toStore?->code }}</strong>.
-            Isi qty yang benar-benar diterima. Jika berbeda dari qty dikirim, alasan selisih wajib diisi.
+            From <strong>{{ $transfer->fromStore?->code }}</strong> to <strong>{{ $transfer->toStore?->code }}</strong>.
+            Enter the quantity actually received. If it differs from the quantity shipped, a difference reason is required.
         </p>
 
         @error('lines')
@@ -22,10 +22,10 @@
             <table class="md-table">
                 <thead>
                     <tr>
-                        <th>Produk</th>
-                        <th style="text-align:right;">Dikirim</th>
-                        <th style="width:160px;">Qty Diterima</th>
-                        <th>Alasan Selisih</th>
+                        <th>Product</th>
+                        <th style="text-align:right;">Shipped</th>
+                        <th style="width:160px;">Qty Received</th>
+                        <th>Difference Reason</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -38,7 +38,7 @@
                                 <input type="number" step="0.001" min="0" name="lines[{{ $i }}][qty_received]" value="{{ old("lines.$i.qty_received", $line->qty_shipped) }}" style="width:100%; padding:8px; border:1px solid var(--md-outline); border-radius:var(--md-radius-sm);">
                             </td>
                             <td>
-                                <input type="text" name="lines[{{ $i }}][variance_reason]" value="{{ old("lines.$i.variance_reason") }}" maxlength="500" style="width:100%; padding:8px; border:1px solid var(--md-outline); border-radius:var(--md-radius-sm);" placeholder="wajib jika qty berbeda">
+                                <input type="text" name="lines[{{ $i }}][variance_reason]" value="{{ old("lines.$i.variance_reason") }}" maxlength="500" style="width:100%; padding:8px; border:1px solid var(--md-outline); border-radius:var(--md-radius-sm);" placeholder="required if quantity differs">
                             </td>
                         </tr>
                     @endforeach
@@ -47,8 +47,8 @@
         </div>
 
         <div class="form-actions" style="margin-top:20px;">
-            <button type="submit" class="btn btn-filled"><span class="material-symbols-rounded">check</span> Konfirmasi Penerimaan</button>
-            <a href="{{ route('admin.stock-transfers.index') }}" class="btn btn-outline">Batal</a>
+            <button type="submit" class="btn btn-filled"><span class="material-symbols-rounded">check</span> Confirm Receipt</button>
+            <a href="{{ route('admin.stock-transfers.index') }}" class="btn btn-outline">Cancel</a>
         </div>
     </div>
 </form>

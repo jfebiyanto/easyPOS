@@ -1,14 +1,14 @@
 @extends('layouts.admin')
 
-@section('title', 'Satuan')
-@section('page_title', 'Satuan')
+@section('title', 'Units')
+@section('page_title', 'Units')
 
 @section('content')
 <div class="table-toolbar">
-    <h2 style="margin:0; font-size:16px;">Daftar Satuan</h2>
+    <h2 style="margin:0; font-size:16px;">Unit List</h2>
     @unless ($readOnly)
     <a href="{{ route('admin.units.create') }}" class="btn btn-filled">
-        <span class="material-symbols-rounded">add</span> Tambah Satuan
+        <span class="material-symbols-rounded">add</span> Add Unit
     </a>
     @endunless
 </div>
@@ -21,7 +21,7 @@
                 <th>{!! sort_link('Nama', 'name') !!}</th>
                 <th>{!! sort_link('Jumlah Produk', 'products_count') !!}</th>
                 <th>{!! sort_link('Status', 'is_active') !!}</th>
-                <th style="text-align:right;">Aksi</th>
+                <th style="text-align:right;">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -37,14 +37,14 @@
                             <a href="{{ route('admin.units.edit', $unit) }}" class="btn btn-tonal btn-sm">Edit</a>
                             <form method="POST" action="{{ route('admin.units.destroy', $unit) }}" onsubmit="return confirm('Hapus satuan {{ $unit->code }}?')">
                                 @csrf @method('DELETE')
-                                <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
+                                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                             </form>
                             @endunless
                         </div>
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="5"><div class="empty-state"><span class="material-symbols-rounded">straighten</span><p>Belum ada satuan.</p></div></td></tr>
+                <tr><td colspan="5"><div class="empty-state"><span class="material-symbols-rounded">straighten</span><p>No units yet.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>
