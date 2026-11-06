@@ -6,7 +6,7 @@
 @section('content')
 @php
     $isMoney = function (string $col): bool {
-        foreach (['Total', 'Omzet', 'Subtotal', 'Diskon', 'PPN', 'Retur', 'Net', 'Rata-rata', 'Belanja'] as $needle) {
+        foreach (['Total', 'Omzet', 'Subtotal', 'Kotor', 'Ongkir', 'Diskon', 'PPN', 'Retur', 'Net', 'Rata-rata', 'Belanja'] as $needle) {
             if (str_contains($col, $needle)) return true;
         }
         return false;
@@ -84,4 +84,7 @@
         </tbody>
     </table>
 </div>
+@if (! empty($data['notes']))
+    <p class="card-subtitle" style="margin-top:12px;">{{ $data['notes'] }}</p>
+@endif
 @endsection

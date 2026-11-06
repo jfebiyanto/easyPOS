@@ -54,13 +54,13 @@ class ReportService
         $sales = Sale::whereIn('store_id', $storeIds)
             ->where('status', Sale::STATUS_COMPLETED)
             ->where('business_date', '>=', $from)->where('business_date', '<=', $to.' 23:59:59')
-            ->selectRaw('store_id, count(*) as txn, sum(discount_total) as discount, sum(subtotal) as subtotal, sum(tax_total) as tax, sum(total) as total')
+            ->selectRaw('store_id, count(*) as txn, sum(discount_total) as discount, sum(total - tax_total - shipping_cost) as net_sales, sum(tax_total) as tax, sum(shipping_cost) as shipping, sum(total) as total')
             ->groupBy('store_id')
             ->get()
             ->keyBy('store_id');
 
         $returns = SalesReturn::whereIn('store_id', $storeIds)
-            ->whereBetween('created_at', [$from.' 00:00:00', $to.' 23:59:59'])
+            ->whereBetween('created_at', self::companyDayRange($from, $to))
             ->selectRaw('store_id, sum(total) as total')
             ->groupBy('store_id')
             ->pluck('total', 'store_id');
@@ -69,25 +69,45 @@ class ReportService
 
         $rows = $stores->map(function (Store $store) use ($sales, $returns) {
             $s = $sales->get($store->id);
-            $gross = (float) ($s->total ?? 0);
+            $discount = (float) ($s->discount ?? 0);
+            $netSales = round((float) ($s->net_sales ?? 0), 2);
+            $omzet = (float) ($s->total ?? 0);
             $ret = (float) ($returns[$store->id] ?? 0);
 
             return [
                 $store->code.' · '.$store->name,
                 (int) ($s->txn ?? 0),
-                (float) ($s->discount ?? 0),
-                (float) ($s->subtotal ?? 0),
+                $netSales + $discount,
+                $discount,
+                $netSales,
                 (float) ($s->tax ?? 0),
-                $gross,
+                (float) ($s->shipping ?? 0),
+                $omzet,
                 $ret,
-                $gross - $ret,
+                $omzet - $ret,
             ];
         })->all();
 
         return [
-            'columns' => ['Gerai', 'Transaksi', 'Diskon', 'Subtotal', 'PPN', 'Omzet', 'Retur', 'Net'],
+            'columns' => ['Gerai', 'Transaksi', 'Penjualan Kotor', 'Diskon', 'Penjualan Neto', 'PPN', 'Ongkir', 'Omzet', 'Retur', 'Net'],
             'rows' => $rows,
-            'numeric' => [1, 2, 3, 4, 5, 6, 7],
+            'numeric' => [1, 2, 3, 4, 5, 6, 7, 8, 9],
+            'notes' => 'Penjualan Kotor − Diskon = Penjualan Neto (tanpa PPN). Penjualan Neto + PPN + Ongkir = Omzet. Net = Omzet − Retur. Retur dihitung pada tanggal retur dibuat (zona waktu perusahaan).',
+        ];
+    }
+
+    /**
+     * Rentang from..to (tanggal menurut zona waktu perusahaan) sebagai batas waktu UTC untuk kolom timestamp.
+     *
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private static function companyDayRange(string $from, string $to): array
+    {
+        $timezone = company_timezone();
+
+        return [
+            Carbon::parse($from, $timezone)->startOfDay()->utc(),
+            Carbon::parse($to, $timezone)->endOfDay()->utc(),
         ];
     }
 
@@ -111,6 +131,9 @@ class ReportService
     private static function bestSellers(string $from, string $to, array $storeIds): array
     {
         $data = self::salesBySku($from, $to, $storeIds);
+
+        usort($data['rows'], fn ($a, $b) => [$b[2], $b[3]] <=> [$a[2], $a[3]] ?: strnatcmp((string) $a[0], (string) $b[0]));
+
         $data['rows'] = array_slice($data['rows'], 0, 20);
         $data['title'] = 'Produk Terlaris (Top 20)';
 
@@ -127,7 +150,7 @@ class ReportService
         $returns = DB::table('sales_returns')
             ->join('sales', 'sales.id', '=', 'sales_returns.original_sale_id')
             ->whereIn('sales.store_id', $storeIds)
-            ->whereBetween('sales_returns.created_at', [$from.' 00:00:00', $to.' 23:59:59'])
+            ->whereBetween('sales_returns.created_at', self::companyDayRange($from, $to))
             ->get(['sales.customer_id', 'sales_returns.total']);
 
         $bucket = [];
@@ -174,7 +197,7 @@ class ReportService
         $returnLines = DB::table('sales_return_lines')
             ->join('sales_returns', 'sales_returns.id', '=', 'sales_return_lines.sales_return_id')
             ->whereIn('sales_returns.store_id', $storeIds)
-            ->whereBetween('sales_returns.created_at', [$from.' 00:00:00', $to.' 23:59:59'])
+            ->whereBetween('sales_returns.created_at', self::companyDayRange($from, $to))
             ->get(['sales_return_lines.product_id', 'sales_return_lines.qty', 'sales_return_lines.line_total']);
 
         $out = [];
