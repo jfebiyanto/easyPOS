@@ -693,6 +693,7 @@
         uuid product_id FK
         decimal qty
         decimal qty_received
+        decimal qty_returned
         timestamps
     }
 
@@ -716,6 +717,31 @@
     STOCK_TRANSFER_RECEIPT_LINES {
         uuid id PK
         uuid receipt_id FK
+        uuid shipment_line_id FK
+        decimal qty
+        timestamps
+    }
+
+    STOCK_TRANSFER_RETURNS {
+        uuid id PK
+        uuid company_id FK
+        uuid shipment_id FK
+        string number
+        uuid store_id FK
+        text note
+        timestamp returned_at
+        uuid created_by FK
+        string sap_post_status
+        text sap_post_error
+        string sap_doc_num
+        integer sap_doc_entry
+        timestamp sap_posted_at
+        timestamps
+    }
+
+    STOCK_TRANSFER_RETURN_LINES {
+        uuid id PK
+        uuid return_id FK
         uuid shipment_line_id FK
         decimal qty
         timestamps
@@ -779,9 +805,13 @@
     STOCK_TRANSFER_SHIPMENTS ||--o{ STOCK_TRANSFER_RECEIPTS : &quot;diterima&quot;
     STOCK_TRANSFER_RECEIPTS ||--o{ STOCK_TRANSFER_RECEIPT_LINES : &quot;detail&quot;
     STOCK_TRANSFER_SHIPMENT_LINES ||--o{ STOCK_TRANSFER_RECEIPT_LINES : &quot;diterima per baris&quot;
+    STOCK_TRANSFER_SHIPMENTS ||--o{ STOCK_TRANSFER_RETURNS : &quot;dikembalikan&quot;
+    STOCK_TRANSFER_RETURNS ||--o{ STOCK_TRANSFER_RETURN_LINES : &quot;detail&quot;
+    STOCK_TRANSFER_SHIPMENT_LINES ||--o{ STOCK_TRANSFER_RETURN_LINES : &quot;dikembalikan per baris&quot;
     WAREHOUSES ||--o{ STOCK_TRANSFER_SHIPMENTS : &quot;from/transit/to&quot;
     STORES ||--o{ STOCK_TRANSFER_SHIPMENTS : &quot;from/to&quot;
     STORES ||--o{ STOCK_TRANSFER_RECEIPTS : &quot;penerima&quot;
+    STORES ||--o{ STOCK_TRANSFER_RETURNS : &quot;pengirim&quot;
     PRODUCTS ||--o{ STOCK_TRANSFER_SHIPMENT_LINES : &quot;dikirim&quot;
     WAREHOUSES ||--o{ WAREHOUSE_STOCKS : &quot;saldo&quot;
     WAREHOUSES ||--o{ WAREHOUSE_STOCK_LEDGERS : &quot;riwayat&quot;
@@ -4201,6 +4231,13 @@
 <td>Akumulasi penerimaan</td>
 </tr>
 <tr>
+<td><code>qty_returned</code></td>
+<td>decimal(15,3)</td>
+<td>No</td>
+<td>0</td>
+<td>Akumulasi pengembalian ke pengirim</td>
+</tr>
+<tr>
 <td><code>timestamps</code></td>
 <td>-</td>
 <td>-</td>
@@ -4346,6 +4383,168 @@
 <td>uuid FK</td>
 <td>No</td>
 <td>FK→<code>stock_transfer_receipts</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>shipment_line_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>stock_transfer_shipment_lines</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>qty</code></td>
+<td>decimal(15,3)</td>
+<td>No</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>stock_transfer_returns</h3>
+<p>Return: warehouse in-transit pengirim kembali ke warehouse store pengirim. Unique (<code>company_id</code>, <code>number</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>company_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>company_details</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>shipment_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>stock_transfer_shipments</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>number</code></td>
+<td>string(30)</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>store_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>stores</code></td>
+<td>Pengirim</td>
+</tr>
+<tr>
+<td><code>note</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td>Dikirim ke SAP sebagai Comments</td>
+</tr>
+<tr>
+<td><code>returned_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>created_by</code></td>
+<td>uuid FK</td>
+<td>Yes</td>
+<td>FK→<code>users</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>sap_post_status</code></td>
+<td>string(10)</td>
+<td>Yes</td>
+<td>-</td>
+<td>pending/posted/failed</td>
+</tr>
+<tr>
+<td><code>sap_post_error</code></td>
+<td>text</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sap_doc_num</code></td>
+<td>string(20)</td>
+<td>Yes</td>
+<td>-</td>
+<td>DocNum Stock Transfer SAP (ObjType 67)</td>
+</tr>
+<tr>
+<td><code>sap_doc_entry</code></td>
+<td>unsigned int</td>
+<td>Yes</td>
+<td>-</td>
+<td>DocEntry (kunci teknis; OIVL.CreatedBy)</td>
+</tr>
+<tr>
+<td><code>sap_posted_at</code></td>
+<td>timestamp</td>
+<td>Yes</td>
+<td>-</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamps</code></td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3>stock_transfer_return_lines</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tipe</th>
+<th>Nullable</th>
+<th>Default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td>No</td>
+<td>PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>return_id</code></td>
+<td>uuid FK</td>
+<td>No</td>
+<td>FK→<code>stock_transfer_returns</code></td>
 <td></td>
 </tr>
 <tr>
@@ -6203,6 +6402,48 @@
 </tr>
 <tr>
 <td><code>stock_transfer_receipts</code></td>
+<td><code>created_by</code></td>
+<td><code>users(id)</code></td>
+<td>Yes</td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>stock_transfer_return_lines</code></td>
+<td><code>return_id</code></td>
+<td><code>stock_transfer_returns(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stock_transfer_return_lines</code></td>
+<td><code>shipment_line_id</code></td>
+<td><code>stock_transfer_shipment_lines(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stock_transfer_returns</code></td>
+<td><code>company_id</code></td>
+<td><code>company_details(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stock_transfer_returns</code></td>
+<td><code>shipment_id</code></td>
+<td><code>stock_transfer_shipments(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stock_transfer_returns</code></td>
+<td><code>store_id</code></td>
+<td><code>stores(id)</code></td>
+<td>No</td>
+<td>cascade</td>
+</tr>
+<tr>
+<td><code>stock_transfer_returns</code></td>
 <td><code>created_by</code></td>
 <td><code>users(id)</code></td>
 <td>Yes</td>

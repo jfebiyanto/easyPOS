@@ -693,6 +693,7 @@ erDiagram
         uuid product_id FK
         decimal qty
         decimal qty_received
+        decimal qty_returned
         timestamps
     }
 
@@ -716,6 +717,31 @@ erDiagram
     STOCK_TRANSFER_RECEIPT_LINES {
         uuid id PK
         uuid receipt_id FK
+        uuid shipment_line_id FK
+        decimal qty
+        timestamps
+    }
+
+    STOCK_TRANSFER_RETURNS {
+        uuid id PK
+        uuid company_id FK
+        uuid shipment_id FK
+        string number
+        uuid store_id FK
+        text note
+        timestamp returned_at
+        uuid created_by FK
+        string sap_post_status
+        text sap_post_error
+        string sap_doc_num
+        integer sap_doc_entry
+        timestamp sap_posted_at
+        timestamps
+    }
+
+    STOCK_TRANSFER_RETURN_LINES {
+        uuid id PK
+        uuid return_id FK
         uuid shipment_line_id FK
         decimal qty
         timestamps
@@ -779,9 +805,13 @@ erDiagram
     STOCK_TRANSFER_SHIPMENTS ||--o{ STOCK_TRANSFER_RECEIPTS : "diterima"
     STOCK_TRANSFER_RECEIPTS ||--o{ STOCK_TRANSFER_RECEIPT_LINES : "detail"
     STOCK_TRANSFER_SHIPMENT_LINES ||--o{ STOCK_TRANSFER_RECEIPT_LINES : "diterima per baris"
+    STOCK_TRANSFER_SHIPMENTS ||--o{ STOCK_TRANSFER_RETURNS : "dikembalikan"
+    STOCK_TRANSFER_RETURNS ||--o{ STOCK_TRANSFER_RETURN_LINES : "detail"
+    STOCK_TRANSFER_SHIPMENT_LINES ||--o{ STOCK_TRANSFER_RETURN_LINES : "dikembalikan per baris"
     WAREHOUSES ||--o{ STOCK_TRANSFER_SHIPMENTS : "from/transit/to"
     STORES ||--o{ STOCK_TRANSFER_SHIPMENTS : "from/to"
     STORES ||--o{ STOCK_TRANSFER_RECEIPTS : "penerima"
+    STORES ||--o{ STOCK_TRANSFER_RETURNS : "pengirim"
     PRODUCTS ||--o{ STOCK_TRANSFER_SHIPMENT_LINES : "dikirim"
     WAREHOUSES ||--o{ WAREHOUSE_STOCKS : "saldo"
     WAREHOUSES ||--o{ WAREHOUSE_STOCK_LEDGERS : "riwayat"
@@ -1498,6 +1528,7 @@ Shipment dua langkah: warehouse pengirim ke warehouse in-transit pengirim. Uniqu
 | `product_id` | uuid FK | No | FK→`products` | |
 | `qty` | decimal(15,3) | No | - | Dikirim |
 | `qty_received` | decimal(15,3) | No | 0 | Akumulasi penerimaan |
+| `qty_returned` | decimal(15,3) | No | 0 | Akumulasi pengembalian ke pengirim |
 | `timestamps` | - | - | - | |
 
 ### stock_transfer_receipts
@@ -1527,6 +1558,37 @@ Receipt: warehouse in-transit pengirim ke warehouse store penerima. Unique (`com
 |-------|------|----------|---------|------------|
 | `id` | uuid | No | PK | |
 | `receipt_id` | uuid FK | No | FK→`stock_transfer_receipts` | |
+| `shipment_line_id` | uuid FK | No | FK→`stock_transfer_shipment_lines` | |
+| `qty` | decimal(15,3) | No | - | |
+| `timestamps` | - | - | - | |
+
+### stock_transfer_returns
+
+Return: warehouse in-transit pengirim kembali ke warehouse store pengirim. Unique (`company_id`, `number`).
+
+| Kolom | Tipe | Nullable | Default | Keterangan |
+|-------|------|----------|---------|------------|
+| `id` | uuid | No | PK | |
+| `company_id` | uuid FK | No | FK→`company_details` | |
+| `shipment_id` | uuid FK | No | FK→`stock_transfer_shipments` | |
+| `number` | string(30) | Yes | - | |
+| `store_id` | uuid FK | No | FK→`stores` | Pengirim |
+| `note` | text | Yes | - | Dikirim ke SAP sebagai Comments |
+| `returned_at` | timestamp | Yes | - | |
+| `created_by` | uuid FK | Yes | FK→`users` | |
+| `sap_post_status` | string(10) | Yes | - | pending/posted/failed |
+| `sap_post_error` | text | Yes | - | |
+| `sap_doc_num` | string(20) | Yes | - | DocNum Stock Transfer SAP (ObjType 67) |
+| `sap_doc_entry` | unsigned int | Yes | - | DocEntry (kunci teknis; OIVL.CreatedBy) |
+| `sap_posted_at` | timestamp | Yes | - | |
+| `timestamps` | - | - | - | |
+
+### stock_transfer_return_lines
+
+| Kolom | Tipe | Nullable | Default | Keterangan |
+|-------|------|----------|---------|------------|
+| `id` | uuid | No | PK | |
+| `return_id` | uuid FK | No | FK→`stock_transfer_returns` | |
 | `shipment_line_id` | uuid FK | No | FK→`stock_transfer_shipment_lines` | |
 | `qty` | decimal(15,3) | No | - | |
 | `timestamps` | - | - | - | |
@@ -1841,6 +1903,12 @@ Berikut tabel bawaan Laravel yang ada di database ini namun umumnya tidak digamb
 | `stock_transfer_receipts` | `shipment_id` | `stock_transfer_shipments(id)` | No | cascade |
 | `stock_transfer_receipts` | `store_id` | `stores(id)` | No | cascade |
 | `stock_transfer_receipts` | `created_by` | `users(id)` | Yes | `null` |
+| `stock_transfer_return_lines` | `return_id` | `stock_transfer_returns(id)` | No | cascade |
+| `stock_transfer_return_lines` | `shipment_line_id` | `stock_transfer_shipment_lines(id)` | No | cascade |
+| `stock_transfer_returns` | `company_id` | `company_details(id)` | No | cascade |
+| `stock_transfer_returns` | `shipment_id` | `stock_transfer_shipments(id)` | No | cascade |
+| `stock_transfer_returns` | `store_id` | `stores(id)` | No | cascade |
+| `stock_transfer_returns` | `created_by` | `users(id)` | Yes | `null` |
 | `stock_transfer_shipment_lines` | `shipment_id` | `stock_transfer_shipments(id)` | No | cascade |
 | `stock_transfer_shipment_lines` | `product_id` | `products(id)` | No | cascade |
 | `stock_transfer_shipments` | `company_id` | `company_details(id)` | No | cascade |
