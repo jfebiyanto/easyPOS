@@ -28,6 +28,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // Cookie identitas perangkat POS berisi token acak, bukan data sensitif; dibaca apa adanya.
         $middleware->encryptCookies(except: ['pos_device']);
 
+        // Pengguna yang sudah login dan membuka /login diarahkan ke area kerjanya, bukan ke '/' (yang kembali ke /login).
+        $middleware->redirectUsersTo(fn (Request $request) => $request->user()?->canAccessBackoffice()
+            ? route('admin.dashboard')
+            : route('pos.index'));
+
         $middleware->append(SecurityHeaders::class);
         $middleware->throttleApi();
     })

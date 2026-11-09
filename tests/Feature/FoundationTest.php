@@ -392,4 +392,17 @@ class FoundationTest extends TestCase
             ->assertOk()
             ->assertViewHas('logs', fn ($logs) => $logs->contains($updated) && ! $logs->contains($deleted));
     }
+
+    public function test_authenticated_user_opening_login_is_redirected_to_workspace_without_loop(): void
+    {
+        $this->actingAs($this->owner)
+            ->get(route('login'))
+            ->assertRedirect(route('admin.dashboard'));
+
+        $cashier = User::create(['company_id' => $this->company->id, 'store_id' => $this->store->id, 'name' => 'Kasir', 'username' => 'kasir-login', 'role' => User::ROLE_CASHIER, 'is_active' => true, 'password' => 'password']);
+
+        $this->actingAs($cashier)
+            ->get(route('login'))
+            ->assertRedirect(route('pos.index'));
+    }
 }
