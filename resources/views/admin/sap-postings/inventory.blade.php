@@ -7,7 +7,7 @@
     $canManage = auth()->user()->isOwner();
     $statusLabels = ['pending' => 'Pending', 'posted' => 'Posted', 'failed' => 'Failed'];
     $statusChips = ['pending' => 'chip-neutral', 'posted' => 'chip-success', 'failed' => 'chip-danger'];
-    $kindLabels = ['shipment' => 'Transfer Shipment', 'receipt' => 'Transfer Receipt', 'return' => 'Transfer Return', 'adjustment' => 'Stock Adjustment'];
+    $kindLabels = ['shipment' => 'Transfer Shipment', 'receipt' => 'Transfer Receipt', 'return' => 'Transfer Return', 'adjustment' => 'Stock Counting'];
     $retryRoutes = [
         'shipment' => 'admin.stock-transfer-shipments.retry',
         'receipt' => 'admin.stock-transfer-receipts.retry',

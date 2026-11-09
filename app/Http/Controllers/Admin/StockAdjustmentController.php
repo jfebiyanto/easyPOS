@@ -118,9 +118,9 @@ class StockAdjustmentController extends Controller
             return back()->withInput()->with('error', 'There are no valid lines to save. Enter the counted quantity (Qty After); lines equal to the current stock have no difference and are skipped.');
         }
 
-        ActivityLogger::log('stock.adjustment_created', "Membuat draft adjustment #{$adjustment->id}", $adjustment);
+        ActivityLogger::log('stock.adjustment_created', "Membuat draft stock counting #{$adjustment->id}", $adjustment);
 
-        return redirect()->route('admin.stock-adjustments.index')->with('success', 'Adjustment created (draft). Post it to apply.');
+        return redirect()->route('admin.stock-adjustments.index')->with('success', 'Stock counting created (draft). Post it to apply.');
     }
 
     public function post(Request $request, StockAdjustment $stockAdjustment)
@@ -131,13 +131,13 @@ class StockAdjustmentController extends Controller
         // Gerai berwarehouse memakai buku besar warehouse dan wajib diposting ke SAP B1 (seperti transfer stok).
         $hasWarehouse = SaleStock::warehouseFor($stockAdjustment->store_id) !== null;
         if ($hasWarehouse && ! CompanyDetail::find($stockAdjustment->company_id)?->sapIntegrationActive()) {
-            return back()->with('error', 'SAP integration is not active; stock adjustments of a store with a warehouse cannot be posted.');
+            return back()->with('error', 'SAP integration is not active; stock counting of a store with a warehouse cannot be posted.');
         }
 
         DB::transaction(function () use ($stockAdjustment) {
             $locked = StockAdjustment::whereKey($stockAdjustment->id)->lockForUpdate()->with('lines')->firstOrFail();
-            abort_if($locked->isPosted(), 422, 'The adjustment has already been posted.');
-            abort_if($locked->lines->every(fn ($line) => (float) $line->delta === 0.0), 422, 'The adjustment has no quantity difference to post.');
+            abort_if($locked->isPosted(), 422, 'The stock counting has already been posted.');
+            abort_if($locked->lines->every(fn ($line) => (float) $line->delta === 0.0), 422, 'The stock counting has no quantity difference to post.');
 
             foreach ($locked->lines as $line) {
                 SaleStock::assertAvailable($locked->store_id, $line->product_id, (float) $line->delta);
@@ -165,18 +165,18 @@ class StockAdjustmentController extends Controller
 
             SapStockAdjustmentPosting::queue($locked);
 
-            ActivityLogger::log('stock.adjustment_posted', "Posting adjustment {$locked->number}", $locked);
+            ActivityLogger::log('stock.adjustment_posted', "Posting stock counting {$locked->number}", $locked);
         });
 
-        return redirect()->route('admin.stock-adjustments.index')->with('success', 'Adjustment posted successfully.');
+        return redirect()->route('admin.stock-adjustments.index')->with('success', 'Stock counting posted successfully.');
     }
 
     public function retry(Request $request, StockAdjustment $stockAdjustment)
     {
         $this->ensureSuperuser($request);
         $this->ensureCompany($stockAdjustment->company_id);
-        abort_unless($stockAdjustment->isPosted(), 422, 'Only posted adjustments can be sent to SAP B1.');
-        abort_if($stockAdjustment->sap_post_status === StockAdjustment::SAP_POSTED, 422, 'The adjustment has already been posted to SAP B1.');
+        abort_unless($stockAdjustment->isPosted(), 422, 'Only posted stock counting can be sent to SAP B1.');
+        abort_if($stockAdjustment->sap_post_status === StockAdjustment::SAP_POSTED, 422, 'The stock counting has already been posted to SAP B1.');
 
         if (! CompanyDetail::find($stockAdjustment->company_id)?->sapIntegrationActive()) {
             return back()->with('error', 'SAP integration is not active.');
@@ -184,6 +184,6 @@ class StockAdjustmentController extends Controller
 
         SapStockAdjustmentPosting::queue($stockAdjustment);
 
-        return back()->with('success', "Adjustment {$stockAdjustment->number} scheduled to be sent to SAP B1.");
+        return back()->with('success', "Stock counting {$stockAdjustment->number} scheduled to be sent to SAP B1.");
     }
 }

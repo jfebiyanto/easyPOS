@@ -354,7 +354,7 @@ class SapStockAdjustmentPostingTest extends TestCase
             ->assertSee('Transfer Shipment')->assertSee('SHP-0001')->assertSee('Stock Transfer 5000001')
             ->assertSee('Transfer Receipt')->assertSee('Warehouse tujuan tidak ditemukan')
             ->assertSee('Transfer Return')->assertSee('RET-0001')
-            ->assertSee('Stock Adjustment')->assertSee($adjustment->number)->assertSee('Goods Receipt 3100001')
+            ->assertSee('Stock Counting')->assertSee($adjustment->number)->assertSee('Goods Receipt 3100001')
             ->assertSee('Failed (2)')->assertSee('Pending (1)')->assertSee('Posted (1)')
             ->assertSee(route('admin.stock-adjustments.retry', $adjustment), false);
 

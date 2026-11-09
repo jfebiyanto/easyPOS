@@ -195,7 +195,7 @@ class BackofficeAccessTest extends TestCase
         foreach (['Settings', 'Products', 'Inventory', 'Operations', 'Reports'] as $group) {
             $response->assertSee('<span class="nav-section-label">'.$group.'</span>', false);
         }
-        foreach (['Company Profile', 'Stores', 'Users', 'Payment Methods', 'Product Catalog', 'Price Lists', 'Stock Balance', 'Stock Adjustments', 'Stock Transfer Shipment', 'Stock Transfer Receipt', 'Deliveries', 'Stock Review', 'End of Day', 'Sales Reports', 'Voids &amp; Cancellations', 'Activity Log', 'Cashier Sessions'] as $caption) {
+        foreach (['Company Profile', 'Stores', 'Users', 'Payment Methods', 'Product Catalog', 'Price Lists', 'Stock Balance', 'Stock Counting', 'Stock Transfer Shipment', 'Stock Transfer Receipt', 'Deliveries', 'Stock Review', 'End of Day', 'Sales Reports', 'Voids &amp; Cancellations', 'Activity Log', 'Cashier Sessions'] as $caption) {
             $response->assertSee('<span>'.$caption.'</span>', false);
         }
         foreach (['Saldo Stok', 'Daftar Produk', 'Tutup Toko', 'Penyesuaian Stok'] as $old) {

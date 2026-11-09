@@ -1,14 +1,14 @@
 @extends('layouts.admin')
 
-@section('title', 'Create Stock Adjustment')
-@section('page_title', 'Create Stock Adjustment')
+@section('title', 'Create Stock Counting')
+@section('page_title', 'Create Stock Counting')
 
 @section('content')
 <form method="POST" action="{{ route('admin.stock-adjustments.store') }}">
     @csrf
 
     <div class="card">
-        <h2 class="card-title">Adjustment Information</h2>
+        <h2 class="card-title">Stock Counting Information</h2>
         <div class="form-grid">
             @if ($stores->isNotEmpty())
                 <div class="field @error('store_id') has-error @enderror">

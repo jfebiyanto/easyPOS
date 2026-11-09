@@ -1,13 +1,13 @@
 @extends('layouts.admin')
 
-@section('title', 'Stock Adjustments')
-@section('page_title', 'Stock Adjustments')
+@section('title', 'Stock Counting')
+@section('page_title', 'Stock Counting')
 
 @section('content')
 <div class="table-toolbar">
-    <h2 style="margin:0; font-size:16px;">Adjustment List</h2>
+    <h2 style="margin:0; font-size:16px;">Stock Counting List</h2>
     <a href="{{ route('admin.stock-adjustments.create') }}" class="btn btn-filled">
-        <span class="material-symbols-rounded">add</span> Create Adjustment
+        <span class="material-symbols-rounded">add</span> Create Stock Counting
     </a>
 </div>
 
@@ -64,7 +64,7 @@
                                 <button type="submit" class="btn btn-outline btn-sm"><span class="material-symbols-rounded">sync</span> Resend</button>
                             </form>
                         @elseif (! $adj->isPosted())
-                            <form method="POST" action="{{ route('admin.stock-adjustments.post', $adj) }}" onsubmit="return confirm('Post this adjustment? Stock will change and it can no longer be edited.')">
+                            <form method="POST" action="{{ route('admin.stock-adjustments.post', $adj) }}" onsubmit="return confirm('Post this stock counting? Stock will change and it can no longer be edited.')">
                                 @csrf
                                 <button type="submit" class="btn btn-filled btn-sm">Post</button>
                             </form>
@@ -74,7 +74,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="8"><div class="empty-state"><span class="material-symbols-rounded">tune</span><p>No stock adjustments yet.</p></div></td></tr>
+                <tr><td colspan="8"><div class="empty-state"><span class="material-symbols-rounded">tune</span><p>No stock counting yet.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>

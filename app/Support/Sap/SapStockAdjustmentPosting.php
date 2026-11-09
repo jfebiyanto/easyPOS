@@ -61,7 +61,7 @@ class SapStockAdjustmentPosting
             $issues = $adjustment->lines->filter(fn (StockAdjustmentLine $line) => (float) $line->delta < 0);
 
             if ($receipts->isEmpty() && $issues->isEmpty()) {
-                throw new RuntimeException("Adjustment {$adjustment->number} has no quantity difference to send to SAP B1.");
+                throw new RuntimeException("Stock counting {$adjustment->number} has no quantity difference to send to SAP B1.");
             }
 
             $client->login();
@@ -103,7 +103,7 @@ class SapStockAdjustmentPosting
                 'JournalMemo' => Str::limit((string) $adjustment->number, 50, ''),
                 ...(filled(trim((string) $adjustment->reason)) ? ['Comments' => Str::limit(trim((string) $adjustment->reason), 254, '')] : []),
                 'DocumentLines' => $lines->map(fn (StockAdjustmentLine $line) => [
-                    'ItemCode' => $line->product?->sku ?? throw new RuntimeException("Adjustment {$adjustment->number} has a line without an item code."),
+                    'ItemCode' => $line->product?->sku ?? throw new RuntimeException("Stock counting {$adjustment->number} has a line without an item code."),
                     'Quantity' => abs((float) $line->delta),
                     'WarehouseCode' => $warehouse->code,
                     // Profit center warehouse (UDF U_SOL_PRFC) = dimensi 1 (OcrCode; di Service Layer bernama CostingCode).

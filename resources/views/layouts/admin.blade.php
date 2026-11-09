@@ -56,7 +56,7 @@
                     ]],
                     'stok' => ['Inventory', [
                         ['admin.stock.index', 'warehouse', 'Stock Balance', true],
-                        ['admin.stock-adjustments.index', 'tune', 'Stock Adjustments', true],
+                        ['admin.stock-adjustments.index', 'tune', 'Stock Counting', true],
                         ['admin.stock-transfer-shipments.index', 'local_shipping', 'Stock Transfer Shipment', true],
                         ['admin.stock-transfer-receipts.index', 'move_to_inbox', 'Stock Transfer Receipt', true],
                         ['admin.stock-transfer-returns.index', 'keyboard_return', 'Stock Transfer Return', true],
