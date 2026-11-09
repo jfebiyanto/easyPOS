@@ -20,6 +20,7 @@
                 <th>{!! sort_link('Code', 'code') !!}</th>
                 <th>Description</th>
                 <th>{!! sort_link('Order', 'order_number') !!}</th>
+                <th>{!! sort_link('Type', 'kind') !!}</th>
                 <th>{!! sort_link('Count Type', 'count_type') !!}</th>
                 <th>SAP Credit Card</th>
                 <th>Used in Stores</th>
@@ -34,6 +35,7 @@
                     <td><strong>{{ $paymentType->code }}</strong></td>
                     <td>{{ $paymentType->description }}</td>
                     <td>{{ $paymentType->order_number }}</td>
+                    <td>{{ \App\Models\PaymentType::KINDS[$paymentType->kind] ?? ucfirst($paymentType->kind) }}</td>
                     <td>{{ ucfirst($paymentType->count_type) }}</td>
                     <td>{{ $paymentType->creditCard ? $paymentType->creditCard->code.' · '.$paymentType->creditCard->name : '—' }}</td>
                     <td>
@@ -60,7 +62,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="8"><div class="empty-state"><span class="material-symbols-rounded">credit_card</span><p>No payment methods yet.</p></div></td></tr>
+                <tr><td colspan="9"><div class="empty-state"><span class="material-symbols-rounded">credit_card</span><p>No payment methods yet.</p></div></td></tr>
             @endforelse
         </tbody>
     </table>

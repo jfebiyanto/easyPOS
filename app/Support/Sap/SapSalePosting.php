@@ -177,7 +177,7 @@ class SapSalePosting
     {
         $type = $payment->paymentType;
 
-        if (strtoupper((string) $type?->code) === PaymentType::CODE_CASH) {
+        if ($type?->isCash()) {
             return self::METHOD_CASH;
         }
 

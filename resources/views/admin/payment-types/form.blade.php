@@ -23,6 +23,16 @@
                 <input type="number" id="order_number" name="order_number" min="1" step="1" required value="{{ old('order_number', $paymentType->order_number ?? 1) }}">
                 @error('order_number') <div class="error">{{ $message }}</div> @enderror
             </div>
+            <div class="field @error('kind') has-error @enderror">
+                <label for="kind">Type *</label>
+                <select id="kind" name="kind">
+                    @foreach (\App\Models\PaymentType::KINDS as $value => $label)
+                        <option value="{{ $value }}" @selected(old('kind', $paymentType->kind ?? 'custom') === $value)>{{ $label }}</option>
+                    @endforeach
+                </select>
+                @error('kind') <div class="error">{{ $message }}</div> @enderror
+                <div class="hint">Cash: posted to SAP as cash, no SAP Credit Card mapping needed. Custom: must be mapped to a SAP Credit Card (when the SAP integration is active).</div>
+            </div>
             <div class="field @error('count_type') has-error @enderror">
                 <label for="count_type">Count Type *</label>
                 <select id="count_type" name="count_type">
@@ -33,7 +43,7 @@
                 @error('count_type') <div class="error">{{ $message }}</div> @enderror
             </div>
             <div class="field @error('credit_card_id') has-error @enderror">
-                <label for="credit_card_id">SAP B1 Credit Card</label>
+                <label for="credit_card_id">SAP B1 Credit Card <span id="credit_card_required" hidden>*</span></label>
                 <select id="credit_card_id" name="credit_card_id">
                     <option value="">— Not mapped —</option>
                     @foreach ($creditCards as $card)
@@ -41,7 +51,7 @@
                     @endforeach
                 </select>
                 @error('credit_card_id') <div class="error">{{ $message }}</div> @enderror
-                <div class="hint">Set for non-cash payments (QRIS, EDC/card): the SAP Incoming Payment posting uses this card. Methods coded CASH are recorded as cash. The card list comes from SAP synchronization.</div>
+                <div class="hint">Required for Custom types: the SAP Incoming Payment posting uses this card. Not used for Cash. The card list comes from SAP synchronization.</div>
             </div>
             <div class="field">
                 <div class="checkbox-row">
@@ -75,4 +85,21 @@
         </div>
     </form>
 </div>
+@push('scripts')
+<script>
+    (function () {
+        var kind = document.getElementById('kind');
+        var card = document.getElementById('credit_card_id');
+        var star = document.getElementById('credit_card_required');
+        var sync = function () {
+            var isCash = kind.value === 'cash';
+            card.disabled = isCash;
+            if (isCash) { card.value = ''; }
+            star.hidden = isCash;
+        };
+        kind.addEventListener('change', sync);
+        sync();
+    })();
+</script>
+@endpush
 @endsection

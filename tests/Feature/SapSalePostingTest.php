@@ -343,6 +343,23 @@ class SapSalePostingTest extends TestCase
             && $request['PaymentCreditCards'][0]['CreditSum'] === 8880.0);
     }
 
+    public function test_jenis_cash_dengan_kode_bebas_diposting_sebagai_tunai_tanpa_mapping_credit_card(): void
+    {
+        $this->fakeSap();
+        PaymentType::create([
+            'company_id' => $this->company->id, 'code' => 'TUNAI', 'kind' => PaymentType::KIND_CASH, 'count_type' => 'summary',
+            'order_number' => 4, 'is_active' => true,
+        ]);
+
+        $sale = $this->sellWith([['TUNAI', 8880]]);
+
+        $this->assertSame(Sale::SAP_POSTED, $sale->sap_post_status);
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/IncomingPayments')
+            && $request['CashAccount'] === '1100-1001-0002'
+            && $request['CashSum'] === 8880.0
+            && ! isset($request['PaymentCreditCards']));
+    }
+
     public function test_profit_center_warehouse_dicatat_di_baris_invoice(): void
     {
         $this->fakeSap();

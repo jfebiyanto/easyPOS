@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PaymentType extends MasterModel
 {
-    protected $fillable = ['company_id', 'code', 'description', 'order_number', 'count_type', 'credit_card_id', 'is_offline_allowed', 'is_active'];
+    protected $fillable = ['company_id', 'code', 'kind', 'description', 'order_number', 'count_type', 'credit_card_id', 'is_offline_allowed', 'is_active'];
 
     /** Kode tipe pembayaran yang dikenali posting Incoming Payment SAP B1. */
     public const CODE_CASH = 'CASH';
@@ -15,10 +15,33 @@ class PaymentType extends MasterModel
 
     public const CODE_EDC = 'EDC';
 
+    /** Jenis tipe pembayaran: cash tidak perlu dipetakan ke Credit Card SAP B1; custom wajib (integrasi SAP aktif). */
+    public const KIND_CASH = 'cash';
+
+    public const KIND_CUSTOM = 'custom';
+
+    public const KINDS = [
+        self::KIND_CASH => 'Cash',
+        self::KIND_CUSTOM => 'Custom',
+    ];
+
     public const COUNT_TYPES = [
         'summary' => 'Summary',
         'detail' => 'Detail',
     ];
+
+    protected static function booted(): void
+    {
+        // Tanpa jenis eksplisit: kode CASH = cash, selain itu custom.
+        static::creating(function (self $paymentType) {
+            $paymentType->kind ??= strtoupper((string) $paymentType->code) === self::CODE_CASH ? self::KIND_CASH : self::KIND_CUSTOM;
+        });
+    }
+
+    public function isCash(): bool
+    {
+        return $this->kind === self::KIND_CASH;
+    }
 
     protected function casts(): array
     {
