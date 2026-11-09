@@ -1460,6 +1460,15 @@ erDiagram
 | `status` | enum | No | draft | draft/posted |
 | `created_by` | uuid FK | Yes | FK→`users` | |
 | `posted_at` | timestamp | Yes | - | |
+| `sap_post_status` | string(10) | Yes | - | `pending`/`posted`/`failed`; indeks |
+| `sap_post_error` | text | Yes | - | |
+| `sap_receipt_obj_type` | integer | Yes | - | 59 (Goods Receipt, selisih positif) |
+| `sap_receipt_doc_num` | string(20) | Yes | - | |
+| `sap_receipt_doc_entry` | integer | Yes | - | kunci teknis, disembunyikan |
+| `sap_issue_obj_type` | integer | Yes | - | 60 (Goods Issue, selisih negatif) |
+| `sap_issue_doc_num` | string(20) | Yes | - | |
+| `sap_issue_doc_entry` | integer | Yes | - | kunci teknis, disembunyikan |
+| `sap_posted_at` | timestamp | Yes | - | |
 | `timestamps` | - | - | - | |
 
 ### stock_adjustment_lines
