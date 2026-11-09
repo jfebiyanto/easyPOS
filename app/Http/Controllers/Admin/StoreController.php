@@ -177,6 +177,7 @@ class StoreController extends Controller
                 Rule::exists('customers', 'id')
                     ->where('company_id', current_company_id())
                     ->where('is_member', 0)
+                    ->when(CompanyDetail::current()->sapIntegrationActive(), fn ($query) => $query->where('is_retail', 1))
                     ->where('is_active', 1),
             ],
             'warehouse_id' => [
@@ -207,12 +208,15 @@ class StoreController extends Controller
     }
 
     /**
-     * Calon pelanggan retail default: non member dan aktif (plus pilihan yang sedang tersimpan).
+     * Calon pelanggan retail default: non member dan aktif; selama integrasi SAP aktif hanya customer retail
+     * dari SAP (U_SOL_RETAIL = 'Y'). Pilihan yang sedang tersimpan tetap ditampilkan.
      */
     private function customerOptions(?Store $store = null): Collection
     {
+        $sapActive = CompanyDetail::current()->sapIntegrationActive();
+
         return Customer::where('company_id', current_company_id())
-            ->where(fn ($q) => $q->where('is_member', false)->where('is_active', true)->orWhere('id', $store?->default_customer_id))
+            ->where(fn ($q) => $q->where(fn ($candidate) => $candidate->retailDefaultCandidates($sapActive)->where('is_active', true))->orWhere('id', $store?->default_customer_id))
             ->orderBy('name')
             ->get(['id', 'code', 'name']);
     }

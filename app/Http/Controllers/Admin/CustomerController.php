@@ -103,8 +103,8 @@ class CustomerController extends Controller
             unset($data['code']);
         }
 
-        // Pelanggan retail default gerai tidak boleh menjadi member.
-        if (LoyaltyService::isRetailDefault($customer->id)) {
+        // Pelanggan retail default gerai dan customer retail SAP (U_SOL_RETAIL = 'Y') tidak boleh menjadi member.
+        if ($customer->is_retail || LoyaltyService::isRetailDefault($customer->id)) {
             $data['is_member'] = false;
         }
 

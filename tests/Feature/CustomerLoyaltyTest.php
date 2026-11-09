@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Support\StockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class CustomerLoyaltyTest extends TestCase
@@ -325,5 +326,85 @@ class CustomerLoyaltyTest extends TestCase
                 'id="expiry_days"',
                 '<div class="hint">Leave blank if points never expire.</div>',
             ], false);
+    }
+
+    private function enableSap(): void
+    {
+        $this->company->update([
+            'sap_enabled' => true, 'sap_verify_ssl' => false,
+            'sap_endpoint_url' => 'https://8.8.8.8:50000/b1s/v1', 'sap_db_name' => 'SBO_TEST',
+            'sap_username' => 'manager', 'sap_password' => 'secret',
+        ]);
+    }
+
+    private function storeUpdate(Customer $default): TestResponse
+    {
+        return $this->actingAs($this->owner)->put(route('admin.stores.update', $this->store), [
+            'code' => $this->store->code,
+            'name' => $this->store->name,
+            'pic_name' => 'PIC',
+            'currency' => 'IDR',
+            'is_active' => '1',
+            'default_customer_id' => $default->id,
+        ]);
+    }
+
+    public function test_dengan_integrasi_sap_hanya_customer_retail_sap_yang_bisa_menjadi_default_gerai(): void
+    {
+        $this->enableSap();
+        $plain = Customer::create([
+            'company_id' => $this->company->id, 'code' => 'CUST-9', 'name' => 'Non Member Biasa',
+            'is_member' => false, 'is_retail' => false, 'is_active' => true, 'source' => Customer::SOURCE_MANUAL,
+        ]);
+        $retail = Customer::create([
+            'company_id' => $this->company->id, 'code' => 'CR00001', 'name' => 'PELANGGAN UMUM',
+            'is_member' => false, 'is_retail' => true, 'is_active' => true, 'source' => Customer::SOURCE_SAP,
+        ]);
+
+        $this->storeUpdate($plain)->assertSessionHasErrors('default_customer_id');
+        $this->storeUpdate($retail)->assertRedirect(route('admin.stores.index'));
+        $this->assertSame($retail->id, $this->store->fresh()->default_customer_id);
+
+        $this->get(route('admin.stores.edit', $this->store))
+            ->assertOk()
+            ->assertSee('CR00001')
+            ->assertDontSee('CUST-9');
+    }
+
+    public function test_customer_retail_sap_tidak_bisa_dijadikan_member(): void
+    {
+        $retail = Customer::create([
+            'company_id' => $this->company->id, 'code' => 'CR00001', 'name' => 'PELANGGAN UMUM',
+            'is_member' => false, 'is_retail' => true, 'is_active' => true, 'source' => Customer::SOURCE_SAP,
+        ]);
+
+        $this->actingAs($this->owner)->put(route('admin.customers.update', $retail), [
+            'name' => 'PELANGGAN UMUM', 'code' => 'CR00001', 'is_member' => '1', 'is_active' => '1',
+        ]);
+
+        $this->assertFalse($retail->refresh()->is_member);
+    }
+
+    public function test_detail_customer_non_member_menandai_bagian_poin_untuk_disembunyikan_css(): void
+    {
+        $regular = Customer::create([
+            'company_id' => $this->company->id, 'code' => 'NM-1', 'name' => 'Non Member',
+            'is_member' => false, 'is_active' => true,
+        ]);
+
+        $this->actingAs($this->owner);
+
+        $this->get(route('admin.customers.show', $regular))
+            ->assertOk()
+            ->assertSee('customer-detail is-non-member', false)
+            ->assertSee('member-only', false);
+
+        $this->get(route('admin.customers.show', $this->member))
+            ->assertOk()
+            ->assertDontSee('is-non-member', false)
+            ->assertSee('member-only', false);
+
+        $css = file_get_contents(public_path('css/md3-components.css'));
+        $this->assertMatchesRegularExpression('/\.customer-detail\.is-non-member \.member-only\s*\{\s*display:\s*none;/', $css);
     }
 }

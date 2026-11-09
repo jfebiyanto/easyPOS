@@ -379,7 +379,7 @@ class SapImportService
         }
 
         $query = [
-            '$select' => 'CardCode,CardName,GroupCode,Phone1,Cellular,EmailAddress,Address,Valid,Frozen,UpdateDate,UpdateTime',
+            '$select' => 'CardCode,CardName,GroupCode,Phone1,Cellular,EmailAddress,Address,Valid,Frozen,U_SOL_RETAIL,UpdateDate,UpdateTime',
             '$filter' => $filter,
         ];
 
@@ -402,6 +402,12 @@ class SapImportService
                 'address' => ($row['Address'] ?? null) ?: null,
                 'is_active' => $this->isActive($row),
             ];
+
+            // UDF U_SOL_RETAIL = 'Y': customer retail, selalu non-member dan calon pelanggan default gerai.
+            $attrs['is_retail'] = ($row['U_SOL_RETAIL'] ?? null) === 'Y';
+            if ($attrs['is_retail']) {
+                $attrs['is_member'] = false;
+            }
 
             $groupId = $this->customerGroups[(string) ($row['GroupCode'] ?? '')] ?? null;
             if ($groupId) {

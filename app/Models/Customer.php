@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Traits\HasUuid7;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class Customer extends Model
@@ -28,7 +29,7 @@ class Customer extends Model
     public const SAP_FIELDS = ['name', 'phone', 'email', 'address', 'customer_group_id'];
 
     protected $fillable = [
-        'company_id', 'code', 'name', 'phone', 'email', 'address', 'is_member',
+        'company_id', 'code', 'name', 'phone', 'email', 'address', 'is_member', 'is_retail',
         'member_level_id', 'customer_group_id', 'points_balance', 'joined_at', 'is_active',
         'source', 'sap_sync_status', 'sap_sync_error', 'sap_synced_at',
     ];
@@ -37,6 +38,7 @@ class Customer extends Model
     {
         return [
             'is_member' => 'boolean',
+            'is_retail' => 'boolean',
             'is_active' => 'boolean',
             'points_balance' => 'decimal:2',
             'joined_at' => 'datetime',
@@ -47,6 +49,18 @@ class Customer extends Model
     public function isFromSap(): bool
     {
         return $this->source === self::SOURCE_SAP;
+    }
+
+    /**
+     * Calon pelanggan retail default gerai (non-member). Selama integrasi SAP aktif hanya customer
+     * retail dari SAP (U_SOL_RETAIL = 'Y'); tanpa integrasi, semua customer non-member.
+     *
+     * @param  Builder<Customer>  $query
+     */
+    public function scopeRetailDefaultCandidates(Builder $query, bool $sapActive): void
+    {
+        $query->where('is_member', false)
+            ->when($sapActive, fn (Builder $q) => $q->where('is_retail', true));
     }
 
     public function customerGroup()

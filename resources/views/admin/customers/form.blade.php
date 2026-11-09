@@ -67,7 +67,7 @@
             </div>
             <div class="field">
                 <div class="checkbox-row">
-                    <input type="checkbox" id="is_member" name="is_member" value="1" @checked(old('is_member', $customer->exists ? $customer->is_member : true))>
+                    <input type="checkbox" id="is_member" name="is_member" value="1" @checked(old('is_member', $customer->exists ? $customer->is_member : true)) @disabled($customer->is_retail)>
                     <label for="is_member">Member (earns points)</label>
                 </div>
             </div>

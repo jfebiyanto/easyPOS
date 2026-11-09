@@ -174,6 +174,16 @@ class SapImportTest extends TestCase
                 'Address' => 'Jakarta',
                 'Valid' => 'tYES',
                 'Frozen' => 'tNO',
+                'U_SOL_RETAIL' => 'N',
+                'UpdateDate' => '2026-11-04T00:00:00Z',
+                'UpdateTime' => '16:20:14',
+            ], [
+                'CardCode' => 'CR00001',
+                'CardName' => 'PELANGGAN UMUM',
+                'GroupCode' => 101,
+                'Valid' => 'tYES',
+                'Frozen' => 'tNO',
+                'U_SOL_RETAIL' => 'Y',
                 'UpdateDate' => '2026-11-04T00:00:00Z',
                 'UpdateTime' => '16:20:14',
             ]]]),
@@ -270,6 +280,12 @@ class SapImportTest extends TestCase
         $this->assertSame('Budi', $customer->name);
         $this->assertSame(Customer::SOURCE_SAP, $customer->source);
         $this->assertSame(CustomerGroup::where('code', '101')->value('id'), $customer->customer_group_id);
+        $this->assertFalse($customer->is_retail);
+
+        // UDF U_SOL_RETAIL = 'Y': customer retail non-member (calon pelanggan default gerai).
+        $retail = Customer::where('code', 'CR00001')->firstOrFail();
+        $this->assertTrue($retail->is_retail);
+        $this->assertFalse($retail->is_member);
 
         $this->assertNotNull($this->company->fresh()->sap_initial_imported_at);
         $this->assertSame(1, $run->summary['item_master']['created']);

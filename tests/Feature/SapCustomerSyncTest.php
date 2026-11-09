@@ -102,7 +102,7 @@ class SapCustomerSyncTest extends TestCase
             && str_ends_with($request->url(), '/BusinessPartners')
             && $request['CardType'] === 'cCustomer'
             && $request['Series'] === 70
-            && $request['U_SOL_RETAIL'] === 'Y'
+            && $request['U_SOL_RETAIL'] === 'N'
             && $request['GroupCode'] === 102
             && $request['CardName'] === 'Budi'
             && $request['U_SOL_FRST'] === 'Y'

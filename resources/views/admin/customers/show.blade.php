@@ -8,7 +8,8 @@
     <a href="{{ route('admin.customers.index') }}">Customer</a>
 </div>
 
-<div class="stat-grid">
+<div class="customer-detail {{ $customer->is_member ? '' : 'is-non-member' }}">
+<div class="stat-grid member-only">
     <div class="stat-card">
         <div class="stat-icon"><span class="material-symbols-rounded">loyalty</span></div>
         <div>
@@ -37,7 +38,7 @@
 </div>
 
 @unless ($readOnly)
-<div class="card">
+<div class="card member-only">
     <h2 class="card-title">Points Adjustment</h2>
     <form method="POST" action="{{ route('admin.customers.adjust-points', $customer) }}">
         @csrf
@@ -60,7 +61,7 @@
 </div>
 @endunless
 
-<div class="card">
+<div class="card member-only">
     <h2 class="card-title">Points History</h2>
     <div class="table-wrap">
         <table class="md-table">
@@ -89,5 +90,6 @@
 <div class="form-actions">
     <a href="{{ route('admin.customers.edit', $customer) }}" class="btn btn-tonal">Edit</a>
     <a href="{{ route('admin.customers.index') }}" class="btn btn-outline">Back</a>
+</div>
 </div>
 @endsection

@@ -100,7 +100,7 @@ class SapCustomerSync
         $created = $client->create('BusinessPartners', $this->payload($customer) + [
             'CardType' => 'cCustomer',
             'Series' => $series['Series'],
-            'U_SOL_RETAIL' => 'Y',
+            'U_SOL_RETAIL' => 'N',
             'U_SOL_FRST' => 'Y',
             'U_SOL_TRKY' => $customer->id,
         ]);
