@@ -163,6 +163,7 @@ class SapReturnPostingTest extends TestCase
             && $request['U_SOL_TRKY'] === $return->id
             && $request['U_SOL_STID'] === $this->store->id
             && $request['JournalMemo'] === $return->number
+            && $request['Comments'] === 'Return from Invoice No. '.$sale->number
             && $request['DocumentLines'] === [['ItemCode' => 'INDF-0001', 'Quantity' => 1.0, 'WarehouseCode' => 'G.001.MN', 'Price' => 4000.0, 'VatGroup' => 'PPNK-11', 'AccountCode' => '4100-1001-0001']]);
         Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/VendorPayments')
             && $request['DocType'] === 'rCustomer'

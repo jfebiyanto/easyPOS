@@ -131,6 +131,8 @@ class SapReturnPosting
                 'TaxDate' => $date,
                 'NumAtCard' => Str::limit((string) $return->number, 100, ''),
                 'JournalMemo' => Str::limit((string) $return->number, 50, ''),
+                // Credit Memo tanpa base document: nomor struk penjualan asal dicatat di Comments sebagai referensi.
+                'Comments' => Str::limit('Return from Invoice No. '.$return->originalSale->number, 254, ''),
                 'DocumentLines' => $this->creditMemoLines($client, $return),
             ]);
         }
