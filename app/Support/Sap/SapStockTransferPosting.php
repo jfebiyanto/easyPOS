@@ -128,6 +128,9 @@ class SapStockTransferPosting
             $lines = $doc->lines->map(fn (StockTransferReceiptLine|StockTransferReturnLine $line) => [$line->shipmentLine?->product?->sku, (float) $line->qty]);
         }
 
+        // Warehouse gerai pembuat dokumen: pengirim untuk Shipment dan Return, penerima untuk Receipt.
+        $costing = $doc instanceof StockTransferShipment ? $from : $to;
+
         $lines = $lines->filter(fn (array $line) => $line[1] > 0);
 
         if ($lines->isEmpty()) {
@@ -143,7 +146,7 @@ class SapStockTransferPosting
             'DocDate' => $this->documentDate($date),
             'JournalMemo' => Str::limit((string) $doc->number, 50, ''),
             ...($this->comments($doc) !== '' ? ['Comments' => $this->comments($doc)] : []),
-            'StockTransferLines' => $lines->map(function (array $line) use ($from, $to, $doc) {
+            'StockTransferLines' => $lines->map(function (array $line) use ($from, $to, $doc, $costing) {
                 [$sku, $qty] = $line;
 
                 if (blank($sku)) {
@@ -155,6 +158,8 @@ class SapStockTransferPosting
                     'Quantity' => $qty,
                     'FromWarehouseCode' => $from->code,
                     'WarehouseCode' => $to->code,
+                    // Profit center warehouse gerai pembuat dokumen = dimensi 1 (OcrCode; di Service Layer bernama CostingCode).
+                    ...(filled($costing->profit_center) ? ['CostingCode' => $costing->profit_center] : []),
                 ];
             })->values()->all(),
         ];

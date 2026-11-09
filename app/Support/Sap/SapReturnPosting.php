@@ -161,12 +161,16 @@ class SapReturnPosting
             $base = $invoiceLines->firstWhere('ItemCode', $sku)
                 ?? throw new RuntimeException("Baris {$sku} tidak ditemukan pada A/R Invoice asal di SAP B1.");
 
+            $warehouse = $return->store->warehouse;
+
             return [
                 'BaseType' => SapSalePosting::OBJ_INVOICE,
                 'BaseEntry' => $invoiceEntry,
                 'BaseLine' => (int) $base['LineNum'],
                 'Quantity' => (float) $line->qty,
-                'WarehouseCode' => $return->store->warehouse->code,
+                'WarehouseCode' => $warehouse->code,
+                // Profit center warehouse = dimensi 1 pendapatan dan HPP, sama seperti A/R Invoice (CostingCode/COGSCostingCode).
+                ...(filled($warehouse->profit_center) ? ['CostingCode' => $warehouse->profit_center, 'COGSCostingCode' => $warehouse->profit_center] : []),
             ];
         })->values()->all();
     }

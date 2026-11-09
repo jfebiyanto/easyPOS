@@ -173,6 +173,19 @@ class SapReturnPostingTest extends TestCase
             && $request['PaymentInvoices'] === [['DocEntry' => 12, 'InvoiceType' => 'it_CredItnote', 'SumApplied' => 4440.0]]);
     }
 
+    public function test_profit_center_warehouse_dicatat_di_baris_credit_memo(): void
+    {
+        $this->fakeSap();
+        $this->warehouse->update(['profit_center' => 'R001']);
+        $sale = $this->sell();
+
+        $this->giveBack($sale)->assertCreated();
+
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/CreditNotes')
+            && $request['DocumentLines'][0]['CostingCode'] === 'R001'
+            && $request['DocumentLines'][0]['COGSCostingCode'] === 'R001');
+    }
+
     public function test_retur_mengembalikan_stok_ke_buku_besar_warehouse(): void
     {
         $this->fakeSap();

@@ -280,6 +280,24 @@ class SapStockTransferPostingTest extends TestCase
             && $request['FromWarehouse'] === 'G.001.IT' && $request['Comments'] === 'Diterima lengkap oleh Budi');
     }
 
+    public function test_profit_center_warehouse_gerai_pembuat_dicatat_di_costing_code_setiap_baris(): void
+    {
+        $this->fakeSap();
+        $this->source->update(['profit_center' => 'R001']);
+        $this->destination->update(['profit_center' => 'R002']);
+
+        $shipment = $this->postShipment([[$this->product, 5]]);
+        $receipt = (new StockTransferService)->receive($shipment, [$shipment->lines()->value('id') => 3], $this->owner)->fresh();
+        $return = $this->returnLines($shipment, [[$this->product, 2]])->fresh();
+
+        // Shipment dan Return memakai profit center gerai pengirim; Receipt memakai gerai penerima.
+        foreach ([[$shipment->id, 'R001'], [$receipt->id, 'R002'], [$return->id, 'R001']] as [$documentId, $profitCenter]) {
+            Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/StockTransfers')
+                && $request['U_SOL_TRKY'] === $documentId
+                && collect($request['StockTransferLines'])->every(fn (array $line) => ($line['CostingCode'] ?? null) === $profitCenter));
+        }
+    }
+
     public function test_receipt_memakai_in_transit_ke_warehouse_penerima(): void
     {
         $this->fakeSap();

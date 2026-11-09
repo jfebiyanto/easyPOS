@@ -153,6 +153,19 @@ class SapStockAdjustmentPostingTest extends TestCase
             && $request['DocumentLines'] === [['ItemCode' => 'TEH-01', 'Quantity' => 2.0, 'WarehouseCode' => 'G.001.MN']]);
     }
 
+    public function test_profit_center_warehouse_dicatat_di_costing_code_baris_goods_receipt_dan_issue(): void
+    {
+        $this->fakeSap();
+        $this->warehouse->update(['profit_center' => 'R001']);
+
+        $this->adjust(['KOPI-01' => 13, 'TEH-01' => 8]);
+
+        foreach (['InventoryGenEntries', 'InventoryGenExits'] as $resource) {
+            Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/'.$resource)
+                && collect($request['DocumentLines'])->every(fn (array $line) => ($line['CostingCode'] ?? null) === 'R001'));
+        }
+    }
+
     public function test_post_mengubah_saldo_dan_buku_besar_warehouse(): void
     {
         $this->fakeSap();

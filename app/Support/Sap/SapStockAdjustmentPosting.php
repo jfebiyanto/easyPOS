@@ -6,6 +6,7 @@ use App\Jobs\PostStockAdjustmentToSap;
 use App\Models\CompanyDetail;
 use App\Models\StockAdjustment;
 use App\Models\StockAdjustmentLine;
+use App\Models\Warehouse;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -16,7 +17,8 @@ use Throwable;
  * resource InventoryGenEntries) dan selisih negatif menjadi Goods Issue (OIGE, ObjType 60, resource
  * InventoryGenExits). Satu penyesuaian dapat menghasilkan keduanya.
  *
- * - Hanya gerai berwarehouse yang diposting; warehouse = warehouse gerai. Harga/cost tidak dikirim (cost hanya di SAP).
+ * - Hanya gerai berwarehouse yang diposting; warehouse = warehouse gerai, profit center warehouse diisi ke CostingCode (OcrCode)
+ *   setiap baris bila terisi. Harga/cost tidak dikirim (cost hanya di SAP).
  * - Header dokumen: U_SOL_FRST = 'Y', U_SOL_TRKY = UUID penyesuaian, U_SOL_STID = UUID gerai;
  *   nomor penyesuaian di JournalMemo, alasan di Comments.
  * - Idempoten per dokumen: sebelum membuat, cari dokumen dengan U_SOL_TRKY yang sama di resource-nya.
@@ -65,11 +67,11 @@ class SapStockAdjustmentPosting
             $client->login();
 
             if ($receipts->isNotEmpty() && $adjustment->sap_receipt_doc_entry === null) {
-                $this->postDocument($client, $adjustment, 'InventoryGenEntries', $receipts, $warehouse->code, 'receipt', self::OBJ_GOODS_RECEIPT);
+                $this->postDocument($client, $adjustment, 'InventoryGenEntries', $receipts, $warehouse, 'receipt', self::OBJ_GOODS_RECEIPT);
             }
 
             if ($issues->isNotEmpty() && $adjustment->sap_issue_doc_entry === null) {
-                $this->postDocument($client, $adjustment, 'InventoryGenExits', $issues, $warehouse->code, 'issue', self::OBJ_GOODS_ISSUE);
+                $this->postDocument($client, $adjustment, 'InventoryGenExits', $issues, $warehouse, 'issue', self::OBJ_GOODS_ISSUE);
             }
 
             $adjustment->forceFill([
@@ -90,7 +92,7 @@ class SapStockAdjustmentPosting
     /**
      * @param  Collection<int, StockAdjustmentLine>  $lines
      */
-    private function postDocument(SapServiceLayer $client, StockAdjustment $adjustment, string $resource, $lines, string $warehouseCode, string $column, int $objType): void
+    private function postDocument(SapServiceLayer $client, StockAdjustment $adjustment, string $resource, $lines, Warehouse $warehouse, string $column, int $objType): void
     {
         $document = $this->findByTrackingKey($client, $resource, $adjustment->id)
             ?? $client->create($resource, [
@@ -103,7 +105,9 @@ class SapStockAdjustmentPosting
                 'DocumentLines' => $lines->map(fn (StockAdjustmentLine $line) => [
                     'ItemCode' => $line->product?->sku ?? throw new RuntimeException("Adjustment {$adjustment->number} has a line without an item code."),
                     'Quantity' => abs((float) $line->delta),
-                    'WarehouseCode' => $warehouseCode,
+                    'WarehouseCode' => $warehouse->code,
+                    // Profit center warehouse (UDF U_SOL_PRFC) = dimensi 1 (OcrCode; di Service Layer bernama CostingCode).
+                    ...(filled($warehouse->profit_center) ? ['CostingCode' => $warehouse->profit_center] : []),
                 ])->values()->all(),
             ]);
 
