@@ -13,12 +13,12 @@ use RuntimeException;
 use Throwable;
 
 /**
- * Posting retur penjualan POS ke SAP B1: A/R Credit Memo yang menyalin baris A/R Invoice asal,
+ * Posting retur penjualan POS ke SAP B1: A/R Credit Memo yang mengikuti baris A/R Invoice asal,
  * lalu (hanya untuk pengembalian dana tunai) satu Outgoing Payment ke pelanggan yang menunjuk
  * Credit Memo tersebut (otomatis terekonsiliasi).
  *
- * - Credit Memo memakai BaseType/BaseEntry/BaseLine ke invoice asal, sehingga harga dan biaya mengikuti
- *   invoice; baris dicocokkan lewat ItemCode pada DocumentLines invoice di SAP.
+ * - Credit Memo dibuat tanpa base document (invoice yang sudah dibayar berstatus closed dan ditolak SAP); harga, PPN,
+ *   dan akun disalin dari DocumentLines invoice asal, dicocokkan lewat ItemCode.
  * - Header dokumen: U_SOL_FRST = 'Y', U_SOL_TRKY = UUID retur, U_SOL_STID = UUID gerai; nomor retur di JournalMemo.
  * - Idempoten per langkah: sebelum membuat dokumen, cari dokumen dengan U_SOL_TRKY yang sama.
  * - Retur menunggu sampai penjualan asalnya punya A/R Invoice di SAP.
@@ -144,7 +144,7 @@ class SapReturnPosting
     }
 
     /**
-     * Baris Credit Memo menyalin baris A/R Invoice asal (harga mengikuti invoice); hanya Quantity yang dikirim.
+     * Baris Credit Memo (tanpa base document) memakai harga, PPN, dan akun dari baris A/R Invoice asal.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -156,19 +156,25 @@ class SapReturnPosting
 
         $invoiceLines = collect($invoice['DocumentLines'] ?? []);
 
-        return $return->lines->map(function (SalesReturnLine $line) use ($invoiceLines, $invoiceEntry, $return) {
+        return $return->lines->map(function (SalesReturnLine $line) use ($invoiceLines, $return) {
             $sku = (string) ($line->product?->sku ?? $line->saleLine?->sku_snapshot);
             $base = $invoiceLines->firstWhere('ItemCode', $sku)
                 ?? throw new RuntimeException("Baris {$sku} tidak ditemukan pada A/R Invoice asal di SAP B1.");
 
             $warehouse = $return->store->warehouse;
 
+            $inclusive = (bool) $this->company->ppn_inclusive;
+            $price = $inclusive ? ($base['PriceAfterVAT'] ?? null) : ($base['Price'] ?? $base['UnitPrice'] ?? null);
+
             return [
-                'BaseType' => SapSalePosting::OBJ_INVOICE,
-                'BaseEntry' => $invoiceEntry,
-                'BaseLine' => (int) $base['LineNum'],
+                'ItemCode' => $sku,
                 'Quantity' => (float) $line->qty,
                 'WarehouseCode' => $warehouse->code,
+                // Invoice yang sudah dibayar berstatus closed dan ditolak sebagai base document oleh Service Layer;
+                // harga, PPN, dan akun pendapatan disalin dari baris invoice asal.
+                ...(filled($price) ? [$inclusive ? 'PriceAfterVAT' : 'Price' => (float) $price] : []),
+                ...(filled($base['VatGroup'] ?? null) ? ['VatGroup' => $base['VatGroup']] : []),
+                ...(filled($base['AccountCode'] ?? null) ? ['AccountCode' => $base['AccountCode']] : []),
                 // Profit center warehouse = dimensi 1 pendapatan dan HPP, sama seperti A/R Invoice (CostingCode/COGSCostingCode).
                 ...(filled($warehouse->profit_center) ? ['CostingCode' => $warehouse->profit_center, 'COGSCostingCode' => $warehouse->profit_center] : []),
             ];

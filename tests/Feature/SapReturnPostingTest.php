@@ -105,7 +105,7 @@ class SapReturnPostingTest extends TestCase
             return match (true) {
                 str_ends_with($url, '/Login') => Http::response(['SessionId' => 'abc']),
                 str_ends_with($url, '/Logout') => Http::response('', 204),
-                $get && str_contains($url, '/Invoices(') => Http::response(['DocTotal' => 8880, 'DocumentLines' => [['LineNum' => 3, 'ItemCode' => 'INDF-0001']]]),
+                $get && str_contains($url, '/Invoices(') => Http::response(['DocTotal' => 8880, 'DocumentLines' => [['LineNum' => 3, 'ItemCode' => 'INDF-0001', 'AccountCode' => '4100-1001-0001', 'VatGroup' => 'PPNK-11', 'Price' => 4000, 'PriceAfterVAT' => 4440]]]),
                 $get && str_contains($url, '/CreditNotes(') => Http::response(['DocTotal' => $options['memoTotal'] ?? 4440]),
                 $get && str_contains($url, '/CreditNotes') => Http::response(['value' => array_filter([$options['memo'] ?? null])]),
                 $get && str_contains($url, '/VendorPayments') => Http::response(['value' => array_filter([$options['refund'] ?? null])]),
@@ -163,7 +163,7 @@ class SapReturnPostingTest extends TestCase
             && $request['U_SOL_TRKY'] === $return->id
             && $request['U_SOL_STID'] === $this->store->id
             && $request['JournalMemo'] === $return->number
-            && $request['DocumentLines'] === [['BaseType' => 13, 'BaseEntry' => 4, 'BaseLine' => 3, 'Quantity' => 1.0, 'WarehouseCode' => 'G.001.MN']]);
+            && $request['DocumentLines'] === [['ItemCode' => 'INDF-0001', 'Quantity' => 1.0, 'WarehouseCode' => 'G.001.MN', 'Price' => 4000.0, 'VatGroup' => 'PPNK-11', 'AccountCode' => '4100-1001-0001']]);
         Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/VendorPayments')
             && $request['DocType'] === 'rCustomer'
             && $request['CashAccount'] === '1100-1001-0002'
@@ -171,6 +171,20 @@ class SapReturnPostingTest extends TestCase
             && $request['U_SOL_TRKY'] === $return->id
             && $request['JournalRemarks'] === $return->number
             && $request['PaymentInvoices'] === [['DocEntry' => 12, 'InvoiceType' => 'it_CredItnote', 'SumApplied' => 4440.0]]);
+    }
+
+    public function test_credit_memo_memakai_harga_setelah_ppn_bila_ppn_inklusif_dan_tanpa_base_document(): void
+    {
+        $this->fakeSap();
+        $this->company->update(['ppn_inclusive' => true]);
+        $sale = $this->sell();
+
+        $this->giveBack($sale)->assertCreated();
+
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/CreditNotes')
+            && $request['DocumentLines'][0]['PriceAfterVAT'] === 4440.0
+            && ! isset($request['DocumentLines'][0]['Price'])
+            && ! isset($request['DocumentLines'][0]['BaseEntry']));
     }
 
     public function test_profit_center_warehouse_dicatat_di_baris_credit_memo(): void
