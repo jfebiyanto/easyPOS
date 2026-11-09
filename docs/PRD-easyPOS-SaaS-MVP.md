@@ -345,7 +345,7 @@ Store Manager non-owner adalah persona sekunder: menjalankan operasional gerainy
 - FR-B2-04: Alamat disimpan sebagai snapshot transaksi.
 - FR-B2-05: Owner/Store Manager dapat memperbarui status & melihat daftar pengiriman.
 
-### B3 — Stock adjustment
+### B3 — Stock counting (sebelumnya "Stock adjustment"; nama menu berubah 2026-11-09, rute dan tabel tetap `stock-adjustments`)
 - FR-B3-01: Gerai, tanggal, alasan, baris produk (qty sebelum/sesudah/selisih).
 - FR-B3-02: Setelah diposting tidak bisa diedit; koreksi via adjustment baru.
 - FR-B3-03: Hanya Store Manager/Owner.
