@@ -2,23 +2,27 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Concerns\AuthorizesSuperuser;
 use App\Http\Controllers\Admin\Concerns\ScopesToStore;
 use App\Http\Controllers\Concerns\AuthorizesCompany;
 use App\Http\Controllers\Controller;
+use App\Models\CompanyDetail;
 use App\Models\NumberingConfig;
 use App\Models\Product;
 use App\Models\StockAdjustment;
 use App\Models\StockLedger;
 use App\Models\Store;
 use App\Support\ActivityLogger;
-use App\Support\StockService;
+use App\Support\SaleStock;
+use App\Support\Sap\SapStockAdjustmentPosting;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class StockAdjustmentController extends Controller
 {
-    use AuthorizesCompany, ScopesToStore;
+    use AuthorizesCompany, AuthorizesSuperuser, ScopesToStore;
 
     public function index(Request $request): View
     {
@@ -74,7 +78,7 @@ class StockAdjustmentController extends Controller
                 continue;
             }
 
-            $before = StockService::balance($storeId, $line['product_id']);
+            $before = SaleStock::balance($storeId, $line['product_id']);
             $after = (float) $line['qty_after'];
 
             $adjustment->lines()->create([
@@ -101,34 +105,62 @@ class StockAdjustmentController extends Controller
     {
         $this->ensureCompany($stockAdjustment->company_id);
         abort_unless(in_array($stockAdjustment->store_id, $this->allowedStoreIds($request), true), 403);
-        abort_if($stockAdjustment->isPosted(), 422, 'The adjustment has already been posted.');
 
-        foreach ($stockAdjustment->lines as $line) {
-            StockService::assertNonNegative($stockAdjustment->store_id, $line->product_id, (float) $line->delta);
+        // Gerai berwarehouse memakai buku besar warehouse dan wajib diposting ke SAP B1 (seperti transfer stok).
+        $hasWarehouse = SaleStock::warehouseFor($stockAdjustment->store_id) !== null;
+        if ($hasWarehouse && ! CompanyDetail::find($stockAdjustment->company_id)?->sapIntegrationActive()) {
+            return back()->with('error', 'SAP integration is not active; stock adjustments of a store with a warehouse cannot be posted.');
         }
 
-        foreach ($stockAdjustment->lines as $line) {
-            StockService::record(
-                $stockAdjustment->store_id,
-                $line->product_id,
-                StockLedger::TYPE_ADJUSTMENT,
-                (float) $line->delta,
-                [
+        DB::transaction(function () use ($stockAdjustment) {
+            $locked = StockAdjustment::whereKey($stockAdjustment->id)->lockForUpdate()->with('lines')->firstOrFail();
+            abort_if($locked->isPosted(), 422, 'The adjustment has already been posted.');
+
+            foreach ($locked->lines as $line) {
+                SaleStock::assertAvailable($locked->store_id, $line->product_id, (float) $line->delta);
+            }
+
+            foreach ($locked->lines as $line) {
+                if ((float) $line->delta === 0.0) {
+                    continue;
+                }
+
+                SaleStock::record($locked->store_id, $line->product_id, StockLedger::TYPE_ADJUSTMENT, (float) $line->delta, [
+                    'company_id' => $locked->company_id,
                     'ref_type' => 'stock_adjustment',
-                    'ref_id' => $stockAdjustment->id,
-                    'note' => $stockAdjustment->reason,
-                ]
-            );
-        }
+                    'ref_id' => $locked->id,
+                    'note' => $locked->reason,
+                    'created_by' => auth()->id(),
+                ]);
+            }
 
-        $stockAdjustment->update([
-            'status' => StockAdjustment::STATUS_POSTED,
-            'posted_at' => now(),
-            'number' => NumberingConfig::nextNumber('stock_adjustment'),
-        ]);
+            $locked->update([
+                'status' => StockAdjustment::STATUS_POSTED,
+                'posted_at' => now(),
+                'number' => NumberingConfig::nextNumber('stock_adjustment'),
+            ]);
 
-        ActivityLogger::log('stock.adjustment_posted', "Posting adjustment {$stockAdjustment->number}", $stockAdjustment);
+            SapStockAdjustmentPosting::queue($locked);
+
+            ActivityLogger::log('stock.adjustment_posted', "Posting adjustment {$locked->number}", $locked);
+        });
 
         return redirect()->route('admin.stock-adjustments.index')->with('success', 'Adjustment posted successfully.');
+    }
+
+    public function retry(Request $request, StockAdjustment $stockAdjustment)
+    {
+        $this->ensureSuperuser($request);
+        $this->ensureCompany($stockAdjustment->company_id);
+        abort_unless($stockAdjustment->isPosted(), 422, 'Only posted adjustments can be sent to SAP B1.');
+        abort_if($stockAdjustment->sap_post_status === StockAdjustment::SAP_POSTED, 422, 'The adjustment has already been posted to SAP B1.');
+
+        if (! CompanyDetail::find($stockAdjustment->company_id)?->sapIntegrationActive()) {
+            return back()->with('error', 'SAP integration is not active.');
+        }
+
+        SapStockAdjustmentPosting::queue($stockAdjustment);
+
+        return back()->with('success', "Adjustment {$stockAdjustment->number} scheduled to be sent to SAP B1.");
     }
 }

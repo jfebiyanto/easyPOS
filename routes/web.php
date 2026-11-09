@@ -156,6 +156,7 @@ Route::prefix('admin')
         Route::get('/stock-adjustments/create', [Admin\StockAdjustmentController::class, 'create'])->name('stock-adjustments.create');
         Route::post('/stock-adjustments', [Admin\StockAdjustmentController::class, 'store'])->name('stock-adjustments.store');
         Route::post('/stock-adjustments/{stockAdjustment}/post', [Admin\StockAdjustmentController::class, 'post'])->name('stock-adjustments.post');
+        Route::post('/stock-adjustments/{stockAdjustment}/retry', [Admin\StockAdjustmentController::class, 'retry'])->name('stock-adjustments.retry');
 
         Route::get('/stock-transfers', [Admin\StockTransferController::class, 'index'])->name('stock-transfers.index');
 

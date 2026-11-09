@@ -11,7 +11,7 @@ use App\Models\WarehouseStockLedger;
 /**
  * Stok untuk penjualan POS. Gerai yang terhubung ke warehouse memakai buku besar warehouse
  * (saldo tersinkron dengan SAP B1); gerai tanpa warehouse tetap memakai buku stok gerai lama.
- * Retur dan penyesuaian belum diposting ke SAP sehingga tetap di buku stok gerai.
+ * Retur memakai buku yang sama dengan penjualan asalnya; penyesuaian stok mengikuti warehouse gerai dan diposting ke SAP.
  * Transfer (Shipment/Receipt) bukan lewat kelas ini: ia memakai buku besar warehouse langsung dan diposting ke SAP.
  */
 class SaleStock

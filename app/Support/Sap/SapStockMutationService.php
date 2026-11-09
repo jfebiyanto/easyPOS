@@ -6,6 +6,7 @@ use App\Models\CompanyDetail;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SalesReturn;
+use App\Models\StockAdjustment;
 use App\Models\StockTransferReceipt;
 use App\Models\StockTransferReturn;
 use App\Models\StockTransferShipment;
@@ -142,7 +143,7 @@ class SapStockMutationService
                     return $result;
                 }
 
-                $linked = $this->linkToEasyPosSale($row) || $this->linkToEasyPosTransfer($row);
+                $linked = $this->linkToEasyPosSale($row) || $this->linkToEasyPosTransfer($row) || $this->linkToEasyPosAdjustment($row);
                 $result[$linked || ! $this->apply($row) ? 'skipped' : 'created']++;
                 $known[$seq] = true;
                 $this->touchedSkus[(string) $row['ItemCode']] = true;
@@ -320,6 +321,32 @@ class SapStockMutationService
         }
 
         return $this->linkToLedger($row, 'sales_return', $returnId);
+    }
+
+    /**
+     * Mutasi dari Goods Receipt (59) / Goods Issue (60) yang diposting easyPOS (penyesuaian stok) sudah tercatat
+     * saat penyesuaian di-Post: baris OIVL cukup ditautkan ke baris buku besar penyesuaian itu.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    private function linkToEasyPosAdjustment(array $row): bool
+    {
+        $column = match ((int) ($row['TransType'] ?? 0)) {
+            SapStockAdjustmentPosting::OBJ_GOODS_RECEIPT => 'sap_receipt_doc_entry',
+            SapStockAdjustmentPosting::OBJ_GOODS_ISSUE => 'sap_issue_doc_entry',
+            default => null,
+        };
+
+        if ($column === null || ! isset($row['CreatedBy'])) {
+            return false;
+        }
+
+        $adjustmentId = StockAdjustment::where('company_id', $this->company->id)->where($column, (int) $row['CreatedBy'])->value('id');
+        if ($adjustmentId === null) {
+            return false;
+        }
+
+        return $this->linkToLedger($row, 'stock_adjustment', $adjustmentId);
     }
 
     /**
