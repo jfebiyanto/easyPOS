@@ -72,6 +72,22 @@ class EodTest extends TestCase
         return Sale::latest('created_at')->first();
     }
 
+    public function test_kas_diharapkan_mengikuti_jenis_cash_bukan_kode_pembayaran(): void
+    {
+        $this->cash->update(['code' => 'TUNAI']);
+        $this->assertTrue($this->cash->fresh()->isCash());
+
+        $this->sell(1);
+
+        $this->actingAs($this->owner)->post(route('admin.eod.store'), [
+            'store_id' => $this->store->id,
+            'business_date' => company_today(),
+            'denominations' => [10000 => 1],
+        ])->assertRedirect();
+
+        $this->assertSame(10000.0, (float) StoreClosure::firstOrFail()->cash_expected);
+    }
+
     public function test_halaman_eod_dapat_diakses(): void
     {
         $this->actingAs($this->owner)->get(route('admin.eod.index'))->assertOk();

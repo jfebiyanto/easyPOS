@@ -525,7 +525,7 @@ export default function App() {
     };
 
     // ---- Tombol fungsi F1–F12, keyboard, dan dialog (docs/Design-Brief-Layar-POS.md) ----
-    const cashMethod = boot?.payment_types?.find((pt) => pt.code === 'CASH');
+    const cashMethod = boot?.payment_types?.find((pt) => pt.is_cash);
     const promptOpen = Boolean(boot?.prompt?.greeting || boot?.prompt?.backdate_date);
     const modalOpen = showPayment || showHolds || showReturn || showDevice || showCustomer || showDelivery
         || showTransactions || showEditItem || Boolean(confirm) || Boolean(receipt) || promptOpen || Boolean(storeChangeMessage);

@@ -42,7 +42,7 @@ class StoreClosureController extends Controller
             ->whereDate('sales.business_date', $businessDate)
             ->where('sales.status', Sale::STATUS_COMPLETED)
             ->where('sale_payments.status', 'confirmed')
-            ->whereIn('sale_payments.payment_type_id', PaymentType::where('company_id', $company->id)->where('code', 'CASH')->pluck('id'))
+            ->whereIn('sale_payments.payment_type_id', PaymentType::where('company_id', $company->id)->where('kind', PaymentType::KIND_CASH)->pluck('id'))
             ->sum('sale_payments.amount') : 0;
 
         $reviewCount = $store ? Sale::where('store_id', $store->id)
@@ -112,7 +112,7 @@ class StoreClosureController extends Controller
             ->whereDate('sales.business_date', $businessDate)
             ->where('sales.status', Sale::STATUS_COMPLETED)
             ->where('sale_payments.status', 'confirmed')
-            ->whereIn('sale_payments.payment_type_id', PaymentType::where('company_id', $company->id)->where('code', 'CASH')->pluck('id'))
+            ->whereIn('sale_payments.payment_type_id', PaymentType::where('company_id', $company->id)->where('kind', PaymentType::KIND_CASH)->pluck('id'))
             ->sum('sale_payments.amount');
 
         $cashCounted = 0.0;

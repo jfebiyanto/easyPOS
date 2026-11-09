@@ -158,6 +158,8 @@ class PosTest extends TestCase
         $types = collect($this->actingAs($this->cashier)->getJson('/pos/bootstrap')->assertOk()->json('payment_types'))->keyBy('code');
         $this->assertTrue($types['EDC']['requires_approval']);
         $this->assertFalse($types['CASH']['requires_approval']);
+        $this->assertTrue($types['CASH']['is_cash']);
+        $this->assertFalse($types['EDC']['is_cash']);
 
         $this->postJson('/pos/sales', $this->salePayload(['payments' => [
             ['payment_type_id' => $edc->id, 'amount' => 8880, 'status' => 'confirmed', 'approval_code' => ' 123456 '],

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { approvalMissing, normalizePayments, requiresApproval } from './payment.js';
 
 const types = [
-    { id: 'cash', code: 'CASH', requires_approval: false },
+    { id: 'cash', code: 'CASH', is_cash: true, requires_approval: false },
     { id: 'edc', code: 'EDC', requires_approval: true },
 ];
 

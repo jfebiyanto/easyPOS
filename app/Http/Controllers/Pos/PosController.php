@@ -53,9 +53,9 @@ class PosController extends Controller
             ->where('is_active', true)
             ->whereHas('stores', fn ($q) => $q->where('stores.id', $store->id))
             ->orderBy('order_number')
-            ->get(['id', 'code', 'description', 'count_type', 'is_offline_allowed', 'credit_card_id'])
+            ->get(['id', 'code', 'description', 'count_type', 'is_offline_allowed', 'credit_card_id', 'kind'])
             // Tipe yang dipetakan ke kartu kredit SAP (QRIS, EDC/kartu) mencatat kode approval.
-            ->map(fn (PaymentType $type) => $type->only(['id', 'code', 'description', 'count_type', 'is_offline_allowed']) + ['requires_approval' => $type->credit_card_id !== null]);
+            ->map(fn (PaymentType $type) => $type->only(['id', 'code', 'description', 'count_type', 'is_offline_allowed']) + ['requires_approval' => $type->credit_card_id !== null, 'is_cash' => $type->isCash()]);
 
         return response()->json([
             'company' => [
@@ -872,7 +872,7 @@ class PosController extends Controller
 
     /**
      * Ringkasan satu business date gerai: transaksi selesai dijumlah, void dihitung terpisah.
-     * Kembalian dikurangkan dari tunai (CASH) agar rincian metode bayar sama dengan total penjualan.
+     * Kembalian dikurangkan dari tunai (CASH) agar rincian metode bayar sama dengan total penjualan; metode tunai ditentukan dari jenisnya (kind), bukan kodenya.
      *
      * @return array{count: int, void_count: int, subtotal: float, discount_total: float, tax_total: float, total: float, by_payment_type: list<array{code: string, description: ?string, amount: float}>}
      */
@@ -894,14 +894,14 @@ class PosController extends Controller
             ->whereDate('sales.business_date', $businessDate)
             ->where('sales.status', '!=', Sale::STATUS_VOID)
             ->where('sale_payments.status', 'confirmed')
-            ->groupBy('payment_types.code', 'payment_types.description')
+            ->groupBy('payment_types.code', 'payment_types.description', 'payment_types.kind')
             ->orderBy('payment_types.code')
-            ->selectRaw('payment_types.code as code, payment_types.description as description, sum(sale_payments.amount) as amount')
+            ->selectRaw('payment_types.code as code, payment_types.description as description, payment_types.kind as kind, sum(sale_payments.amount) as amount')
             ->get()
             ->map(fn ($row) => [
                 'code' => $row->code ?? '-',
                 'description' => $row->description,
-                'amount' => round((float) $row->amount - ($row->code === 'CASH' ? (float) $completed->change_total : 0), 2),
+                'amount' => round((float) $row->amount - ($row->kind === PaymentType::KIND_CASH ? (float) $completed->change_total : 0), 2),
             ])
             ->values()
             ->all();
