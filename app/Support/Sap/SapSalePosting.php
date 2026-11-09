@@ -9,6 +9,7 @@ use App\Models\PaymentType;
 use App\Models\Sale;
 use App\Models\SaleLine;
 use App\Models\SalePayment;
+use App\Models\SalesReturn;
 use App\Models\Warehouse;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -94,6 +95,8 @@ class SapSalePosting
                 'sap_post_error' => null,
                 'sap_posted_at' => now(),
             ])->saveQuietly();
+
+            $this->queueWaitingReturns($sale);
         } catch (Throwable $e) {
             $sale->forceFill([
                 'sap_post_status' => Sale::SAP_FAILED,
@@ -102,6 +105,17 @@ class SapSalePosting
         } finally {
             $client->logout();
         }
+    }
+
+    /**
+     * Retur yang menunggu invoice penjualan ini diantrekan (gagal karena invoice belum ada, atau baru dibuat).
+     */
+    private function queueWaitingReturns(Sale $sale): void
+    {
+        SalesReturn::where('original_sale_id', $sale->id)
+            ->whereIn('sap_post_status', [SalesReturn::SAP_PENDING, SalesReturn::SAP_FAILED])
+            ->get()
+            ->each(fn (SalesReturn $return) => SapReturnPosting::queue($return));
     }
 
     private function assertPostable(Sale $sale): void

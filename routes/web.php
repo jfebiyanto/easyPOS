@@ -81,6 +81,8 @@ Route::prefix('admin')
         // Posting penjualan POS ke SAP B1
         Route::get('/sap-postings', [Admin\SapPostingController::class, 'index'])->name('sap-postings.index');
         Route::post('/sap-postings/{sale}/retry', [Admin\SapPostingController::class, 'retry'])->name('sap-postings.retry');
+        Route::get('/sap-return-postings', [Admin\SapPostingController::class, 'returns'])->name('sap-postings.returns');
+        Route::post('/sap-return-postings/{salesReturn}/retry', [Admin\SapPostingController::class, 'retryReturn'])->name('sap-postings.returns.retry');
 
         // Activity log
         Route::get('/activity-logs', [Admin\ActivityLogController::class, 'index'])->name('logs.index');

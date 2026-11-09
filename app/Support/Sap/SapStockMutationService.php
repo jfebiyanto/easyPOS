@@ -5,6 +5,7 @@ namespace App\Support\Sap;
 use App\Models\CompanyDetail;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Models\SalesReturn;
 use App\Models\StockTransferReceipt;
 use App\Models\StockTransferReturn;
 use App\Models\StockTransferShipment;
@@ -281,7 +282,15 @@ class SapStockMutationService
      */
     private function linkToEasyPosSale(array $row): bool
     {
-        if ((int) ($row['TransType'] ?? 0) !== SapSalePosting::OBJ_INVOICE || ! isset($row['CreatedBy'])) {
+        if (! isset($row['CreatedBy'])) {
+            return false;
+        }
+
+        if ((int) ($row['TransType'] ?? 0) === SapReturnPosting::OBJ_CREDIT_MEMO) {
+            return $this->linkToEasyPosReturn($row);
+        }
+
+        if ((int) ($row['TransType'] ?? 0) !== SapSalePosting::OBJ_INVOICE) {
             return false;
         }
 
@@ -293,6 +302,24 @@ class SapStockMutationService
         }
 
         return $this->linkToLedger($row, 'sale', $saleId);
+    }
+
+    /**
+     * Mutasi dari A/R Credit Memo yang diposting easyPOS (retur) sudah tercatat saat retur dibuat:
+     * baris OIVL cukup ditautkan ke baris buku besar retur itu.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    private function linkToEasyPosReturn(array $row): bool
+    {
+        $returnId = SalesReturn::where('company_id', $this->company->id)
+            ->where('sap_credit_memo_doc_entry', (int) $row['CreatedBy'])
+            ->value('id');
+        if ($returnId === null) {
+            return false;
+        }
+
+        return $this->linkToLedger($row, 'sales_return', $returnId);
     }
 
     /**

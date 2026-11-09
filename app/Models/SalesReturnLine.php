@@ -26,4 +26,9 @@ class SalesReturnLine extends Model
     {
         return $this->belongsTo(Product::class);
     }
+
+    public function saleLine()
+    {
+        return $this->belongsTo(SaleLine::class);
+    }
 }

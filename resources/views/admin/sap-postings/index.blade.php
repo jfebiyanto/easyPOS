@@ -12,6 +12,10 @@
 
 @section('content')
 <div class="tabs">
+    <a href="{{ route('admin.sap-postings.index') }}" class="active">Sales</a>
+    <a href="{{ route('admin.sap-postings.returns') }}">Returns</a>
+</div>
+<div class="tabs">
     <a href="{{ route('admin.sap-postings.index') }}" class="{{ $status ? '' : 'active' }}">All</a>
     @foreach ($statusLabels as $key => $label)
         <a href="{{ route('admin.sap-postings.index', ['status' => $key]) }}" class="{{ $status === $key ? 'active' : '' }}">{{ $label }} ({{ $counts[$key] ?? 0 }})</a>

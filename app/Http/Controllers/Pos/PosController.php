@@ -24,6 +24,7 @@ use App\Support\PricingService;
 use App\Support\SaleService;
 use App\Support\SaleStock;
 use App\Support\Sap\SapCustomerSync;
+use App\Support\Sap\SapReturnPosting;
 use App\Support\StockService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -568,12 +569,15 @@ class PosController extends Controller
         $sale = Sale::where('company_id', $company->id)->findOrFail($data['sale_id']);
 
         abort_if($sale->isVoid(), 422, 'Transaksi void tidak dapat diretur.');
+        abort_if($sale->store_id !== $store->id, 422, 'Retur hanya dapat dilakukan di gerai asal penjualan.');
 
         if ($company->return_window_days && $sale->sold_at && $sale->sold_at->diffInDays(now()) > $company->return_window_days) {
             abort(422, 'Retur melewati batas waktu yang diizinkan.');
         }
 
-        $return = DB::transaction(function () use ($sale, $data, $store, $request) {
+        $usesWarehouse = SaleStock::usesWarehouseLedger($sale->id);
+
+        $return = DB::transaction(function () use ($sale, $data, $store, $request, $usesWarehouse) {
             $return = SalesReturn::create([
                 'company_id' => $sale->company_id,
                 'store_id' => $store->id,
@@ -619,18 +623,27 @@ class PosController extends Controller
                 ]);
 
                 if ($line->product_id) {
-                    StockService::record($sale->store_id, $line->product_id, StockLedger::TYPE_SALE_RETURN, $qty, [
+                    $stockOptions = [
                         'company_id' => $sale->company_id,
                         'ref_type' => 'sales_return',
                         'ref_id' => $return->id,
                         'created_by' => $request->user()->id,
-                    ]);
+                    ];
+
+                    // Penjualan yang mengurangi buku besar warehouse dikembalikan ke buku yang sama.
+                    if ($usesWarehouse) {
+                        SaleStock::record($sale->store_id, $line->product_id, StockLedger::TYPE_SALE_RETURN, $qty, $stockOptions);
+                    } else {
+                        StockService::record($sale->store_id, $line->product_id, StockLedger::TYPE_SALE_RETURN, $qty, $stockOptions);
+                    }
                 }
             }
 
             $return->update(['total' => round($total, 2)]);
 
             LoyaltyService::reverseForReturn($return);
+
+            SapReturnPosting::queue($return);
 
             return $return->load('lines');
         });
