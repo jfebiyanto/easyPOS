@@ -6,6 +6,9 @@ use App\Models\CompanyDetail;
 use App\Models\Product;
 use App\Models\ProductGroup;
 use App\Models\StockAdjustment;
+use App\Models\StockTransferReceipt;
+use App\Models\StockTransferReturn;
+use App\Models\StockTransferShipment;
 use App\Models\Store;
 use App\Models\Unit;
 use App\Models\User;
@@ -164,6 +167,73 @@ class SapStockAdjustmentPostingTest extends TestCase
         ]);
     }
 
+    public function test_qty_sama_dengan_saldo_tidak_membuat_penyesuaian(): void
+    {
+        $this->fakeSap();
+
+        $this->actingAs($this->owner)->post(route('admin.stock-adjustments.store'), [
+            'store_id' => $this->store->id, 'date' => '2026-11-09',
+            'lines' => [['product_id' => $this->kopi->id, 'qty_after' => 10]],
+        ])->assertSessionHas('error');
+
+        $this->assertSame(0, StockAdjustment::count());
+        Http::assertNothingSent();
+    }
+
+    public function test_baris_tanpa_selisih_dilewati_dan_baris_berselisih_tetap_diposting(): void
+    {
+        $this->fakeSap();
+
+        $adjustment = $this->adjust(['KOPI-01' => 10, 'TEH-01' => 8]);
+
+        $this->assertSame(1, $adjustment->lines()->count());
+        $this->assertSame(StockAdjustment::SAP_POSTED, $adjustment->sap_post_status);
+        $this->assertSame('3200001', $adjustment->sap_issue_doc_num);
+    }
+
+    public function test_draft_lama_tanpa_selisih_tidak_bisa_diposting(): void
+    {
+        $this->fakeSap();
+        $adjustment = StockAdjustment::create([
+            'company_id' => $this->company->id, 'store_id' => $this->store->id, 'date' => '2026-11-09',
+            'status' => StockAdjustment::STATUS_DRAFT, 'created_by' => $this->owner->id,
+        ]);
+        $adjustment->lines()->create(['product_id' => $this->kopi->id, 'qty_before' => 10, 'qty_after' => 10, 'delta' => 0]);
+
+        $this->actingAs($this->owner)->post(route('admin.stock-adjustments.post', $adjustment))->assertStatus(422);
+
+        $this->assertSame(StockAdjustment::STATUS_DRAFT, $adjustment->fresh()->status);
+        Http::assertNothingSent();
+    }
+
+    public function test_form_mengambil_saldo_saat_ini_dari_warehouse_gerai(): void
+    {
+        $this->actingAs($this->owner)
+            ->getJson(route('admin.stock-adjustments.balance', ['store_id' => $this->store->id, 'product_id' => $this->kopi->id]))
+            ->assertOk()
+            ->assertJsonPath('balance', 10);
+
+        // Store Manager selalu memakai gerainya sendiri, store_id dari request diabaikan.
+        $this->actingAs($this->manager)
+            ->getJson(route('admin.stock-adjustments.balance', ['product_id' => $this->teh->id]))
+            ->assertOk()
+            ->assertJsonPath('balance', 10);
+
+        $this->actingAs($this->owner)
+            ->getJson(route('admin.stock-adjustments.balance', ['store_id' => 'bukan-gerai', 'product_id' => $this->kopi->id]))
+            ->assertStatus(422);
+
+        $this->getJson(route('admin.stock-adjustments.balance'))->assertStatus(422);
+    }
+
+    public function test_form_penyesuaian_menampilkan_petunjuk_saldo_saat_ini(): void
+    {
+        $this->actingAs($this->owner)->get(route('admin.stock-adjustments.create'))
+            ->assertOk()
+            ->assertSee('Current stock')
+            ->assertSee(json_encode(route('admin.stock-adjustments.balance')), false);
+    }
+
     public function test_selisih_positif_saja_hanya_membuat_goods_receipt(): void
     {
         $this->fakeSap();
@@ -244,6 +314,41 @@ class SapStockAdjustmentPostingTest extends TestCase
         $this->assertSame(StockAdjustment::SAP_FAILED, $adjustment->sap_post_status);
 
         $this->actingAs($this->manager)->post(route('admin.stock-adjustments.retry', $adjustment))->assertForbidden();
+    }
+
+    public function test_tab_inventory_integration_monitor_menampilkan_transfer_dan_penyesuaian(): void
+    {
+        $this->fakeSap(['exitFails' => true]);
+        $adjustment = $this->adjust(['KOPI-01' => 13, 'TEH-01' => 8]);
+
+        $shipment = StockTransferShipment::create([
+            'company_id' => $this->company->id, 'number' => 'SHP-0001', 'from_store_id' => $this->store->id, 'to_store_id' => $this->store->id,
+            'status' => StockTransferShipment::STATUS_POSTED, 'posted_at' => now(), 'created_by' => $this->owner->id,
+            'sap_post_status' => StockTransferShipment::SAP_POSTED, 'sap_doc_num' => '5000001',
+        ]);
+        StockTransferReceipt::create([
+            'company_id' => $this->company->id, 'shipment_id' => $shipment->id, 'number' => 'RCP-0001', 'store_id' => $this->store->id,
+            'received_at' => now(), 'created_by' => $this->owner->id,
+            'sap_post_status' => StockTransferReceipt::SAP_FAILED, 'sap_post_error' => 'Warehouse tujuan tidak ditemukan',
+        ]);
+        StockTransferReturn::create([
+            'company_id' => $this->company->id, 'shipment_id' => $shipment->id, 'number' => 'RET-0001', 'store_id' => $this->store->id,
+            'returned_at' => now(), 'created_by' => $this->owner->id, 'sap_post_status' => StockTransferReturn::SAP_PENDING,
+        ]);
+
+        $this->actingAs($this->owner)->get(route('admin.sap-postings.inventory'))
+            ->assertOk()
+            ->assertSee('Transfer Shipment')->assertSee('SHP-0001')->assertSee('Stock Transfer 5000001')
+            ->assertSee('Transfer Receipt')->assertSee('Warehouse tujuan tidak ditemukan')
+            ->assertSee('Transfer Return')->assertSee('RET-0001')
+            ->assertSee('Stock Adjustment')->assertSee($adjustment->number)->assertSee('Goods Receipt 3100001')
+            ->assertSee('Failed (2)')->assertSee('Pending (1)')->assertSee('Posted (1)')
+            ->assertSee(route('admin.stock-adjustments.retry', $adjustment), false);
+
+        $this->get(route('admin.sap-postings.inventory', ['status' => 'pending']))
+            ->assertOk()->assertSee('RET-0001')->assertDontSee('SHP-0001');
+
+        $this->actingAs($this->manager)->get(route('admin.sap-postings.inventory'))->assertForbidden();
     }
 
     public function test_mutasi_goods_receipt_dan_issue_sap_ditautkan_ke_buku_besar_penyesuaian(): void

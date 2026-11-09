@@ -81,6 +81,7 @@ Route::prefix('admin')
         // Posting penjualan POS ke SAP B1
         Route::get('/sap-postings', [Admin\SapPostingController::class, 'index'])->name('sap-postings.index');
         Route::post('/sap-postings/{sale}/retry', [Admin\SapPostingController::class, 'retry'])->name('sap-postings.retry');
+        Route::get('/sap-inventory-postings', [Admin\SapPostingController::class, 'inventory'])->name('sap-postings.inventory');
         Route::get('/sap-return-postings', [Admin\SapPostingController::class, 'returns'])->name('sap-postings.returns');
         Route::post('/sap-return-postings/{salesReturn}/retry', [Admin\SapPostingController::class, 'retryReturn'])->name('sap-postings.returns.retry');
 
@@ -154,6 +155,7 @@ Route::prefix('admin')
 
         Route::get('/stock-adjustments', [Admin\StockAdjustmentController::class, 'index'])->name('stock-adjustments.index');
         Route::get('/stock-adjustments/create', [Admin\StockAdjustmentController::class, 'create'])->name('stock-adjustments.create');
+        Route::get('/stock-adjustments/balance', [Admin\StockAdjustmentController::class, 'balance'])->name('stock-adjustments.balance');
         Route::post('/stock-adjustments', [Admin\StockAdjustmentController::class, 'store'])->name('stock-adjustments.store');
         Route::post('/stock-adjustments/{stockAdjustment}/post', [Admin\StockAdjustmentController::class, 'post'])->name('stock-adjustments.post');
         Route::post('/stock-adjustments/{stockAdjustment}/retry', [Admin\StockAdjustmentController::class, 'retry'])->name('stock-adjustments.retry');

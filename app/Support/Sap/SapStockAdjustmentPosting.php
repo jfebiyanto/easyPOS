@@ -55,10 +55,14 @@ class SapStockAdjustmentPosting
             $warehouse = $adjustment->store?->warehouse
                 ?? throw new RuntimeException('Gerai belum dihubungkan ke warehouse.');
 
-            $client->login();
-
             $receipts = $adjustment->lines->filter(fn (StockAdjustmentLine $line) => (float) $line->delta > 0);
             $issues = $adjustment->lines->filter(fn (StockAdjustmentLine $line) => (float) $line->delta < 0);
+
+            if ($receipts->isEmpty() && $issues->isEmpty()) {
+                throw new RuntimeException("Adjustment {$adjustment->number} has no quantity difference to send to SAP B1.");
+            }
+
+            $client->login();
 
             if ($receipts->isNotEmpty() && $adjustment->sap_receipt_doc_entry === null) {
                 $this->postDocument($client, $adjustment, 'InventoryGenEntries', $receipts, $warehouse->code, 'receipt', self::OBJ_GOODS_RECEIPT);

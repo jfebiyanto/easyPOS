@@ -7,14 +7,17 @@ use App\Http\Controllers\Controller;
 use App\Models\CompanyDetail;
 use App\Models\Sale;
 use App\Models\SalesReturn;
+use App\Models\StockAdjustment;
+use App\Models\Store;
 use App\Support\Sap\SapReturnPosting;
 use App\Support\Sap\SapSalePosting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 /**
- * Status posting penjualan POS ke SAP B1 dan kirim ulang yang gagal.
+ * Integration Monitor: status posting penjualan POS, retur, dan dokumen inventori ke SAP B1, serta kirim ulang yang gagal.
  */
 class SapPostingController extends Controller
 {
@@ -82,6 +85,52 @@ class SapPostingController extends Controller
             'status' => $status,
             'counts' => SalesReturn::where('company_id', $company->id)
                 ->whereNotNull('sap_post_status')
+                ->selectRaw('sap_post_status, count(*) as jumlah')
+                ->groupBy('sap_post_status')
+                ->pluck('jumlah', 'sap_post_status'),
+        ]);
+    }
+
+    /**
+     * Log posting dokumen inventori ke SAP B1: Stock Transfer (Shipment, Receipt, Return) dan Penyesuaian Stok.
+     */
+    public function inventory(Request $request): View|RedirectResponse
+    {
+        $company = CompanyDetail::current();
+
+        if (! $company->sapIntegrationActive()) {
+            return redirect()->route('admin.company.edit')
+                ->with('error', 'Enable and complete the SAP B1 integration configuration first.');
+        }
+
+        $nullDoc = 'cast(null as varchar(20))';
+        $documents = DB::table('stock_transfer_shipments')
+            ->selectRaw("id, 'shipment' as kind, number, posted_at as event_at, from_store_id as store_id, sap_post_status, sap_post_error, sap_doc_num as doc_a, {$nullDoc} as doc_b")
+            ->where('company_id', $company->id)->whereNotNull('sap_post_status')
+            ->unionAll(DB::table('stock_transfer_receipts')
+                ->selectRaw("id, 'receipt' as kind, number, received_at as event_at, store_id, sap_post_status, sap_post_error, sap_doc_num as doc_a, {$nullDoc} as doc_b")
+                ->where('company_id', $company->id)->whereNotNull('sap_post_status'))
+            ->unionAll(DB::table('stock_transfer_returns')
+                ->selectRaw("id, 'return' as kind, number, returned_at as event_at, store_id, sap_post_status, sap_post_error, sap_doc_num as doc_a, {$nullDoc} as doc_b")
+                ->where('company_id', $company->id)->whereNotNull('sap_post_status'))
+            ->unionAll(DB::table('stock_adjustments')
+                ->selectRaw('id, \'adjustment\' as kind, number, posted_at as event_at, store_id, sap_post_status, sap_post_error, sap_receipt_doc_num as doc_a, sap_issue_doc_num as doc_b')
+                ->where('company_id', $company->id)->whereNotNull('sap_post_status'));
+
+        $status = $request->query('status');
+        $statuses = [StockAdjustment::SAP_PENDING, StockAdjustment::SAP_POSTED, StockAdjustment::SAP_FAILED];
+
+        $rows = DB::query()->fromSub($documents, 'docs')
+            ->when(in_array($status, $statuses, true), fn ($q) => $q->where('sap_post_status', $status))
+            ->orderByDesc('event_at')
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('admin.sap-postings.inventory', [
+            'rows' => $rows,
+            'stores' => Store::whereIn('id', $rows->pluck('store_id')->unique())->pluck('code', 'id'),
+            'status' => $status,
+            'counts' => DB::query()->fromSub($documents, 'docs')
                 ->selectRaw('sap_post_status, count(*) as jumlah')
                 ->groupBy('sap_post_status')
                 ->pluck('jumlah', 'sap_post_status'),

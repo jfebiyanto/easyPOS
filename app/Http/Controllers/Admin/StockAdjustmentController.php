@@ -15,6 +15,7 @@ use App\Models\Store;
 use App\Support\ActivityLogger;
 use App\Support\SaleStock;
 use App\Support\Sap\SapStockAdjustmentPosting;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -50,6 +51,22 @@ class StockAdjustmentController extends Controller
         ]);
     }
 
+    /**
+     * Saldo stok saat ini sebuah produk di gerai (warehouse bila gerai berwarehouse), untuk form penyesuaian.
+     */
+    public function balance(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'store_id' => ['nullable', 'string'],
+            'product_id' => ['required', Rule::exists('products', 'id')->where('company_id', current_company_id())],
+        ]);
+
+        $storeId = $this->resolveStoreId($request, $data['store_id'] ?? null);
+        abort_unless($storeId && in_array($storeId, $this->allowedStoreIds($request), true), 422, 'Invalid store.');
+
+        return response()->json(['balance' => SaleStock::balance($storeId, $data['product_id'])]);
+    }
+
     public function store(Request $request)
     {
         $storeId = $this->resolveStoreId($request, $request->input('store_id'));
@@ -81,6 +98,11 @@ class StockAdjustmentController extends Controller
             $before = SaleStock::balance($storeId, $line['product_id']);
             $after = (float) $line['qty_after'];
 
+            // Qty sama dengan saldo saat ini = tidak ada selisih, tidak ada yang perlu disesuaikan.
+            if (abs($after - $before) < 0.0005) {
+                continue;
+            }
+
             $adjustment->lines()->create([
                 'product_id' => $line['product_id'],
                 'qty_before' => $before,
@@ -93,7 +115,7 @@ class StockAdjustmentController extends Controller
         if ($created === 0) {
             $adjustment->delete();
 
-            return back()->withInput()->with('error', 'There are no valid lines to save.');
+            return back()->withInput()->with('error', 'There are no valid lines to save. Enter the counted quantity (Qty After); lines equal to the current stock have no difference and are skipped.');
         }
 
         ActivityLogger::log('stock.adjustment_created', "Membuat draft adjustment #{$adjustment->id}", $adjustment);
@@ -115,6 +137,7 @@ class StockAdjustmentController extends Controller
         DB::transaction(function () use ($stockAdjustment) {
             $locked = StockAdjustment::whereKey($stockAdjustment->id)->lockForUpdate()->with('lines')->firstOrFail();
             abort_if($locked->isPosted(), 422, 'The adjustment has already been posted.');
+            abort_if($locked->lines->every(fn ($line) => (float) $line->delta === 0.0), 422, 'The adjustment has no quantity difference to post.');
 
             foreach ($locked->lines as $line) {
                 SaleStock::assertAvailable($locked->store_id, $line->product_id, (float) $line->delta);

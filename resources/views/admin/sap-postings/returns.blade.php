@@ -14,6 +14,7 @@
 <div class="tabs">
     <a href="{{ route('admin.sap-postings.index') }}">Sales</a>
     <a href="{{ route('admin.sap-postings.returns') }}" class="active">Returns</a>
+    <a href="{{ route('admin.sap-postings.inventory') }}">Inventory</a>
 </div>
 <div class="tabs">
     <a href="{{ route('admin.sap-postings.returns') }}" class="{{ $status ? '' : 'active' }}">All</a>
