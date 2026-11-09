@@ -1155,6 +1155,7 @@ erDiagram
 | `id` | uuid | No | PK | |
 | `company_id` | uuid FK | No | FK→`company_details` | |
 | `code` | string(30) | No | - | Unique per company |
+| `kind` | string(10) | No | custom | `cash` (tanpa mapping Credit Card SAP) / `custom` (wajib mapping saat integrasi SAP aktif); kode CASH = cash |
 | `description` | text | Yes | - | |
 | `order_number` | integer | No | 1 | Urutan tampil |
 | `count_type` | enum | No | summary | summary/detail |
@@ -1242,6 +1243,7 @@ erDiagram
 | `email` | string(150) | Yes | - | |
 | `address` | text | Yes | - | |
 | `is_member` | boolean | No | true | |
+| `is_retail` | boolean | No | false | true = BP SAP ber-UDF `U_SOL_RETAIL = 'Y'` (non-member, calon default gerai) |
 | `member_level_id` | uuid FK | Yes | FK→`member_levels` | |
 | `customer_group_id` | uuid FK | Yes | FK→`customer_groups` | |
 | `points_balance` | decimal(15,2) | No | 0 | |
@@ -1390,6 +1392,15 @@ erDiagram
 | `refund_method` | string(30) | Yes | - | |
 | `receipt_verified` | boolean | No | true | |
 | `created_by` | uuid FK | Yes | FK→`users` | |
+| `sap_post_status` | string(10) | Yes | - | `pending`/`credited`/`posted`/`failed`; indeks |
+| `sap_post_error` | text | Yes | - | |
+| `sap_credit_memo_obj_type` | integer | Yes | - | 14 |
+| `sap_credit_memo_doc_num` | string(20) | Yes | - | |
+| `sap_credit_memo_doc_entry` | integer | Yes | - | kunci teknis, disembunyikan |
+| `sap_refund_obj_type` | integer | Yes | - | 46 (Outgoing Payment tunai) |
+| `sap_refund_doc_num` | string(20) | Yes | - | |
+| `sap_refund_doc_entry` | integer | Yes | - | kunci teknis, disembunyikan |
+| `sap_posted_at` | timestamp | Yes | - | |
 | `timestamps` | - | - | - | |
 
 ### sales_return_lines
