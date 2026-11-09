@@ -17,7 +17,7 @@ class NumberingConfig extends Model
     public const TYPES = [
         'sales' => 'Sales',
         'sales_return' => 'Return',
-        'stock_adjustment' => 'Stock Adjustment',
+        'stock_adjustment' => 'Stock Counting',
         'stock_request' => 'Stock Request',
         'stock_transfer_shipment' => 'Stock Transfer Shipment',
         'stock_transfer_receipt' => 'Stock Transfer Receipt',
