@@ -1,0 +1,48 @@
+# Image produksi easyPOS (demo/VPS). Build dari root repo:
+#   docker build -f docker/Dockerfile.prod --target app -t easypos-app:demo .
+#   docker build -f docker/Dockerfile.prod --target web -t easypos-web:demo .
+
+# --- Stage 1: build aset front-end (Vite: admin, POS React, CSS) ---
+FROM node:22-alpine AS assets
+WORKDIR /app
+COPY package.json package-lock.json .npmrc ./
+RUN npm ci
+COPY vite.config.js ./
+COPY resources ./resources
+COPY public ./public
+RUN npm run build
+
+# --- Stage 2: aplikasi (php-fpm) ---
+FROM php:8.4-fpm AS app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libzip-dev zip unzip libonig-dev libpq-dev libpng-dev libjpeg-dev libfreetype6-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo pdo_pgsql pgsql mbstring zip opcache bcmath gd pcntl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+COPY docker/php/prod.ini /usr/local/etc/php/conf.d/zz-prod.ini
+
+WORKDIR /var/www
+
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-interaction
+
+COPY . .
+COPY --from=assets /app/public/build public/build
+
+RUN composer dump-autoload --optimize --no-dev --no-interaction \
+    && mkdir -p storage/app/public storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs \
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && sed -i 's/\r$//' docker/php/entrypoint-prod.sh \
+    && chmod +x docker/php/entrypoint-prod.sh
+
+EXPOSE 9000
+ENTRYPOINT ["docker/php/entrypoint-prod.sh"]
+CMD ["php-fpm"]
+
+# --- Stage 3: nginx dengan aset statis + konfigurasi ---
+FROM nginx:alpine AS web
+COPY docker/nginx/prod.conf /etc/nginx/conf.d/default.conf
+COPY --from=app /var/www/public /var/www/public

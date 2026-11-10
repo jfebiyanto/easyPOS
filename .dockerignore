@@ -7,3 +7,17 @@ co.txt
 .env
 .env.*
 !.env.example
+vendor
+public/build
+public/hot
+bootstrap/cache/*.php
+storage/app/public/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/framework/testing
+docs
+.claude
+.superpowers
+.ai
+tests
