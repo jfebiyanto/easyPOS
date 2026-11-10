@@ -22,7 +22,7 @@
         </div>
     </form>
     <a href="{{ route('admin.stock-review.index') }}" class="btn btn-tonal">
-        <span class="material-symbols-rounded">rule</span> Review Stok ({{ $reviewCount }})
+        <span class="material-symbols-rounded">rule</span> Stock Review ({{ $reviewCount }})
     </a>
 </div>
 
@@ -50,14 +50,14 @@
     <div class="md-snackbar success">
         <span class="material-symbols-rounded">lock</span>
         The store is closed for {{ $businessDate }}. Counted cash: Rp {{ number_format($closure->cash_counted, 0, ',', '.') }}
-        · Selisih: Rp {{ number_format($closure->cash_variance, 0, ',', '.') }}
+        · Variance: Rp {{ number_format($closure->cash_variance, 0, ',', '.') }}
     </div>
 @endif
 
 @if ($closure?->reopened_at)
     <p class="card-subtitle">
-        Terakhir dibuka ulang {{ $closure->reopened_at->timezone(company_timezone())->format('d/m/Y H:i') }}
-        oleh {{ $closure->reopenedBy?->name ?? '-' }} · Alasan: {{ $closure->reopen_reason }}
+        Last reopened {{ $closure->reopened_at->timezone(company_timezone())->format('d/m/Y H:i') }}
+        by {{ $closure->reopenedBy?->name ?? '-' }} · Reason: {{ $closure->reopen_reason }}
     </p>
 @endif
 
