@@ -8,6 +8,8 @@ use App\Models\PaymentType;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class PaymentTypeTest extends TestCase
@@ -263,5 +265,81 @@ class PaymentTypeTest extends TestCase
 
         $this->assertTrue($cash->fresh()->isCash());
         $this->assertSame('custom', $other->fresh()->kind);
+    }
+
+    public function test_gambar_qr_diunggah_diganti_dan_dihapus(): void
+    {
+        Storage::fake('public');
+        $this->actingAs($this->admin)
+            ->post(route('admin.payment-types.store'), $this->validPayload(['code' => 'QRIS', 'kind' => 'custom', 'is_qr_payment' => '1', 'qr_image' => UploadedFile::fake()->image('qris.png')]))
+            ->assertRedirect(route('admin.payment-types.index'));
+
+        $paymentType = PaymentType::where('code', 'QRIS')->firstOrFail();
+        $oldPath = $paymentType->qr_image_path;
+        Storage::disk('public')->assertExists($oldPath);
+        $this->assertNotNull($paymentType->qr_image_url);
+
+        $this->put(route('admin.payment-types.update', $paymentType), $this->validPayload(['code' => 'QRIS', 'kind' => 'custom', 'is_qr_payment' => '1', 'qr_image' => UploadedFile::fake()->image('baru.png')]));
+        $newPath = $paymentType->fresh()->qr_image_path;
+        $this->assertNotSame($oldPath, $newPath);
+        Storage::disk('public')->assertMissing($oldPath);
+        Storage::disk('public')->assertExists($newPath);
+
+        $this->put(route('admin.payment-types.update', $paymentType), $this->validPayload(['code' => 'QRIS', 'kind' => 'custom']));
+        $this->assertNull($paymentType->fresh()->qr_image_path);
+        Storage::disk('public')->assertMissing($newPath);
+    }
+
+    public function test_gambar_qr_dibuang_saat_bukan_pembayaran_qr(): void
+    {
+        Storage::fake('public');
+        $this->actingAs($this->admin)
+            ->post(route('admin.payment-types.store'), $this->validPayload(['code' => 'QRIS', 'kind' => 'custom', 'qr_image' => UploadedFile::fake()->image('qris.png')]));
+        $this->assertNull(PaymentType::where('code', 'QRIS')->value('qr_image_path'));
+
+        $this->post(route('admin.payment-types.store'), $this->validPayload(['code' => 'QR2', 'kind' => 'custom', 'is_qr_payment' => '1', 'qr_image' => UploadedFile::fake()->image('qris.png')]));
+        $paymentType = PaymentType::where('code', 'QR2')->firstOrFail();
+        $this->assertTrue($paymentType->is_qr_payment);
+        $path = $paymentType->qr_image_path;
+        Storage::disk('public')->assertExists($path);
+
+        $this->put(route('admin.payment-types.update', $paymentType), $this->validPayload(['code' => 'QR2', 'kind' => 'custom']));
+        $paymentType->refresh();
+        $this->assertFalse($paymentType->is_qr_payment);
+        $this->assertNull($paymentType->qr_image_path);
+        $this->assertNull($paymentType->qr_image_url);
+        Storage::disk('public')->assertMissing($path);
+    }
+
+    public function test_pembayaran_qr_wajib_punya_gambar(): void
+    {
+        Storage::fake('public');
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.payment-types.store'), $this->validPayload(['code' => 'QRIS', 'kind' => 'custom', 'is_qr_payment' => '1']))
+            ->assertSessionHasErrors('qr_image');
+        $this->assertDatabaseMissing('payment_types', ['code' => 'QRIS']);
+
+        $this->post(route('admin.payment-types.store'), $this->validPayload(['code' => 'QRIS', 'kind' => 'custom', 'is_qr_payment' => '1', 'qr_image' => UploadedFile::fake()->image('qris.png')]));
+        $paymentType = PaymentType::where('code', 'QRIS')->firstOrFail();
+
+        // Gambar lama cukup, tetapi menghapusnya tanpa pengganti ditolak.
+        $this->put(route('admin.payment-types.update', $paymentType), $this->validPayload(['code' => 'QRIS', 'kind' => 'custom', 'is_qr_payment' => '1']))
+            ->assertSessionDoesntHaveErrors();
+        $this->put(route('admin.payment-types.update', $paymentType), $this->validPayload(['code' => 'QRIS', 'kind' => 'custom', 'is_qr_payment' => '1', 'remove_qr_image' => '1']))
+            ->assertSessionHasErrors('qr_image');
+        $this->assertNotNull($paymentType->fresh()->qr_image_path);
+
+        // Bukan pembayaran QR: gambar tidak wajib.
+        $this->post(route('admin.payment-types.store'), $this->validPayload(['code' => 'VCR', 'kind' => 'custom']))->assertSessionDoesntHaveErrors();
+    }
+
+    public function test_berkas_qr_bukan_gambar_ditolak(): void
+    {
+        Storage::fake('public');
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.payment-types.store'), $this->validPayload(['code' => 'QRIS', 'kind' => 'custom', 'is_qr_payment' => '1', 'qr_image' => UploadedFile::fake()->create('qr.pdf', 10, 'application/pdf')]))
+            ->assertSessionHasErrors('qr_image');
     }
 }

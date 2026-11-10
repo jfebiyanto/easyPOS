@@ -53,9 +53,9 @@ class PosController extends Controller
             ->where('is_active', true)
             ->whereHas('stores', fn ($q) => $q->where('stores.id', $store->id))
             ->orderBy('order_number')
-            ->get(['id', 'code', 'description', 'count_type', 'is_offline_allowed', 'credit_card_id', 'kind'])
+            ->get(['id', 'code', 'description', 'count_type', 'is_offline_allowed', 'credit_card_id', 'kind', 'is_qr_payment', 'qr_image_path'])
             // Tipe yang dipetakan ke kartu kredit SAP (QRIS, EDC/kartu) mencatat kode approval.
-            ->map(fn (PaymentType $type) => $type->only(['id', 'code', 'description', 'count_type', 'is_offline_allowed']) + ['requires_approval' => $type->credit_card_id !== null, 'is_cash' => $type->isCash()]);
+            ->map(fn (PaymentType $type) => $type->only(['id', 'code', 'description', 'count_type', 'is_offline_allowed']) + ['requires_approval' => $type->credit_card_id !== null, 'is_cash' => $type->isCash(), 'qr_image_url' => $type->qr_image_url]);
 
         return response()->json([
             'company' => [

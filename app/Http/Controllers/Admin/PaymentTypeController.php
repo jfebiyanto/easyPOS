@@ -11,6 +11,7 @@ use App\Models\PaymentType;
 use App\Models\Store;
 use App\Support\ActivityLogger;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -45,8 +46,14 @@ class PaymentTypeController extends Controller
     {
         $this->ensureSuperuser($request);
 
-        $paymentType = PaymentType::create($this->validated($request) + [
+        $data = $this->validated($request);
+        $isQrPayment = $request->boolean('is_qr_payment');
+        $data['qr_image_path'] = $isQrPayment ? $request->file('qr_image')?->store('payment-qr', 'public') : null;
+        unset($data['qr_image'], $data['remove_qr_image']);
+
+        $paymentType = PaymentType::create($data + [
             'company_id' => current_company_id(),
+            'is_qr_payment' => $isQrPayment,
             'is_active' => $request->boolean('is_active'),
         ]);
         $paymentType->stores()->sync($request->input('store_ids'));
@@ -73,9 +80,28 @@ class PaymentTypeController extends Controller
         $this->ensureSuperuser($request);
         $this->ensureCompany($paymentType->company_id);
 
-        $paymentType->update($this->validated($request, $paymentType->id) + [
+        $data = $this->validated($request, $paymentType->id);
+        $oldQrPath = $paymentType->qr_image_path;
+        $isQrPayment = $request->boolean('is_qr_payment');
+        $newQrPath = $isQrPayment ? $request->file('qr_image')?->store('payment-qr', 'public') : null;
+
+        // Bukan pembayaran QR: gambar lama dibuang.
+        if (! $isQrPayment || $request->boolean('remove_qr_image')) {
+            $data['qr_image_path'] = null;
+        }
+        if ($newQrPath) {
+            $data['qr_image_path'] = $newQrPath;
+        }
+        unset($data['qr_image'], $data['remove_qr_image']);
+
+        $paymentType->update($data + [
+            'is_qr_payment' => $isQrPayment,
             'is_active' => $request->boolean('is_active'),
         ]);
+
+        if ($oldQrPath && $oldQrPath !== $paymentType->qr_image_path) {
+            Storage::disk('public')->delete($oldQrPath);
+        }
         $paymentType->stores()->sync($request->input('store_ids'));
 
         ActivityLogger::log('payment_type.updated', "Mengubah tipe pembayaran: {$paymentType->code}", $paymentType);
@@ -89,7 +115,11 @@ class PaymentTypeController extends Controller
         $this->ensureCompany($paymentType->company_id);
 
         $label = $paymentType->code;
+        $qrPath = $paymentType->qr_image_path;
         $paymentType->delete();
+        if ($qrPath) {
+            Storage::disk('public')->delete($qrPath);
+        }
 
         ActivityLogger::log('payment_type.deleted', "Menghapus tipe pembayaran: {$label}", $paymentType);
 
@@ -109,6 +139,14 @@ class PaymentTypeController extends Controller
                 Rule::requiredIf(fn () => $request->input('kind') === PaymentType::KIND_CUSTOM && CompanyDetail::current()->sapIntegrationActive()),
                 'nullable', 'string', Rule::exists('credit_cards', 'id')->where('company_id', current_company_id()),
             ],
+            'is_qr_payment' => ['sometimes', 'boolean'],
+            'qr_image' => [
+                // Pembayaran QR wajib punya gambar: unggahan baru, atau gambar lama yang tidak dihapus.
+                Rule::requiredIf(fn () => $request->boolean('is_qr_payment')
+                    && ($request->boolean('remove_qr_image') || ! ($id && PaymentType::whereKey($id)->whereNotNull('qr_image_path')->exists()))),
+                'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048',
+            ],
+            'remove_qr_image' => ['sometimes', 'boolean'],
             'store_ids' => ['required', 'array', 'min:1'],
             'store_ids.*' => ['string', Rule::exists('stores', 'id')->where('company_id', current_company_id())],
             'is_active' => ['sometimes', 'boolean'],

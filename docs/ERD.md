@@ -1160,6 +1160,8 @@ erDiagram
 | `order_number` | integer | No | 1 | Urutan tampil |
 | `count_type` | enum | No | summary | summary/detail |
 | `credit_card_id` | uuid FK | Yes | FK→`credit_cards` | Mapping ke SAP OCRC |
+| `is_qr_payment` | boolean | No | false | Pembayaran QR: bila aktif, form menyediakan unggah gambar QR |
+| `qr_image_path` | string | Yes | - | Gambar QR statis (hanya bila `is_qr_payment`) (disk public, `payment-qr/`) yang ditampilkan di dialog bayar POS |
 | `is_offline_allowed` | boolean | No | true | |
 | `is_active` | boolean | No | true | |
 | `timestamps` | - | - | - | |

@@ -8,7 +8,7 @@
     <h2 class="card-title">{{ $paymentType->exists ? 'Edit Payment Method' : 'New Payment Method' }}</h2>
     <p class="card-subtitle">Payment methods used by stores: cash, QRIS, debit/credit, vouchers, etc.</p>
 
-    <form method="POST" action="{{ $paymentType->exists ? route('admin.payment-types.update', $paymentType) : route('admin.payment-types.store') }}">
+    <form method="POST" enctype="multipart/form-data" action="{{ $paymentType->exists ? route('admin.payment-types.update', $paymentType) : route('admin.payment-types.store') }}">
         @csrf
         @if ($paymentType->exists) @method('PUT') @endif
 
@@ -59,6 +59,27 @@
                     <label for="is_active">Active</label>
                 </div>
             </div>
+            <div class="field">
+                <div class="checkbox-row">
+                    <input type="checkbox" id="is_qr_payment" name="is_qr_payment" value="1" @checked(old('is_qr_payment', $paymentType->is_qr_payment))>
+                    <label for="is_qr_payment">QR Payment</label>
+                </div>
+                <div class="hint">Check to show a static QR image (e.g. your QRIS) in the POS payment dialog.</div>
+            </div>
+            <div class="field @error('qr_image') has-error @enderror" id="qr_image_field" style="grid-column: 1 / -1;" @if (! old('is_qr_payment', $paymentType->is_qr_payment)) hidden @endif>
+                <label for="qr_image">Static QR Image *</label>
+                @if ($paymentType->exists && $paymentType->qr_image_url)
+                    <div style="display:flex; align-items:center; gap:14px; margin-bottom:8px;">
+                        <img src="{{ $paymentType->qr_image_url }}" alt="QR {{ $paymentType->code }}" style="width:120px; height:120px; object-fit:contain; border-radius:10px; border:1px solid var(--color-outline);">
+                        <label style="font-size:13px; display:flex; align-items:center; gap:6px;">
+                            <input type="checkbox" name="remove_qr_image" value="1"> Remove this QR image
+                        </label>
+                    </div>
+                @endif
+                <input type="file" id="qr_image" name="qr_image" accept="image/png,image/jpeg,image/webp">
+                <div class="hint">Required for QR payments. JPG/PNG/WebP, max 2MB. When set, the POS payment dialog shows this QR (e.g. your static QRIS) so the customer can scan it to pay.</div>
+                @error('qr_image') <div class="error">{{ $message }}</div> @enderror
+            </div>
             <div class="field @error('description') has-error @enderror" style="grid-column: 1 / -1;">
                 <label for="description">Description</label>
                 <textarea id="description" name="description" rows="2">{{ old('description', $paymentType->description) }}</textarea>
@@ -99,6 +120,10 @@
         };
         kind.addEventListener('change', sync);
         sync();
+
+        var isQr = document.getElementById('is_qr_payment');
+        var qrField = document.getElementById('qr_image_field');
+        isQr.addEventListener('change', function () { qrField.hidden = !isQr.checked; });
     })();
 </script>
 @endpush

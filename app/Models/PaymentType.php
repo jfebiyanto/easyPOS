@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PaymentType extends MasterModel
 {
-    protected $fillable = ['company_id', 'code', 'kind', 'description', 'order_number', 'count_type', 'credit_card_id', 'is_offline_allowed', 'is_active'];
+    protected $fillable = ['company_id', 'code', 'kind', 'description', 'order_number', 'count_type', 'credit_card_id', 'is_qr_payment', 'qr_image_path', 'is_offline_allowed', 'is_active'];
 
     /** Kode tipe pembayaran yang dikenali posting Incoming Payment SAP B1. */
     public const CODE_CASH = 'CASH';
@@ -38,6 +38,14 @@ class PaymentType extends MasterModel
         });
     }
 
+    /**
+     * URL gambar QR statis, memakai host request agar satu origin dengan halaman yang menampilkannya.
+     */
+    public function getQrImageUrlAttribute(): ?string
+    {
+        return $this->is_qr_payment && $this->qr_image_path ? url('storage/'.$this->qr_image_path) : null;
+    }
+
     public function isCash(): bool
     {
         return $this->kind === self::KIND_CASH;
@@ -48,6 +56,7 @@ class PaymentType extends MasterModel
         return [
             'is_active' => 'boolean',
             'is_offline_allowed' => 'boolean',
+            'is_qr_payment' => 'boolean',
             'order_number' => 'integer',
         ];
     }

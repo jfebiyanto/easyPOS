@@ -1593,6 +1593,17 @@ function PaymentModal({ boot, currency, totals, onClose, onConfirm }) {
                     ))}
                 </div>
 
+                {rows.map((r, i) => {
+                    const qrUrl = boot.payment_types.find((pt) => pt.id === r.payment_type_id)?.qr_image_url;
+
+                    return qrUrl ? (
+                        <div className="pos-pay-qr" key={`qr-${i}`}>
+                            <img src={qrUrl} alt="QR pembayaran" />
+                            <span>Minta pelanggan memindai QR ini untuk membayar {fmt(Number(r.amount || 0), currency)}.</span>
+                        </div>
+                    ) : null;
+                })}
+
                 <button className="btn btn-tonal btn-sm" onClick={() => setRows([...rows, { payment_type_id: boot.payment_types[0]?.id || '', amount: 0, status: 'confirmed' }])}>
                     + Metode lain
                 </button>

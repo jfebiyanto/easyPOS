@@ -151,13 +151,15 @@ class PosTest extends TestCase
         $card = CreditCard::factory()->create(['company_id' => $this->company->id]);
         $edc = PaymentType::create([
             'company_id' => $this->company->id, 'code' => 'EDC', 'order_number' => 2, 'count_type' => 'summary',
-            'is_active' => true, 'credit_card_id' => $card->id,
+            'is_active' => true, 'credit_card_id' => $card->id, 'is_qr_payment' => true, 'qr_image_path' => 'payment-qr/qris.png',
         ]);
         $edc->stores()->sync([$this->store->id]);
 
         $types = collect($this->actingAs($this->cashier)->getJson('/pos/bootstrap')->assertOk()->json('payment_types'))->keyBy('code');
         $this->assertTrue($types['EDC']['requires_approval']);
         $this->assertFalse($types['CASH']['requires_approval']);
+        $this->assertStringEndsWith('storage/payment-qr/qris.png', $types['EDC']['qr_image_url']);
+        $this->assertNull($types['CASH']['qr_image_url']);
         $this->assertTrue($types['CASH']['is_cash']);
         $this->assertFalse($types['EDC']['is_cash']);
 
