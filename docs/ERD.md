@@ -1719,6 +1719,19 @@ Return: warehouse in-transit pengirim kembali ke warehouse store pengirim. Uniqu
 | `subtotal` | decimal(15,2) | No | 0 | |
 | `timestamps` | - | - | - | |
 
+### store_closure_payments
+
+| Kolom | Tipe | Nullable | Default | Keterangan |
+|-------|------|----------|---------|------------|
+| `id` | uuid | No | PK | |
+| `store_closure_id` | uuid FK | No | FK→`store_closures` | |
+| `payment_type_id` | uuid FK | Yes | FK→`payment_types` | null bila tipe dihapus |
+| `payment_code` | string(30) | No | - | Salinan kode tipe pembayaran |
+| `kind` | string(10) | No | - | Salinan jenis (cash/custom) |
+| `expected_amount` | decimal(15,2) | No | 0 | Nominal diharapkan saat dikonfirmasi (tunai setelah kembalian) |
+| `confirmed_at` | timestamp | Yes | - | Waktu dikonfirmasi |
+| `timestamps` | - | - | - | |
+
 ### pos_active_carts
 
 | Kolom | Tipe | Nullable | Default | Keterangan |
@@ -1945,6 +1958,8 @@ Berikut tabel bawaan Laravel yang ada di database ini namun umumnya tidak digamb
 | `stock_transfers` | `to_store_id` | `stores(id)` | No | cascade |
 | `stock_transfers` | `created_by` | `users(id)` | Yes | `null` |
 | `store_closure_denominations` | `store_closure_id` | `store_closures(id)` | No | cascade |
+| `store_closure_payments` | `store_closure_id` | `store_closures(id)` | No | cascade |
+| `store_closure_payments` | `payment_type_id` | `payment_types(id)` | Yes | `null` |
 | `store_closures` | `company_id` | `company_details(id)` | No | cascade |
 | `store_closures` | `store_id` | `stores(id)` | No | cascade |
 | `store_closures` | `closed_by` | `users(id)` | Yes | `null` |

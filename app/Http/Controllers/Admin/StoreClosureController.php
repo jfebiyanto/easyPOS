@@ -26,9 +26,11 @@ class StoreClosureController extends Controller
     public function index(Request $request): View
     {
         $storeId = $this->resolveStoreId($request, $request->query('store'));
-        $businessDate = $request->query('date') ?: company_today();
-
         $store = $storeId ? Store::find($storeId) : null;
+
+        // Tanpa pilihan tanggal: tanggal bisnis yang berjalan, yaitu yang tertua dan belum di-EOD (tidak berganti sebelum ditutup).
+        $businessDate = $request->query('date') ?: ($store ? StoreClosure::postingDate($store->id, company_today()) : company_today());
+
         $company = CompanyDetail::current();
 
         $salesTotal = $store ? (float) Sale::where('store_id', $store->id)
@@ -36,21 +38,16 @@ class StoreClosureController extends Controller
             ->where('status', Sale::STATUS_COMPLETED)
             ->sum('total') : 0;
 
-        $cashExpected = $store ? (float) DB::table('sale_payments')
-            ->join('sales', 'sales.id', '=', 'sale_payments.sale_id')
-            ->where('sales.store_id', $store->id)
-            ->whereDate('sales.business_date', $businessDate)
-            ->where('sales.status', Sale::STATUS_COMPLETED)
-            ->where('sale_payments.status', 'confirmed')
-            ->whereIn('sale_payments.payment_type_id', PaymentType::where('company_id', $company->id)->where('kind', PaymentType::KIND_CASH)->pluck('id'))
-            ->sum('sale_payments.amount') : 0;
+        $cashExpected = $store ? StoreClosure::expectedCash($store->id, $company->id, $businessDate) : 0.0;
 
         $reviewCount = $store ? Sale::where('store_id', $store->id)
             ->whereDate('business_date', $businessDate)
             ->where('stock_review_status', 'pending')
             ->count() : 0;
 
-        $denominations = Currency::where('company_id', $company->id)
+        $countByDenomination = $store && $this->requiresDenominationCount($store, $company->id);
+
+        $denominations = ! $countByDenomination ? collect() : Currency::where('company_id', $company->id)
             ->where('code', $company->base_currency_code)
             ->first()
             ?->denominations()
@@ -66,6 +63,8 @@ class StoreClosureController extends Controller
             'cashExpected' => $cashExpected,
             'reviewCount' => $reviewCount,
             'denominations' => $denominations,
+            'countByDenomination' => $countByDenomination,
+            'paymentLines' => $store ? $this->paymentLines($store, $company->id, $businessDate) : collect(),
             'stores' => $this->reportStores($request),
             'closure' => $store ? StoreClosure::where('store_id', $store->id)->whereDate('business_date', $businessDate)->first() : null,
         ]);
@@ -79,7 +78,7 @@ class StoreClosureController extends Controller
         $data = $request->validate([
             'business_date' => ['required', 'date'],
             'note' => ['nullable', 'string', 'max:500'],
-            'denominations' => ['required', 'array'],
+            'denominations' => ['array'],
             'denominations.*' => ['nullable', 'integer', 'min:0'],
             'override_review' => ['sometimes', 'boolean'],
         ]);
@@ -87,9 +86,28 @@ class StoreClosureController extends Controller
         $company = CompanyDetail::current();
         $store = Store::findOrFail($storeId);
         $businessDate = $data['business_date'];
+        $countByDenomination = $this->requiresDenominationCount($store, $company->id);
 
         if (StoreClosure::isClosed($store->id, $businessDate)) {
             return back()->withInput()->with('error', "EOD for {$businessDate} is already closed. Reopen EOD first.");
+        }
+
+        // Setiap tipe pembayaran wajib dikonfirmasi; tipe tunai yang dihitung per pecahan dikonfirmasi lewat hitungan itu.
+        $unconfirmed = $this->paymentLines($store, $company->id, $businessDate)
+            ->filter(fn (array $line) => ! ($line['counted_by_denomination'] ?? false) && ! $request->boolean('confirm.'.$line['id']))
+            ->pluck('code');
+
+        if ($unconfirmed->isNotEmpty()) {
+            return back()->withInput()->withErrors(['confirm' => 'Confirm every payment method before closing: '.$unconfirmed->implode(', ').'.']);
+        }
+
+        if ($countByDenomination && empty($data['denominations'])) {
+            return back()->withInput()->withErrors(['denominations' => 'Enter the cash count per denomination.']);
+        }
+
+        $unclosedPrior = StoreClosure::unclosedPriorDate($store->id, Carbon::parse($businessDate)->toDateString());
+        if ($unclosedPrior) {
+            return back()->withInput()->with('error', "EOD for {$unclosedPrior} has not been closed. Close it first.");
         }
 
         $pending = Sale::where('store_id', $store->id)
@@ -106,17 +124,10 @@ class StoreClosureController extends Controller
             ->where('status', Sale::STATUS_COMPLETED)
             ->sum('total');
 
-        $cashExpected = (float) DB::table('sale_payments')
-            ->join('sales', 'sales.id', '=', 'sale_payments.sale_id')
-            ->where('sales.store_id', $store->id)
-            ->whereDate('sales.business_date', $businessDate)
-            ->where('sales.status', Sale::STATUS_COMPLETED)
-            ->where('sale_payments.status', 'confirmed')
-            ->whereIn('sale_payments.payment_type_id', PaymentType::where('company_id', $company->id)->where('kind', PaymentType::KIND_CASH)->pluck('id'))
-            ->sum('sale_payments.amount');
+        $cashExpected = StoreClosure::expectedCash($store->id, $company->id, $businessDate);
 
         $cashCounted = 0.0;
-        DB::transaction(function () use ($store, $company, $businessDate, $salesTotal, $cashExpected, $data, $request, &$cashCounted) {
+        DB::transaction(function () use ($store, $company, $businessDate, $salesTotal, $cashExpected, $data, $request, $countByDenomination, &$cashCounted) {
             $closure = StoreClosure::where('store_id', $store->id)
                 ->whereDate('business_date', $businessDate)
                 ->first();
@@ -143,8 +154,19 @@ class StoreClosureController extends Controller
                 ]);
             }
 
+            $closure->payments()->delete();
+            foreach ($this->paymentLines($store, $company->id, $businessDate) as $line) {
+                $closure->payments()->create([
+                    'payment_type_id' => $line['id'],
+                    'payment_code' => $line['code'],
+                    'kind' => $line['kind'],
+                    'expected_amount' => $line['expected'],
+                    'confirmed_at' => now(),
+                ]);
+            }
+
             $closure->denominations()->delete();
-            foreach ($data['denominations'] as $value => $count) {
+            foreach ($countByDenomination ? $data['denominations'] : [] as $value => $count) {
                 $count = (int) $count;
                 if ($count <= 0) {
                     continue;
@@ -156,6 +178,11 @@ class StoreClosureController extends Controller
                     'count' => $count,
                     'subtotal' => $subtotal,
                 ]);
+            }
+
+            // Count Type Summary: kas cukup dikonfirmasi, dianggap sama dengan yang diharapkan.
+            if (! $countByDenomination) {
+                $cashCounted = $cashExpected;
             }
 
             $closure->update([
@@ -210,6 +237,49 @@ class StoreClosureController extends Controller
 
         return redirect()->route('admin.eod.index', ['store' => $store->id, 'date' => $businessDate])
             ->with('success', 'EOD reopened successfully. POS transactions can continue.');
+    }
+
+    /**
+     * Daftar tipe pembayaran yang harus dikonfirmasi pada EOD: semua tipe aktif gerai ini ditambah tipe
+     * (mis. sudah nonaktif) yang masih punya pembayaran pada tanggal itu, beserta nominal yang diharapkan.
+     *
+     * @return Collection<int, array{id: string, code: string, description: ?string, kind: string, count_type: string, expected: float, counted_by_denomination: bool}>
+     */
+    private function paymentLines(Store $store, string $companyId, string $businessDate): Collection
+    {
+        $expected = StoreClosure::expectedByPaymentType($store->id, $businessDate);
+        $countByDenomination = $this->requiresDenominationCount($store, $companyId);
+
+        return PaymentType::where('company_id', $companyId)
+            ->where(fn ($q) => $q
+                ->where(fn ($q) => $q->where('is_active', true)->whereHas('stores', fn ($q) => $q->where('stores.id', $store->id)))
+                ->orWhereIn('id', array_keys($expected)))
+            ->orderBy('order_number')
+            ->get()
+            ->map(fn (PaymentType $type) => [
+                'id' => $type->id,
+                'code' => $type->code,
+                'description' => $type->description,
+                'kind' => $type->kind,
+                'count_type' => $type->count_type,
+                'expected' => $expected[$type->id] ?? 0.0,
+                'counted_by_denomination' => $countByDenomination && $type->isCash(),
+            ])
+            ->values();
+    }
+
+    /**
+     * Hitung kas per pecahan hanya bila ada tipe pembayaran tunai aktif gerai ini ber-Count Type Detail;
+     * selain itu (Summary) kas cukup dikonfirmasi tanpa menghitung pecahan.
+     */
+    private function requiresDenominationCount(Store $store, string $companyId): bool
+    {
+        return PaymentType::where('company_id', $companyId)
+            ->where('kind', PaymentType::KIND_CASH)
+            ->where('is_active', true)
+            ->where('count_type', 'detail')
+            ->whereHas('stores', fn ($q) => $q->where('stores.id', $store->id))
+            ->exists();
     }
 
     private function reportStores(Request $request): Collection

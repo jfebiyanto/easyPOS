@@ -95,9 +95,43 @@
     @endif
 
     <div class="card">
+        <h2 class="card-title">Confirm Payment Methods</h2>
+        <p class="card-subtitle">Every payment method must be confirmed against its expected amount before the store can be closed.</p>
+        @error('confirm') <div class="error" style="margin-bottom:8px;">{{ $message }}</div> @enderror
+        <div class="table-wrap">
+            <table class="md-table">
+                <thead>
+                    <tr><th>Payment Method</th><th>Type</th><th>Count Type</th><th style="text-align:right;">Expected</th><th style="width:140px; text-align:center;">Confirm</th></tr>
+                </thead>
+                <tbody>
+                    @forelse ($paymentLines as $line)
+                        <tr>
+                            <td>{{ $line['code'] }}@if ($line['description']) <span style="color: var(--md-on-surface-variant);">· {{ $line['description'] }}</span>@endif</td>
+                            <td>{{ \App\Models\PaymentType::KINDS[$line['kind']] ?? $line['kind'] }}</td>
+                            <td>{{ \App\Models\PaymentType::COUNT_TYPES[$line['count_type']] ?? $line['count_type'] }}</td>
+                            <td style="text-align:right;" class="money">{{ 'Rp '.number_format($line['expected'], 0, ',', '.') }}</td>
+                            <td style="text-align:center;">
+                                @if ($line['counted_by_denomination'])
+                                    <span class="hint">Counted below</span>
+                                @else
+                                    <input type="checkbox" name="confirm[{{ $line['id'] }}]" value="1" aria-label="Confirm {{ $line['code'] }}" @checked(old('confirm.'.$line['id'])) @disabled($isClosed)>
+                                @endif
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="5"><div class="empty-state">No payment methods are set up for this store.</div></td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @if ($countByDenomination)
+    <div class="card">
         <h2 class="card-title">Count Cash by Denomination</h2>
         <p class="card-subtitle">Enter the number of notes/coins per denomination. The total is calculated automatically.</p>
 
+        @error('denominations') <div class="error" style="margin-bottom:8px;">{{ $message }}</div> @enderror
         <div class="table-wrap">
             <table class="md-table">
                 <thead>
@@ -127,8 +161,11 @@
                 </tfoot>
             </table>
         </div>
+    </div>
+    @endif
 
-        <div class="field" style="margin-top:16px;">
+    <div class="card">
+        <div class="field">
             <label for="note">Notes</label>
             <input type="text" id="note" name="note" value="{{ old('note') }}" maxlength="500">
         </div>
@@ -155,6 +192,7 @@
 (function () {
     var inputs = document.querySelectorAll('.denom-input');
     var total = document.getElementById('cash-total');
+    if (!total) { return; }
 
     function fmt(n) { return 'Rp ' + n.toLocaleString('id-ID'); }
 

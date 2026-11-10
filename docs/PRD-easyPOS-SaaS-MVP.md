@@ -413,10 +413,12 @@ Store Manager non-owner adalah persona sekunder: menjalankan operasional gerainy
 - FR-B8-02: Store Manager menyelesaikan review saat EOD: adjustment koreksi, void ber-alasan, atau tandai sah.
 - FR-B8-03: Jika `allow_negative_stock=true`, transaksi offline negative-stock otomatis sah dan tidak masuk review queue.
 - FR-B8-04: EOD mencatat: gerai, tanggal bisnis, waktu buka/tutup, total penjualan, kas seharusnya vs kas dihitung, selisih, petugas.
-- FR-B8-05: Kas fisik wajib dihitung per pecahan mata uang (ref. pecahan IDR); total pecahan = kas dihitung.
+- FR-B8-05: Kas fisik wajib dihitung per pecahan mata uang (ref. pecahan IDR); total pecahan = kas dihitung **hanya bila** ada tipe pembayaran tunai (`kind = cash`) aktif di gerai itu ber-Count Type **Detail**. Bila semuanya **Summary**, halaman EOD hanya meminta konfirmasi kas diharapkan tanpa tabel pecahan; kas dihitung dianggap sama dengan kas diharapkan (selisih 0). *(Diubah 2026-11-10.)*
 - FR-B8-06: EOD yang tertunda tidak memblokir transaksi hari berikutnya; transaksi dicatat ke tanggal bisnis yang belum di-EOD setelah kasir mengonfirmasi saat login (FR-A8-15, FR-A8-16). EOD tanggal yang sudah ditutup tetap mengunci transaksi online ke tanggal itu sampai dibuka ulang. *(Diubah 2026-11-05.)*
 - FR-B8-07: EOD tidak dapat diselesaikan selama ada review pending (kecuali override Owner, tercatat).
 - FR-B8-08: Setelah EOD, laporan harian final tersedia.
+- FR-B8-09: **Kas diharapkan dan tanggal EOD** *(Baru 2026-11-10)*: kas diharapkan = pembayaran tunai terkonfirmasi (jenis `cash`) dikurangi kembalian tiap transaksi, sehingga sama dengan uang yang seharusnya ada di laci (bukan jumlah uang yang diterima kasir). Halaman EOD tanpa pilihan tanggal menampilkan tanggal bisnis berjalan, yaitu tanggal tertua yang masih punya transaksi dan belum di-EOD; tanggal tidak berganti ke hari kalender berikutnya sebelum tanggal itu ditutup. EOD tanggal yang lebih baru ditolak selama ada tanggal sebelumnya yang belum ditutup.
+- FR-B8-10: **Konfirmasi per tipe pembayaran** *(Baru 2026-11-10)*: halaman EOD menampilkan semua tipe pembayaran aktif gerai (ditambah tipe yang masih punya pembayaran pada tanggal itu) dengan nominal diharapkan masing-masing (pembayaran terkonfirmasi transaksi selesai; kembalian dikurangkan dari tipe tunai). Setiap tipe wajib dikonfirmasi satu per satu sebelum Tutup Toko (server menolak bila ada yang belum); tipe tunai ber-Count Type Detail dikonfirmasi lewat hitung pecahan (FR-B8-05). Hasilnya disimpan di `store_closure_payments`.
 
 ### B9 — Payment abstraction (siap XendIt QRIS dinamis)
 - FR-B9-01: `sale_payments`: method, amount, `status` (pending/confirmed/void), provider, provider_ref, confirmed_at.

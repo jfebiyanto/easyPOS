@@ -83,9 +83,137 @@ class EodTest extends TestCase
             'store_id' => $this->store->id,
             'business_date' => company_today(),
             'denominations' => [10000 => 1],
+            'confirm' => [$this->cash->id => 1],
         ])->assertRedirect();
 
         $this->assertSame(10000.0, (float) StoreClosure::firstOrFail()->cash_expected);
+    }
+
+    public function test_kas_diharapkan_dikurangi_kembalian(): void
+    {
+        $this->actingAs($this->cashier)->postJson('/pos/sales', [
+            'client_uuid' => (string) Str::uuid(),
+            'origin' => 'online',
+            'lines' => [['product_id' => $this->product->id, 'qty' => 1]],
+            'payments' => [['payment_type_id' => $this->cash->id, 'amount' => 50000, 'status' => 'confirmed']],
+        ])->assertStatus(201);
+
+        $this->actingAs($this->owner)->get(route('admin.eod.index'))->assertOk()->assertViewHas('cashExpected', 10000.0);
+
+        $this->actingAs($this->owner)->post(route('admin.eod.store'), [
+            'store_id' => $this->store->id,
+            'business_date' => company_today(),
+            'denominations' => [10000 => 1],
+            'confirm' => [$this->cash->id => 1],
+        ])->assertRedirect();
+
+        $this->assertSame(10000.0, (float) StoreClosure::firstOrFail()->cash_expected);
+    }
+
+    public function test_tanggal_bisnis_eod_tetap_di_tanggal_yang_belum_ditutup(): void
+    {
+        $oldest = now()->subDays(2)->toDateString();
+        $this->sell(1)->update(['business_date' => $oldest]);
+
+        $this->actingAs($this->owner)->get(route('admin.eod.index'))->assertOk()->assertViewHas('businessDate', $oldest);
+
+        $this->close($oldest);
+
+        $this->actingAs($this->owner)->get(route('admin.eod.index'))->assertOk()->assertViewHas('businessDate', company_today());
+    }
+
+    public function test_eod_tanggal_berikutnya_ditolak_selama_tanggal_sebelumnya_belum_ditutup(): void
+    {
+        $oldest = now()->subDay()->toDateString();
+        $this->sell(1)->update(['business_date' => $oldest]);
+        $this->actingAs($this->cashier)->postJson('/pos/session/acknowledge')->assertOk();
+        $this->sell(1);
+
+        $this->actingAs($this->owner)->post(route('admin.eod.store'), [
+            'store_id' => $this->store->id,
+            'business_date' => company_today(),
+            'denominations' => [10000 => 1],
+            'confirm' => [$this->cash->id => 1],
+        ])->assertSessionHas('error');
+        $this->assertSame(0, StoreClosure::count());
+    }
+
+    public function test_count_type_summary_cukup_konfirmasi_tanpa_hitung_pecahan(): void
+    {
+        $this->sell(3);
+
+        $this->actingAs($this->owner)->get(route('admin.eod.index'))->assertOk()
+            ->assertViewHas('countByDenomination', false)->assertSee('Confirm Payment Methods');
+
+        $this->actingAs($this->owner)->post(route('admin.eod.store'), [
+            'store_id' => $this->store->id,
+            'business_date' => company_today(),
+            'confirm' => [$this->cash->id => 1],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $closure = StoreClosure::firstOrFail();
+        $this->assertNotNull($closure->closed_at);
+        $this->assertSame(30000.0, (float) $closure->cash_expected);
+        $this->assertSame(30000.0, (float) $closure->cash_counted);
+        $this->assertSame(0.0, (float) $closure->cash_variance);
+        $this->assertSame(0, $closure->denominations()->count());
+    }
+
+    public function test_count_type_detail_wajib_hitung_pecahan(): void
+    {
+        $this->cash->update(['count_type' => 'detail']);
+        $this->sell(1);
+
+        $this->actingAs($this->owner)->get(route('admin.eod.index'))->assertOk()
+            ->assertViewHas('countByDenomination', true)->assertSee('Count Cash by Denomination');
+
+        $this->actingAs($this->owner)->post(route('admin.eod.store'), [
+            'store_id' => $this->store->id,
+            'business_date' => company_today(),
+        ])->assertSessionHasErrors('denominations');
+        $this->assertSame(0, StoreClosure::count());
+
+        $this->post(route('admin.eod.store'), [
+            'store_id' => $this->store->id,
+            'business_date' => company_today(),
+            'denominations' => [10000 => 1],
+            'confirm' => [$this->cash->id => 1],
+        ])->assertSessionHasNoErrors();
+        $this->assertSame(1, StoreClosure::firstOrFail()->denominations()->count());
+    }
+
+    public function test_semua_tipe_pembayaran_tampil_dan_wajib_dikonfirmasi_per_tipe(): void
+    {
+        $qris = PaymentType::create(['company_id' => $this->company->id, 'code' => 'QRIS', 'kind' => 'custom', 'description' => 'QRIS', 'order_number' => 2, 'count_type' => 'summary', 'is_active' => true]);
+        $qris->stores()->sync([$this->store->id]);
+
+        $this->actingAs($this->cashier)->postJson('/pos/sales', [
+            'client_uuid' => (string) Str::uuid(),
+            'origin' => 'online',
+            'lines' => [['product_id' => $this->product->id, 'qty' => 3]],
+            'payments' => [
+                ['payment_type_id' => $this->cash->id, 'amount' => 10000, 'status' => 'confirmed'],
+                ['payment_type_id' => $qris->id, 'amount' => 20000, 'status' => 'confirmed'],
+            ],
+        ])->assertStatus(201);
+
+        $this->actingAs($this->owner)->get(route('admin.eod.index'))->assertOk()
+            ->assertSee('QRIS')->assertSee('Rp 20.000');
+
+        $payload = ['store_id' => $this->store->id, 'business_date' => company_today()];
+
+        // Hanya tunai yang dikonfirmasi: QRIS masih kurang.
+        $this->post(route('admin.eod.store'), $payload + ['confirm' => [$this->cash->id => 1]])->assertSessionHasErrors('confirm');
+        $this->assertSame(0, StoreClosure::count());
+
+        $this->post(route('admin.eod.store'), $payload + ['confirm' => [$this->cash->id => 1, $qris->id => 1]])->assertSessionHasNoErrors();
+
+        $closure = StoreClosure::firstOrFail();
+        $this->assertSame(10000.0, (float) $closure->cash_expected);
+        $lines = $closure->payments()->get()->keyBy('payment_code');
+        $this->assertSame(10000.0, (float) $lines['CASH']->expected_amount);
+        $this->assertSame(20000.0, (float) $lines['QRIS']->expected_amount);
+        $this->assertNotNull($lines['QRIS']->confirmed_at);
     }
 
     public function test_halaman_eod_dapat_diakses(): void
@@ -101,6 +229,7 @@ class EodTest extends TestCase
             'store_id' => $this->store->id,
             'business_date' => company_today(),
             'denominations' => [10000 => 1],
+            'confirm' => [$this->cash->id => 1],
         ])->assertRedirect();
 
         $closure = StoreClosure::first();
@@ -169,6 +298,7 @@ class EodTest extends TestCase
             'store_id' => $this->store->id,
             'business_date' => $yesterday,
             'denominations' => [10000 => 1],
+            'confirm' => [$this->cash->id => 1],
         ])->assertRedirect();
 
         $payload = $this->salePayload();
@@ -196,6 +326,7 @@ class EodTest extends TestCase
             'store_id' => $this->store->id,
             'business_date' => $date,
             'denominations' => [10000 => 1],
+            'confirm' => [$this->cash->id => 1],
         ])->assertSessionHasNoErrors();
     }
 
