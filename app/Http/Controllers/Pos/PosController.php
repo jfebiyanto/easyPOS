@@ -433,6 +433,15 @@ class PosController extends Controller
 
         abort_unless($store, 422, 'The cashier has not been assigned to a store.');
 
+        // Gerai asal offline yang berbeda dari gerai kasir hanya sah bila kasir memang pernah bertugas di sana (atau Owner).
+        abort_if(
+            $store->id !== $assignedStore?->id
+                && ! $request->user()->isOwner()
+                && ! CashierShift::where('user_id', $request->user()->id)->where('store_id', $store->id)->exists(),
+            403,
+            'You are not allowed to record sales for this store.'
+        );
+
         abort_if(
             ($data['origin'] ?? 'online') !== 'offline' && $originStoreId && $originStoreId !== $store->id,
             409,

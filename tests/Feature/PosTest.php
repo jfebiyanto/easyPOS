@@ -1083,4 +1083,80 @@ class PosTest extends TestCase
             'payload' => ['cart' => []],
         ])->assertStatus(409);
     }
+
+    public function test_penjualan_offline_ke_gerai_yang_tidak_pernah_dilayani_kasir_ditolak(): void
+    {
+        $otherStore = Store::create(['company_id' => $this->company->id, 'code' => 'STR009', 'name' => 'Gerai Lain', 'pic_name' => 'PIC', 'currency' => 'IDR']);
+
+        $this->actingAs($this->cashier)
+            ->postJson('/pos/sales', $this->salePayload(['origin' => 'offline', 'store_id' => $otherStore->id]))
+            ->assertForbidden();
+
+        $this->assertSame(0, Sale::count());
+    }
+
+    public function test_penjualan_online_dengan_harga_berbeda_dari_server_ditolak_409_beserta_harga_server(): void
+    {
+        $this->actingAs($this->cashier)
+            ->postJson('/pos/sales', $this->salePayload([
+                'lines' => [['product_id' => $this->product->id, 'qty' => 2, 'unit_price' => 1]],
+                'payments' => [['payment_type_id' => $this->cash->id, 'amount' => 10000, 'status' => 'confirmed']],
+            ]))
+            ->assertStatus(409)
+            ->assertJsonPath('code', 'prices_changed')
+            ->assertJsonPath('prices.'.$this->product->id, 4000);
+
+        $this->assertSame(0, Sale::count());
+    }
+
+    public function test_penjualan_online_dengan_harga_sesuai_server_diterima(): void
+    {
+        $this->actingAs($this->cashier)
+            ->postJson('/pos/sales', $this->salePayload([
+                'lines' => [['product_id' => $this->product->id, 'qty' => 2, 'unit_price' => 4000]],
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('data.subtotal', 8000);
+    }
+
+    public function test_penjualan_offline_dengan_harga_berbeda_tetap_dicatat_dan_ditandai_review(): void
+    {
+        $this->actingAs($this->cashier)
+            ->postJson('/pos/sales', $this->salePayload([
+                'origin' => 'offline',
+                'lines' => [['product_id' => $this->product->id, 'qty' => 2, 'unit_price' => 3000]],
+                'payments' => [['payment_type_id' => $this->cash->id, 'amount' => 6660, 'status' => 'confirmed']],
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('data.subtotal', 6000)
+            ->assertJsonPath('data.stock_review_status', 'pending');
+
+        $this->assertStringContainsString('SKU-1', Sale::first()->review_reason);
+    }
+
+    public function test_penjualan_offline_dengan_waktu_di_luar_batas_wajar_ditandai_review(): void
+    {
+        $this->actingAs($this->cashier)
+            ->postJson('/pos/sales', $this->salePayload([
+                'origin' => 'offline',
+                'sold_at' => now()->subDays(60)->toIso8601String(),
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('data.stock_review_status', 'pending');
+
+        $this->assertStringContainsString('di luar batas wajar', Sale::first()->review_reason);
+    }
+
+    public function test_penjualan_online_dengan_pembayaran_kurang_dari_total_ditolak(): void
+    {
+        $this->actingAs($this->cashier)
+            ->postJson('/pos/sales', $this->salePayload([
+                'payments' => [['payment_type_id' => $this->cash->id, 'amount' => 100, 'status' => 'confirmed']],
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Payment is less than the transaction total.');
+
+        $this->assertSame(0, Sale::count());
+        $this->assertSame(10.0, StockService::balance($this->store->id, $this->product->id));
+    }
 }

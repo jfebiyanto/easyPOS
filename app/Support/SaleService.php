@@ -24,6 +24,10 @@ use Illuminate\Support\Facades\DB;
  */
 class SaleService
 {
+    private const OFFLINE_MAX_AGE_DAYS = 14;
+
+    private const OFFLINE_FUTURE_TOLERANCE_MINUTES = 10;
+
     public static function create(array $data, User $cashier): Sale
     {
         $companyId = $cashier->company_id;
@@ -60,21 +64,49 @@ class SaleService
             $reviewNeeded = false;
             $reviewReason = null;
             $prepared = [];
+            $priceMismatches = [];
+            $serverPrices = [];
 
             foreach ($data['lines'] as $key => $line) {
                 $product = Product::where('company_id', $companyId)->findOrFail($line['product_id']);
                 $qty = (float) $line['qty'];
-                $unitPrice = isset($line['unit_price']) && $line['unit_price'] !== null
-                    ? (float) $line['unit_price']
-                    : PricingService::resolve($storeId, $product, $qty);
+                $serverPrice = PricingService::resolve($storeId, $product, $qty);
+                $unitPrice = $serverPrice;
+
+                if (isset($line['unit_price']) && $line['unit_price'] !== null) {
+                    $unitPrice = (float) $line['unit_price'];
+
+                    if (! self::isAcceptedPrice($unitPrice, $serverPrice, PricingService::resolve($storeId, $product, 1))) {
+                        $priceMismatches[] = $product->sku;
+                        $serverPrices[$product->id] = $serverPrice;
+                    }
+                }
 
                 $prepared[$key] = compact('product', 'qty', 'unitPrice');
+            }
+
+            if ($priceMismatches !== []) {
+                if ($origin !== 'offline') {
+                    throw new HttpResponseException(response()->json([
+                        'message' => 'Prices changed. The cart was updated; check the total before paying.',
+                        'code' => 'prices_changed',
+                        'prices' => $serverPrices,
+                    ], 409));
+                }
+
+                $reviewNeeded = true;
+                $reviewReason = 'Harga berbeda dengan price list server untuk '.implode(', ', $priceMismatches).'.';
+            }
+
+            if ($origin === 'offline' && self::isSoldAtImplausible($soldAt)) {
+                $reviewNeeded = true;
+                $reviewReason = trim(($reviewReason ?? '').' Waktu transaksi offline di luar batas wajar ('.$soldAt->toDateTimeString().').');
             }
 
             $promotions = self::resolvePromotions($data['lines'], $prepared, $company, $storeId, $data['customer_id'] ?? Store::whereKey($storeId)->value('default_customer_id'), $soldAt, $origin);
             if ($promotions['review_reason']) {
                 $reviewNeeded = true;
-                $reviewReason = $promotions['review_reason'];
+                $reviewReason = trim(($reviewReason ?? '').' '.$promotions['review_reason']);
             }
 
             foreach ($prepared as $key => $p) {
@@ -107,6 +139,10 @@ class SaleService
             $total = round($subtotal + ($inclusive ? 0 : $taxTotal) + $shippingCost, 2);
 
             $paidTotal = round((float) collect($data['payments'] ?? [])->sum('amount'), 2);
+
+            // Online tidak boleh selesai dengan pembayaran kurang dari total; offline sudah terjadi di lapangan.
+            abort_if($origin !== 'offline' && $paidTotal + 0.009 < $total, 422, 'Payment is less than the transaction total.');
+
             $change = round(max(0, $paidTotal - $total), 2);
 
             $sale = Sale::create([
@@ -204,6 +240,24 @@ class SaleService
 
             return $sale->load('lines', 'payments', 'delivery', 'customer');
         });
+    }
+
+    /**
+     * Harga klien diterima bila sama dengan harga price list server untuk qty tersebut atau untuk qty 1
+     * (katalog POS menampilkan harga qty 1), dengan toleransi pembulatan.
+     */
+    private static function isAcceptedPrice(float $clientPrice, float $serverPriceForQty, float $serverPriceForOne): bool
+    {
+        return abs($clientPrice - $serverPriceForQty) <= 0.009 || abs($clientPrice - $serverPriceForOne) <= 0.009;
+    }
+
+    /**
+     * Waktu transaksi offline wajar: tidak di masa depan (toleransi jam perangkat) dan tidak terlalu lama.
+     */
+    private static function isSoldAtImplausible(Carbon $soldAt): bool
+    {
+        return $soldAt->gt(now()->addMinutes(self::OFFLINE_FUTURE_TOLERANCE_MINUTES))
+            || $soldAt->lt(now()->subDays(self::OFFLINE_MAX_AGE_DAYS));
     }
 
     /**

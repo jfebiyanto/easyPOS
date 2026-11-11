@@ -491,6 +491,11 @@ export default function App() {
             // 409: promosi di server berbeda (mis. baru diubah admin). Muat ulang promosi agar
             // keranjang dihitung ulang, lalu kasir memeriksa total baru sebelum membayar lagi.
             if (e.status === 409) {
+                // Harga price list berubah: samakan harga di keranjang dengan server.
+                const serverPrices = e.data?.prices;
+                if (serverPrices) {
+                    setCart((prev) => prev.map((l) => (serverPrices[l.id] !== undefined ? { ...l, unit_price: serverPrices[l.id] } : l)));
+                }
                 await loadPromotions();
                 setShowPayment(false);
                 setNotice({ type: 'warning', text: e.message });

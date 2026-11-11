@@ -29,15 +29,21 @@ class PaymentWebhookController extends Controller
         }
 
         $data = $request->validate([
-            'external_id' => ['nullable', 'string', 'max:120'],
+            'external_id' => ['required', 'string', 'max:120'],
             'status' => ['nullable', 'string', 'max:40'],
+            'amount' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $payment = SalePayment::where('provider', 'xendit')
-            ->where('provider_ref', $data['external_id'] ?? null)
+            ->where('provider_ref', $data['external_id'])
             ->first();
 
-        if ($payment) {
+        // Pembayaran yang sudah terkonfirmasi tidak diturunkan lagi oleh webhook susulan.
+        if ($payment && $payment->status !== 'confirmed') {
+            if (isset($data['amount']) && abs((float) $data['amount'] - (float) $payment->amount) > 0.009) {
+                return response()->json(['message' => 'Amount does not match the payment.'], 422);
+            }
+
             $paid = in_array(strtoupper($data['status'] ?? ''), ['PAID', 'SUCCEEDED', 'SETTLED'], true);
             $payment->update([
                 'status' => $paid ? 'confirmed' : 'pending',

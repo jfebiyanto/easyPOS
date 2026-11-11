@@ -74,6 +74,40 @@ class PaymentWebhookTest extends TestCase
         $this->assertNotNull($payment->confirmed_at);
     }
 
+    public function test_webhook_tanpa_external_id_ditolak_dan_tidak_menyentuh_pembayaran_tanpa_referensi(): void
+    {
+        $this->company->update(['payment_providers' => ['xendit' => ['secret_key' => 'sk_test', 'callback_token' => 'secret-token']]]);
+        $payment = SalePayment::create(['sale_id' => $this->sale->id, 'amount' => 50000, 'status' => 'pending', 'provider' => 'xendit', 'provider_ref' => null]);
+
+        $this->postJson('/api/webhooks/payments/xendit', ['status' => 'PAID'], ['x-callback-token' => 'secret-token'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('external_id');
+
+        $this->assertSame('pending', $payment->refresh()->status);
+    }
+
+    public function test_webhook_dengan_jumlah_berbeda_ditolak(): void
+    {
+        $this->company->update(['payment_providers' => ['xendit' => ['secret_key' => 'sk_test', 'callback_token' => 'secret-token']]]);
+        $payment = SalePayment::create(['sale_id' => $this->sale->id, 'amount' => 50000, 'status' => 'pending', 'provider' => 'xendit', 'provider_ref' => 'X1']);
+
+        $this->postJson('/api/webhooks/payments/xendit', ['external_id' => 'X1', 'status' => 'PAID', 'amount' => 100], ['x-callback-token' => 'secret-token'])
+            ->assertUnprocessable();
+
+        $this->assertSame('pending', $payment->refresh()->status);
+    }
+
+    public function test_webhook_susulan_tidak_menurunkan_pembayaran_yang_sudah_terkonfirmasi(): void
+    {
+        $this->company->update(['payment_providers' => ['xendit' => ['secret_key' => 'sk_test', 'callback_token' => 'secret-token']]]);
+        $payment = SalePayment::create(['sale_id' => $this->sale->id, 'amount' => 50000, 'status' => 'confirmed', 'confirmed_at' => now(), 'provider' => 'xendit', 'provider_ref' => 'X1']);
+
+        $this->postJson('/api/webhooks/payments/xendit', ['external_id' => 'X1', 'status' => 'PENDING'], ['x-callback-token' => 'secret-token'])
+            ->assertOk();
+
+        $this->assertSame('confirmed', $payment->refresh()->status);
+    }
+
     public function test_konfirmasi_pembayaran_mengantrekan_ulang_posting_sap_penjualan(): void
     {
         Queue::fake();
