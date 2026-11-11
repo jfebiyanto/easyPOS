@@ -10,6 +10,8 @@ import { approvalMissing, normalizePayments, requiresApproval } from './payment.
 import { enqueueCancellation, flushCancelQueue } from './cancelQueue.js';
 import { buildCartPayload, clearCartBackup, pickNewestCart, readCartBackup, writeCartBackup } from './cartPersistence.js';
 import { customerPanel } from './customer.js';
+import { ShiftGateModal, LogoutConfirmModal } from './ShiftGateModal.jsx';
+import { gateScreen } from './shiftGate.js';
 import { functionKeyStates, holdOrRecallAction, isFunctionKey, keyToAction, moveSelection, selectionAfterRemoval } from './functionKeys.js';
 
 const fmt = (n, currency = 'IDR') =>
@@ -99,6 +101,7 @@ export default function App() {
     const [showHolds, setShowHolds] = useState(false);
     const [showReturn, setShowReturn] = useState(false);
     const [showDevice, setShowDevice] = useState(false);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const [showCustomer, setShowCustomer] = useState(false);
     const [customer, setCustomer] = useState(null);
     const [selectedId, setSelectedId] = useState(null);
@@ -217,9 +220,9 @@ export default function App() {
             loadPromotions();
             try {
                 const res = await api.bootstrap();
-                setBoot((prev) => ({ ...prev, business: res.business, default_customer: res.default_customer, prompt: res.prompt }));
+                setBoot((prev) => ({ ...prev, business: res.business, default_customer: res.default_customer, prompt: res.prompt, shift_gate: res.shift_gate, shift: res.shift }));
                 if (res.store.id !== boot.store.id) {
-                    setStoreChangeMessage(`Anda dipindahkan ke gerai ${res.store.code} · ${res.store.name}.`);
+                    setStoreChangeMessage(`You have been moved to store ${res.store.code} · ${res.store.name}.`);
                 }
             } catch (e) {
                 // 422 = gerai tidak lagi bisa dipakai; kegagalan lain tetap memakai status terakhir.
@@ -285,14 +288,14 @@ export default function App() {
 
     const addProduct = (product, qty = 1) => {
         if (isOutOfStock(product, allowNegativeStock)) {
-            setNotice({ type: 'error', text: `Stok "${product.name}" habis.` });
+            setNotice({ type: 'error', text: `"${product.name}" is out of stock.` });
             return;
         }
         const limit = maxQty(product, allowNegativeStock);
         const current = cart.find((l) => l.id === product.id)?.qty || 0;
         const nextQty = Math.min(current + qty, limit);
         if (current + qty > limit) {
-            setNotice({ type: 'warning', text: `Stok "${product.name}" tersisa ${limit}.` });
+            setNotice({ type: 'warning', text: `Only ${limit} of "${product.name}" left in stock.` });
         }
         if (nextQty > current) {
             setCart((prev) => {
@@ -327,7 +330,7 @@ export default function App() {
         if (!line) return;
         const limit = maxQty(line, allowNegativeStock);
         if (qty > limit) {
-            setNotice({ type: 'warning', text: `Stok "${line.name}" tersisa ${limit}.` });
+            setNotice({ type: 'warning', text: `Only ${limit} of "${line.name}" left in stock.` });
         }
         const nextQty = Math.max(1, Math.min(qty, limit));
         if (nextQty < line.qty) {
@@ -363,7 +366,7 @@ export default function App() {
                 setDelivery(found.delivery ?? { enabled: false, recipient_name: '', phone: '', address: '', note: '', cost: 0 });
                 setCustomer(found.customer ?? null);
                 setActiveHold(found.active_hold ?? null);
-                setNotice({ type: 'info', text: `Transaksi sebelumnya dipulihkan (${found.cart.length} barang).` });
+                setNotice({ type: 'info', text: `Previous transaction restored (${found.cart.length} items).` });
             }
             setCartReady(true);
         })();
@@ -469,7 +472,7 @@ export default function App() {
             setCustomer(null);
             setShowPayment(false);
             setDelivery({ enabled: false, recipient_name: '', phone: '', address: '', note: '', cost: 0 });
-            setNotice({ type: 'warning', text: 'Offline: transaksi disimpan & akan disinkron otomatis.' });
+            setNotice({ type: 'warning', text: 'Offline: the transaction was saved and will sync automatically.' });
             return;
         }
 
@@ -481,7 +484,7 @@ export default function App() {
             setCustomer(null);
             setShowPayment(false);
             setDelivery({ enabled: false, recipient_name: '', phone: '', address: '', note: '', cost: 0 });
-            setNotice({ type: 'success', text: `Transaksi ${res.data.number} tersimpan.` });
+            setNotice({ type: 'success', text: `Transaction ${res.data.number} saved.` });
             loadProducts(query); // segarkan stok agar produk yang baru habis langsung nonaktif
             if (getAutoPrint()) printReceipt(res.data, meta());
         } catch (e) {
@@ -518,7 +521,7 @@ export default function App() {
             setCustomer(null);
             setDelivery({ enabled: false, recipient_name: '', phone: '', address: '', note: '', cost: 0 });
             refreshHeldCount();
-            setNotice({ type: 'success', text: 'Transaksi ditahan. Buka "Daftar Tahan" untuk melanjutkan.' });
+            setNotice({ type: 'success', text: 'Transaction held. Open "Held Transactions" to resume.' });
         } catch (e) {
             setNotice({ type: 'error', text: e.message });
         }
@@ -527,8 +530,9 @@ export default function App() {
     // ---- Tombol fungsi F1–F12, keyboard, dan dialog (docs/Design-Brief-Layar-POS.md) ----
     const cashMethod = boot?.payment_types?.find((pt) => pt.is_cash);
     const promptOpen = Boolean(boot?.prompt?.greeting || boot?.prompt?.backdate_date);
+    const shiftScreen = boot && !promptOpen ? gateScreen(boot.shift_gate) : null;
     const modalOpen = showPayment || showHolds || showReturn || showDevice || showCustomer || showDelivery
-        || showTransactions || showEditItem || Boolean(confirm) || Boolean(receipt) || promptOpen || Boolean(storeChangeMessage);
+        || showTransactions || showEditItem || Boolean(confirm) || Boolean(receipt) || promptOpen || Boolean(shiftScreen) || showLogoutConfirm || Boolean(storeChangeMessage);
     const keyStates = functionKeyStates({ cartEmpty: cart.length === 0, modalOpen, hasCashMethod: Boolean(cashMethod), heldCount });
     const selectedLine = priced.lines.find((l) => l.id === selectedId) || priced.lines[priced.lines.length - 1] || null;
 
@@ -543,9 +547,9 @@ export default function App() {
         if (!selectedLine) return;
         const index = cart.findIndex((l) => l.id === selectedLine.id);
         setConfirm({
-            title: 'Hapus item?',
-            message: `Hapus "${selectedLine.name}" dari keranjang?`,
-            confirmLabel: 'Hapus',
+            title: 'Remove item?',
+            message: `Remove "${selectedLine.name}" from the cart?`,
+            confirmLabel: 'Remove',
             onConfirm: () => {
                 const remaining = cart.filter((l) => l.id !== selectedLine.id);
                 logCartEvent({
@@ -563,9 +567,9 @@ export default function App() {
 
     const askCancelSale = () => {
         setConfirm({
-            title: 'Batalkan transaksi?',
-            message: 'Semua barang di keranjang akan dikosongkan.',
-            confirmLabel: 'Batalkan Transaksi',
+            title: 'Cancel transaction?',
+            message: 'All items in the cart will be cleared.',
+            confirmLabel: 'Cancel Transaction',
             onConfirm: () => {
                 if (cart.length > 0) {
                     reportCancellation({
@@ -750,7 +754,7 @@ export default function App() {
                         <p>{bootError}</p>
                         <LogoutForm />
                     </div>
-                ) : 'Memuat POS…'}
+                ) : 'Loading POS…'}
             </div>
         );
     }
@@ -763,8 +767,8 @@ export default function App() {
     return (
         <div className="pos">
             <div className="pos-unsupported">
-                <h2>Gunakan tablet atau desktop</h2>
-                <p>POS tidak didukung di ponsel agar transaksi, printer, pemindai, dan laci kas tetap andal. Buka POS di perangkat dengan layar minimal 768 px.</p>
+                <h2>Use a tablet or desktop</h2>
+                <p>POS is not supported on phones so that transactions, printers, scanners, and cash drawers stay reliable. Open POS on a device with a screen at least 768 px wide.</p>
             </div>
 
             <PosHeader
@@ -772,6 +776,7 @@ export default function App() {
                 online={online}
                 queueCount={queue.length}
                 onOpenDevice={() => setShowDevice(true)}
+                onLogout={() => setShowLogoutConfirm(true)}
                 panelOpen={panelOpen}
                 onTogglePanel={() => setPanelOpen((open) => !open)}
             />
@@ -780,13 +785,13 @@ export default function App() {
                 {boot.business?.closed && (
                     <div className="pos-ribbon" role="status">
                         <span className="material-symbols-rounded" aria-hidden="true">lock</span>
-                        EOD tanggal ini sudah ditutup — transaksi online terkunci
+                        EOD for this date is closed — online transactions are locked
                     </div>
                 )}
                 {boot.business?.locked_date && (
                     <div className="pos-ribbon" role="status">
                         <span className="material-symbols-rounded" aria-hidden="true">lock_clock</span>
-                        EOD {formatIsoDate(boot.business.locked_date)} belum dijalankan. Semua transaksi akan tercatat sebagai transaksi {formatIsoDate(boot.business.locked_date)}.
+                        EOD for {formatIsoDate(boot.business.locked_date)} has not been run. All transactions will be recorded as {formatIsoDate(boot.business.locked_date)} transactions.
                     </div>
                 )}
             </div>
@@ -802,18 +807,18 @@ export default function App() {
             )}
 
             <div className="pos-main">
-                <section className="pos-items" aria-label="Daftar barang">
+                <section className="pos-items" aria-label="Item list">
                     <div className="pos-table-wrap" aria-live="polite">
                         <table className="pos-table">
-                            <caption className="sr-only">Barang dalam transaksi</caption>
+                            <caption className="sr-only">Items in the transaction</caption>
                             <thead>
                                 <tr>
-                                    <th className="col-code">Kode</th>
-                                    <th className="col-name">Nama Barang</th>
-                                    <th className="col-num">Diskon</th>
+                                    <th className="col-code">Code</th>
+                                    <th className="col-name">Item Name</th>
+                                    <th className="col-num">Discount</th>
                                     <th className="col-qty">Qty</th>
-                                    <th className="col-unit">Satuan</th>
-                                    <th className="col-num">Harga</th>
+                                    <th className="col-unit">Unit</th>
+                                    <th className="col-num">Price</th>
                                     <th className="col-num">Total</th>
                                 </tr>
                             </thead>
@@ -851,25 +856,25 @@ export default function App() {
                                 ))}
                             </tbody>
                         </table>
-                        {cart.length === 0 && <div className="empty-state">Keranjang kosong. Scan atau cari produk lalu tekan Enter.</div>}
+                        {cart.length === 0 && <div className="empty-state">The cart is empty. Scan or search for a product, then press Enter.</div>}
                         {availableBonuses.map((hint) => (
                             <div key={hint.promotion_id} className="pos-bonus-hint">
                                 <span>
                                     <span className="material-symbols-rounded" aria-hidden="true">redeem</span>
-                                    Bonus tersedia: {hint.qty} × {hint.product.name} <small>({hint.promotion_name})</small>
+                                    Bonus available: {hint.qty} × {hint.product.name} <small>({hint.promotion_name})</small>
                                 </span>
-                                <button className="btn btn-tonal btn-sm" onClick={() => addProduct(hint.product, hint.qty)}>Tambah</button>
+                                <button className="btn btn-tonal btn-sm" onClick={() => addProduct(hint.product, hint.qty)}>Add</button>
                             </div>
                         ))}
                     </div>
                 </section>
 
-                <aside className={`pos-panel ${panelOpen ? 'is-open' : ''}`} aria-label="Panel samping">
+                <aside className={`pos-panel ${panelOpen ? 'is-open' : ''}`} aria-label="Side panel">
                     <div className="pos-tabs" role="tablist">
                         {[
-                            { id: 'customer', label: 'Pelanggan' },
+                            { id: 'customer', label: 'Customer' },
                             { id: 'promo', label: 'Promo & Bonus', badge: availableBonuses.length },
-                            { id: 'products', label: 'Produk' },
+                            { id: 'products', label: 'Products' },
                         ].map((tab) => (
                             <button
                                 key={tab.id}
@@ -879,7 +884,7 @@ export default function App() {
                                 onClick={() => { setPanelTab(tab.id); scanRef.current?.focus(); }}
                             >
                                 {tab.label}
-                                {tab.badge > 0 && <span className="pos-badge" aria-label={`${tab.badge} bonus tersedia`}>{tab.badge}</span>}
+                                {tab.badge > 0 && <span className="pos-badge" aria-label={`${tab.badge} bonus available`}>{tab.badge}</span>}
                             </button>
                         ))}
                     </div>
@@ -888,15 +893,15 @@ export default function App() {
                         {panelTab === 'customer' && (
                             <div className="pos-customer-panel">
                                 <dl className="pos-facts">
-                                    <div><dt>Kode</dt><dd className="sku">{customerInfo.code || '–'}</dd></div>
-                                    <div><dt>Nama</dt><dd>{customerInfo.name}{customerInfo.isDefault && <span className="chip">Default</span>}</dd></div>
-                                    <div><dt>HP</dt><dd className="mono">{customer?.phone || '–'}</dd></div>
+                                    <div><dt>Code</dt><dd className="sku">{customerInfo.code || '–'}</dd></div>
+                                    <div><dt>Name</dt><dd>{customerInfo.name}{customerInfo.isDefault && <span className="chip">Default</span>}</dd></div>
+                                    <div><dt>Phone</dt><dd className="mono">{customer?.phone || '–'}</dd></div>
                                     <div><dt>Level</dt><dd>{customer?.level || '–'}</dd></div>
-                                    <div><dt>Poin</dt><dd className="money">{customer ? Number(customer.points_balance || 0).toLocaleString('id-ID') : '–'}</dd></div>
+                                    <div><dt>Points</dt><dd className="money">{customer ? Number(customer.points_balance || 0).toLocaleString('id-ID') : '–'}</dd></div>
                                 </dl>
                                 <div className="pos-panel-actions">
-                                    <button className="btn btn-outline" onClick={() => setShowCustomer(true)}>Ganti</button>
-                                    <button className="btn btn-outline" onClick={() => { setCustomer(null); scanRef.current?.focus(); }} disabled={!customerInfo.isSelected}>Hapus</button>
+                                    <button className="btn btn-outline" onClick={() => setShowCustomer(true)}>Change</button>
+                                    <button className="btn btn-outline" onClick={() => { setCustomer(null); scanRef.current?.focus(); }} disabled={!customerInfo.isSelected}>Clear</button>
                                 </div>
                             </div>
                         )}
@@ -904,7 +909,7 @@ export default function App() {
                         {panelTab === 'promo' && (
                             <div className="pos-promo-panel">
                                 {appliedPromotions.length === 0 && availableBonuses.length === 0 && (
-                                    <div className="empty-state">Tidak ada promosi pada keranjang ini.</div>
+                                    <div className="empty-state">No promotions in this cart.</div>
                                 )}
                                 {appliedPromotions.map((l) => (
                                     <div key={l.promotion_id} className="pos-promo-row">
@@ -921,7 +926,7 @@ export default function App() {
                                             <span className="material-symbols-rounded" aria-hidden="true">redeem</span>
                                             {hint.qty} × {hint.product.name} <small>({hint.promotion_name})</small>
                                         </span>
-                                        <button className="btn btn-tonal btn-sm" onClick={() => addProduct(hint.product, hint.qty)}>Tambah</button>
+                                        <button className="btn btn-tonal btn-sm" onClick={() => addProduct(hint.product, hint.qty)}>Add</button>
                                     </div>
                                 ))}
                             </div>
@@ -932,16 +937,16 @@ export default function App() {
                                 {products.map((p) => {
                                     const outOfStock = isOutOfStock(p, allowNegativeStock);
                                     return (
-                                        <button key={p.id} className="pos-tile" onClick={() => addProduct(p)} disabled={outOfStock} title={outOfStock ? 'Stok habis' : undefined}>
+                                        <button key={p.id} className="pos-tile" onClick={() => addProduct(p)} disabled={outOfStock} title={outOfStock ? 'Out of stock' : undefined}>
                                             <ProductThumb product={p} />
                                             <span className="pos-tile-name">{p.name}</span>
                                             <span className="pos-tile-sku sku">{p.sku}</span>
                                             <span className="pos-tile-price money">{fmt(p.price, currency)}</span>
-                                            {p.track_stock && <span className="pos-tile-stock">{outOfStock ? 'Stok habis' : `stok ${p.stock}`}</span>}
+                                            {p.track_stock && <span className="pos-tile-stock">{outOfStock ? 'Out of stock' : `stock ${p.stock}`}</span>}
                                         </button>
                                     );
                                 })}
-                                {products.length === 0 && <div className="empty-state">Tidak ada produk.</div>}
+                                {products.length === 0 && <div className="empty-state">No products.</div>}
                             </div>
                         )}
                     </div>
@@ -951,10 +956,10 @@ export default function App() {
             <div className="pos-bottom">
                 <div className="pos-summary" aria-live="polite">
                     <div className="pos-cell"><span className="pos-cell-label">Item</span><span className="pos-cell-value money">{priced.lines.length} / {totalQty}</span></div>
-                    <div className="pos-cell"><span className="pos-cell-label">Subtotal setelah diskon</span><span className="pos-cell-value money">{fmt(totals.subtotal, currency)}</span></div>
-                    <div className="pos-cell"><span className="pos-cell-label">Diskon</span><span className="pos-cell-value money">{fmt(totals.discountTotal, currency)}</span></div>
-                    <div className="pos-cell"><span className="pos-cell-label">PPN{boot.company?.tax_group_code ? ` (${boot.company.tax_group_code})` : ''}</span><span className="pos-cell-value money">{fmt(totals.taxTotal, currency)}</span></div>
-                    <div className="pos-cell"><span className="pos-cell-label">Ongkir</span><span className="pos-cell-value money">{fmt(delivery.enabled ? Number(delivery.cost || 0) : 0, currency)}</span></div>
+                    <div className="pos-cell"><span className="pos-cell-label">Subtotal after discount</span><span className="pos-cell-value money">{fmt(totals.subtotal, currency)}</span></div>
+                    <div className="pos-cell"><span className="pos-cell-label">Discount</span><span className="pos-cell-value money">{fmt(totals.discountTotal, currency)}</span></div>
+                    <div className="pos-cell"><span className="pos-cell-label">VAT{boot.company?.tax_group_code ? ` (${boot.company.tax_group_code})` : ''}</span><span className="pos-cell-value money">{fmt(totals.taxTotal, currency)}</span></div>
+                    <div className="pos-cell"><span className="pos-cell-label">Shipping</span><span className="pos-cell-value money">{fmt(delivery.enabled ? Number(delivery.cost || 0) : 0, currency)}</span></div>
                     <div className="pos-cell pos-cell-total"><span className="pos-cell-label">TOTAL</span><span className="pos-cell-value money">{fmt(totals.total, currency)}</span></div>
                 </div>
                 <div className="pos-input-box">
@@ -962,8 +967,8 @@ export default function App() {
                         ref={scanRef}
                         className="pos-scan"
                         autoFocus
-                        aria-label="Scan barcode atau cari produk"
-                        placeholder="Scan / cari produk"
+                        aria-label="Scan barcode or search products"
+                        placeholder="Scan / search products"
                         value={query}
                         onChange={(e) => { setQuery(e.target.value); loadProducts(e.target.value); }}
                         onKeyDown={onScan}
@@ -971,7 +976,7 @@ export default function App() {
                 </div>
             </div>
 
-            <nav className="pos-fkeys" aria-label="Tombol fungsi">
+            <nav className="pos-fkeys" aria-label="Function keys">
                 {keyStates.map((k) => (
                     <button
                         key={k.key}
@@ -981,8 +986,8 @@ export default function App() {
                         onClick={() => { runAction(k.action); }}
                     >
                         <span className="pos-fkey-name">{k.key}</span>
-                        <span className="pos-fkey-label">{k.label || 'kosong'}</span>
-                        {k.badge && <span className="pos-badge pos-fkey-badge" aria-label={`${k.badge} transaksi ditahan`}>{k.badge}</span>}
+                        <span className="pos-fkey-label">{k.label || 'empty'}</span>
+                        {k.badge && <span className="pos-badge pos-fkey-badge" aria-label={`${k.badge} transactions held`}>{k.badge}</span>}
                     </button>
                 ))}
             </nav>
@@ -1052,8 +1057,8 @@ export default function App() {
                         if (adjustments.length > 0) {
                             setNotice({
                                 type: 'warning',
-                                text: 'Stok berubah sejak ditahan: ' + adjustments
-                                    .map((a) => (a.to > 0 ? `${a.name} ${a.from} → ${a.to}` : `${a.name} dihapus (stok habis)`))
+                                text: 'Stock changed since the hold: ' + adjustments
+                                    .map((a) => (a.to > 0 ? `${a.name} ${a.from} → ${a.to}` : `${a.name} removed (out of stock)`))
                                     .join(', '),
                             });
                         }
@@ -1088,13 +1093,25 @@ export default function App() {
                 />
             )}
 
+            {shiftScreen && (
+                <ShiftGateModal
+                    screen={shiftScreen}
+                    gate={boot.shift_gate}
+                    onStarted={({ shift, ...gate }) => setBoot((prev) => ({ ...prev, shift_gate: gate, shift }))}
+                />
+            )}
+
+            {showLogoutConfirm && (
+                <LogoutConfirmModal shift={boot.shift} onCancel={() => setShowLogoutConfirm(false)} />
+            )}
+
             {storeChangeMessage && (
                 <div className="pos-modal" role="dialog" aria-modal="true" aria-labelledby="pos-store-change-title">
                     <div className="pos-modal-card">
-                        <h2 id="pos-store-change-title">Penugasan gerai berubah</h2>
-                        <p>{storeChangeMessage} Muat ulang POS untuk melanjutkan. Keranjang yang belum selesai tidak disimpan, sedangkan transaksi offline yang tertunda tetap tercatat di gerai asalnya.</p>
+                        <h2 id="pos-store-change-title">Store assignment changed</h2>
+                        <p>{storeChangeMessage} Reload POS to continue. An unfinished cart is not saved, while pending offline transactions stay recorded at their original store.</p>
                         <div className="pos-modal-actions">
-                            <button className="btn btn-filled" onClick={() => window.location.reload()}>Muat Ulang</button>
+                            <button className="btn btn-filled" onClick={() => window.location.reload()}>Reload</button>
                         </div>
                     </div>
                 </div>
@@ -1111,7 +1128,7 @@ export default function App() {
 }
 
 // Header: logo, gerai, business date (tanggal posting), jam zona waktu perusahaan, status online/antrean, dan menu kasir.
-function PosHeader({ boot, online, queueCount, onOpenDevice, panelOpen, onTogglePanel }) {
+function PosHeader({ boot, online, queueCount, onOpenDevice, onLogout, panelOpen, onTogglePanel }) {
     const business = boot.business;
     const offset = useMemo(() => serverOffset(business?.server_time), [business?.server_time]);
     const [now, setNow] = useState(() => new Date(Date.now() + offset));
@@ -1153,7 +1170,7 @@ function PosHeader({ boot, online, queueCount, onOpenDevice, panelOpen, onToggle
                 {queueCount > 0 && (
                     <span className="chip chip-pending" role="status">
                         <span className="material-symbols-rounded" aria-hidden="true">schedule</span>
-                        {queueCount} tertunda
+                        {queueCount} pending
                     </span>
                 )}
             </span>
@@ -1170,14 +1187,11 @@ function PosHeader({ boot, online, queueCount, onOpenDevice, panelOpen, onToggle
                     {menuOpen && (
                         <div className="pos-menu" role="menu">
                             <button role="menuitem" className="pos-menu-item" onClick={() => { setMenuOpen(false); onOpenDevice(); }}>
-                                <span className="material-symbols-rounded" aria-hidden="true">print</span>Perangkat
+                                <span className="material-symbols-rounded" aria-hidden="true">print</span>Devices
                             </button>
-                            <form method="POST" action="/logout">
-                                <input type="hidden" name="_token" value={document.querySelector('meta[name="csrf-token"]')?.content} />
-                                <button role="menuitem" type="submit" className="pos-menu-item">
-                                    <span className="material-symbols-rounded" aria-hidden="true">logout</span>Keluar
-                                </button>
-                            </form>
+                            <button role="menuitem" className="pos-menu-item" onClick={() => { setMenuOpen(false); onLogout(); }}>
+                                <span className="material-symbols-rounded" aria-hidden="true">logout</span>Sign out
+                            </button>
                         </div>
                     )}
                 </div>
@@ -1193,7 +1207,7 @@ function ConfirmDialog({ title, message, confirmLabel, onConfirm, onCancel }) {
                 <h2 id="pos-confirm-title">{title}</h2>
                 <p>{message}</p>
                 <div className="pos-modal-actions">
-                    <button className="btn btn-outline" onClick={onCancel}>Batal</button>
+                    <button className="btn btn-outline" onClick={onCancel}>Cancel</button>
                     <button className="btn pos-btn-danger" autoFocus onClick={onConfirm}>{confirmLabel}</button>
                 </div>
             </div>
@@ -1266,21 +1280,21 @@ function SessionConflict({ info, onTakeover }) {
     return (
         <div className="pos-loading">
             <div className="pos-boot-error" role="alertdialog" aria-labelledby="pos-session-title">
-                <h2 id="pos-session-title">POS sedang aktif di perangkat lain</h2>
-                <p>Satu akun hanya boleh memakai POS di satu perangkat atau browser pada satu waktu.</p>
+                <h2 id="pos-session-title">POS is active on another device</h2>
+                <p>One account can use POS on only one device or browser at a time.</p>
                 {info && (
                     <dl className="pos-session-info">
                         <div><dt>Browser</dt><dd>{info.browser || '-'}</dd></div>
                         <div><dt>IP</dt><dd className="mono">{info.ip || '-'}</dd></div>
-                        <div><dt>Aktif sejak</dt><dd>{formatSessionTime(info.started_at)}</dd></div>
-                        <div><dt>Terakhir aktif</dt><dd>{formatSessionTime(info.last_seen_at)}</dd></div>
+                        <div><dt>Active since</dt><dd>{formatSessionTime(info.started_at)}</dd></div>
+                        <div><dt>Last active</dt><dd>{formatSessionTime(info.last_seen_at)}</dd></div>
                     </dl>
                 )}
-                <p>Jika Anda mengambil alih, perangkat tersebut terputus dan kejadian ini dicatat di Log Aktivitas. Keranjang yang sedang berjalan tidak hilang.</p>
+                <p>If you take over, the other device is disconnected and this is recorded in the Activity Log. The cart in progress is not lost.</p>
                 {error && <p className="pos-session-error">{error}</p>}
                 <div className="pos-modal-actions">
                     <LogoutForm />
-                    <button className="btn btn-filled" onClick={takeover} disabled={busy}>Ambil alih sesi di perangkat ini</button>
+                    <button className="btn btn-filled" onClick={takeover} disabled={busy}>Take over the session on this device</button>
                 </div>
             </div>
         </div>
@@ -1296,10 +1310,10 @@ function EditItemModal({ line, onClose, onSave }) {
     return (
         <div className="pos-modal" role="dialog" aria-modal="true" aria-labelledby="pos-edit-title">
             <div className="pos-modal-card pos-modal-sm">
-                <h2 id="pos-edit-title">Ubah Item</h2>
+                <h2 id="pos-edit-title">Edit Item</h2>
                 <p><strong>{line.name}</strong> <span className="sku">{line.sku}</span></p>
                 <label className="pos-field">
-                    Qty{limit !== Infinity ? ` (stok ${limit})` : ''}
+                    Qty{limit !== Infinity ? ` (stock ${limit})` : ''}
                     <input
                         className="mono"
                         inputMode="numeric"
@@ -1311,8 +1325,8 @@ function EditItemModal({ line, onClose, onSave }) {
                     />
                 </label>
                 <div className="pos-modal-actions">
-                    <button className="btn btn-outline" onClick={onClose}>Batal</button>
-                    <button className="btn btn-filled" disabled={!valid} onClick={() => onSave(value)}>Simpan</button>
+                    <button className="btn btn-outline" onClick={onClose}>Cancel</button>
+                    <button className="btn btn-filled" disabled={!valid} onClick={() => onSave(value)}>Save</button>
                 </div>
             </div>
         </div>
@@ -1327,20 +1341,20 @@ function DeliveryModal({ delivery, onClose, onSave }) {
     return (
         <div className="pos-modal" role="dialog" aria-modal="true" aria-labelledby="pos-delivery-title">
             <div className="pos-modal-card">
-                <h2 id="pos-delivery-title">Pengiriman</h2>
+                <h2 id="pos-delivery-title">Delivery</h2>
                 <div className="pos-delivery">
-                    <input autoFocus aria-label="Nama penerima" placeholder="Nama penerima *" value={draft.recipient_name} onChange={(e) => setDraft({ ...draft, recipient_name: e.target.value })} />
-                    <input aria-label="Telepon" placeholder="Telepon" value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} />
-                    <input aria-label="Alamat" placeholder="Alamat *" value={draft.address} onChange={(e) => setDraft({ ...draft, address: e.target.value })} />
-                    <input aria-label="Catatan" placeholder="Catatan" value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
-                    <input aria-label="Biaya kirim" inputMode="numeric" placeholder="Biaya kirim" value={draft.cost} onChange={(e) => setDraft({ ...draft, cost: Number(e.target.value.replace(/[^\d]/g, '')) || '' })} />
+                    <input autoFocus aria-label="Recipient name" placeholder="Recipient name *" value={draft.recipient_name} onChange={(e) => setDraft({ ...draft, recipient_name: e.target.value })} />
+                    <input aria-label="Phone" placeholder="Phone" value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} />
+                    <input aria-label="Address" placeholder="Address *" value={draft.address} onChange={(e) => setDraft({ ...draft, address: e.target.value })} />
+                    <input aria-label="Note" placeholder="Note" value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
+                    <input aria-label="Shipping cost" inputMode="numeric" placeholder="Shipping cost" value={draft.cost} onChange={(e) => setDraft({ ...draft, cost: Number(e.target.value.replace(/[^\d]/g, '')) || '' })} />
                 </div>
                 <div className="pos-modal-actions">
                     {delivery.enabled && (
-                        <button className="btn btn-outline" onClick={() => onSave({ enabled: false, recipient_name: '', phone: '', address: '', note: '', cost: 0 })}>Hapus Pengiriman</button>
+                        <button className="btn btn-outline" onClick={() => onSave({ enabled: false, recipient_name: '', phone: '', address: '', note: '', cost: 0 })}>Remove Delivery</button>
                     )}
-                    <button className="btn btn-outline" onClick={onClose}>Batal</button>
-                    <button className="btn btn-filled" disabled={!valid} onClick={() => onSave({ ...draft, enabled: true, cost: Number(draft.cost || 0) })}>Simpan</button>
+                    <button className="btn btn-outline" onClick={onClose}>Cancel</button>
+                    <button className="btn btn-filled" disabled={!valid} onClick={() => onSave({ ...draft, enabled: true, cost: Number(draft.cost || 0) })}>Save</button>
                 </div>
             </div>
         </div>
@@ -1403,7 +1417,7 @@ function TransactionsModal({ online, boot, currency, meta, onClose }) {
 
     const waiting = pendingForStore(readQueue(), boot.store?.id).map((item) => ({
         key: item.client_uuid,
-        number: 'Belum tersinkron',
+        number: 'Not synced yet',
         customer: item.local_summary?.customer_name || '–',
         total: item.local_summary?.total ?? 0,
         tax_total: item.local_summary?.tax_total ?? 0,
@@ -1412,23 +1426,23 @@ function TransactionsModal({ online, boot, currency, meta, onClose }) {
     return (
         <div className="pos-modal" role="dialog" aria-modal="true" aria-labelledby="pos-trx-title">
             <div className="pos-modal-card pos-modal-wide">
-                <h2 id="pos-trx-title">Transaksi {businessDate ? formatIsoDate(businessDate) : ''}</h2>
+                <h2 id="pos-trx-title">Transactions {businessDate ? formatIsoDate(businessDate) : ''}</h2>
                 <p className="card-subtitle" style={{ marginTop: 0 }}>
-                    Hanya transaksi {boot.store?.code} pada business date ini.{!online && ' Offline: hanya transaksi di perangkat ini yang tampil.'}
+                    Only {boot.store?.code} transactions on this business date.{!online && ' Offline: only transactions on this device are shown.'}
                 </p>
                 {error && <div className="md-snackbar error" role="alert">{error}</div>}
-                {loading && <div className="empty-state">Memuat transaksi…</div>}
+                {loading && <div className="empty-state">Loading transactions…</div>}
                 {summary && <TransactionSummary summary={summary} currency={currency} />}
                 <table className="pos-table pos-mini-table">
-                    <caption className="sr-only">Transaksi pada business date aktif</caption>
+                    <caption className="sr-only">Transactions on the active business date</caption>
                     <thead>
                         <tr>
-                            <th>Nomor</th>
-                            <th>Pelanggan</th>
-                            <th className="col-num">Penjualan</th>
-                            <th className="col-num">Pajak</th>
+                            <th>Number</th>
+                            <th>Customer</th>
+                            <th className="col-num">Sales</th>
+                            <th className="col-num">Tax</th>
                             <th>Status</th>
-                            <th><span className="sr-only">Aksi</span></th>
+                            <th><span className="sr-only">Actions</span></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1438,7 +1452,7 @@ function TransactionsModal({ online, boot, currency, meta, onClose }) {
                                 <td>{r.customer}</td>
                                 <td className="col-num money">{fmt(r.total, currency)}</td>
                                 <td className="col-num money">{fmt(r.tax_total, currency)}</td>
-                                <td><span className="chip chip-pending"><span className="material-symbols-rounded" aria-hidden="true">schedule</span>Offline · tertunda</span></td>
+                                <td><span className="chip chip-pending"><span className="material-symbols-rounded" aria-hidden="true">schedule</span>Offline · pending</span></td>
                                 <td />
                             </tr>
                         ))}
@@ -1453,16 +1467,16 @@ function TransactionsModal({ online, boot, currency, meta, onClose }) {
                                     {r.status !== 'void' && r.origin === 'offline' && <span className="chip chip-offline"><span className="material-symbols-rounded" aria-hidden="true">wifi_off</span>Offline</span>}
                                 </td>
                                 <td>
-                                    <button className="btn btn-outline btn-sm" disabled={opening === r.id} onClick={() => openDetail(r)}>Rincian</button>{' '}
-                                    <button className="btn btn-tonal btn-sm" disabled={printing === r.id} onClick={() => reprint(r)}>Cetak Ulang</button>
+                                    <button className="btn btn-outline btn-sm" disabled={opening === r.id} onClick={() => openDetail(r)}>Details</button>{' '}
+                                    <button className="btn btn-tonal btn-sm" disabled={printing === r.id} onClick={() => reprint(r)}>Reprint</button>
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
-                {!loading && rows.length === 0 && waiting.length === 0 && <div className="empty-state">Belum ada transaksi pada business date ini.</div>}
+                {!loading && rows.length === 0 && waiting.length === 0 && <div className="empty-state">No transactions on this business date yet.</div>}
                 <div className="pos-modal-actions">
-                    <button className="btn btn-outline" onClick={onClose}>Tutup</button>
+                    <button className="btn btn-outline" onClick={onClose}>Close</button>
                 </div>
             </div>
         </div>
@@ -1472,12 +1486,12 @@ function TransactionsModal({ online, boot, currency, meta, onClose }) {
 // Ringkasan business date aktif: hanya transaksi selesai; void dihitung terpisah. Tersedia saat online.
 function TransactionSummary({ summary, currency }) {
     return (
-        <div className="pos-receipt" aria-label="Ringkasan transaksi">
-            <div><span>Transaksi selesai</span><span>{summary.count}</span></div>
-            {summary.void_count > 0 && <div><span>Transaksi void (tidak dihitung)</span><span>{summary.void_count}</span></div>}
-            <div><span>Penjualan sebelum pajak</span><span className="money">{fmt(summary.subtotal, currency)}</span></div>
-            {summary.discount_total > 0 && <div><span>Diskon</span><span className="money">−{fmt(summary.discount_total, currency)}</span></div>}
-            <div><span>Pajak</span><span className="money">{fmt(summary.tax_total, currency)}</span></div>
+        <div className="pos-receipt" aria-label="Transaction summary">
+            <div><span>Completed transactions</span><span>{summary.count}</span></div>
+            {summary.void_count > 0 && <div><span>Void transactions (not counted)</span><span>{summary.void_count}</span></div>}
+            <div><span>Sales before tax</span><span className="money">{fmt(summary.subtotal, currency)}</span></div>
+            {summary.discount_total > 0 && <div><span>Discount</span><span className="money">−{fmt(summary.discount_total, currency)}</span></div>}
+            <div><span>Tax</span><span className="money">{fmt(summary.tax_total, currency)}</span></div>
             <div className="pos-grand"><span>TOTAL</span><span className="money">{fmt(summary.total, currency)}</span></div>
             {summary.by_payment_type.map((p) => (
                 <div key={p.code}><span>{p.description || p.code}</span><span className="money">{fmt(p.amount, currency)}</span></div>
@@ -1490,9 +1504,9 @@ function TransactionDetail({ sale, currency, onBack, onPrint }) {
     return (
         <div className="pos-modal" role="dialog" aria-modal="true" aria-labelledby="pos-trx-detail-title">
             <div className="pos-modal-card pos-modal-wide">
-                <h2 id="pos-trx-detail-title">Rincian {sale.number}</h2>
+                <h2 id="pos-trx-detail-title">Details {sale.number}</h2>
                 <p className="card-subtitle" style={{ marginTop: 0 }}>
-                    {sale.customer ? `${sale.customer.code || ''} ${sale.customer.name}`.trim() : 'Tanpa pelanggan'}
+                    {sale.customer ? `${sale.customer.code || ''} ${sale.customer.name}`.trim() : 'No customer'}
                     {sale.sold_at && ` · ${new Date(sale.sold_at).toLocaleString('id-ID')}`}
                     {sale.status === 'void' && ' · VOID'}
                 </p>
@@ -1505,27 +1519,27 @@ function TransactionDetail({ sale, currency, onBack, onPrint }) {
                             </div>
                             {l.discount > 0 && (
                                 <div className="pos-receipt-line pos-receipt-promo">
-                                    <span>{l.promotion_name || 'Diskon'}</span>
+                                    <span>{l.promotion_name || 'Discount'}</span>
                                     <span className="money">−{fmt(l.discount, currency)}</span>
                                 </div>
                             )}
                         </React.Fragment>
                     ))}
-                    {sale.discount_total > 0 && <div className="pos-saving"><span>Hemat</span><span className="money">−{fmt(sale.discount_total, currency)}</span></div>}
-                    <div><span>Pajak</span><span className="money">{fmt(sale.tax_total, currency)}</span></div>
+                    {sale.discount_total > 0 && <div className="pos-saving"><span>You saved</span><span className="money">−{fmt(sale.discount_total, currency)}</span></div>}
+                    <div><span>Tax</span><span className="money">{fmt(sale.tax_total, currency)}</span></div>
                     <div className="pos-grand"><span>TOTAL</span><span className="money">{fmt(sale.total, currency)}</span></div>
                     {sale.payments?.map((p, i) => (
                         <div key={i}>
-                            <span>{p.type?.description || p.type?.code || 'Pembayaran'}{p.approval_code ? ` · ${p.approval_code}` : ''}{p.status !== 'confirmed' ? ` (${p.status})` : ''}</span>
+                            <span>{p.type?.description || p.type?.code || 'Payment'}{p.approval_code ? ` · ${p.approval_code}` : ''}{p.status !== 'confirmed' ? ` (${p.status})` : ''}</span>
                             <span className="money">{fmt(p.amount, currency)}</span>
                         </div>
                     ))}
-                    <div><span>Bayar</span><span className="money">{fmt(sale.paid_total, currency)}</span></div>
-                    <div><span>Kembali</span><span className="money">{fmt(sale.change_total, currency)}</span></div>
+                    <div><span>Paid</span><span className="money">{fmt(sale.paid_total, currency)}</span></div>
+                    <div><span>Change</span><span className="money">{fmt(sale.change_total, currency)}</span></div>
                 </div>
                 <div className="pos-modal-actions">
-                    <button className="btn btn-outline" onClick={onBack}>Kembali</button>
-                    <button className="btn btn-filled" onClick={onPrint}>Cetak Ulang</button>
+                    <button className="btn btn-outline" onClick={onBack}>Back</button>
+                    <button className="btn btn-filled" onClick={onPrint}>Reprint</button>
                 </div>
             </div>
         </div>
@@ -1562,7 +1576,7 @@ function PaymentModal({ boot, currency, totals, onClose, onConfirm }) {
     return (
         <div className="pos-modal">
             <div className="pos-modal-card">
-                <h2>Pembayaran</h2>
+                <h2>Payment</h2>
                 <div className="pos-grand money">{fmt(totals.total, currency)}</div>
 
                 <div className="pos-pay-rows">
@@ -1575,15 +1589,15 @@ function PaymentModal({ boot, currency, totals, onClose, onConfirm }) {
                             </select>
                             <input type="number" value={r.amount} onChange={(e) => setRow(i, { amount: Number(e.target.value) })} />
                             <select value={r.status} onChange={(e) => setRow(i, { status: e.target.value })}>
-                                <option value="confirmed">Lunas</option>
+                                <option value="confirmed">Paid</option>
                                 <option value="pending">Pending</option>
                             </select>
                             {rows.length > 1 && <button className="icon-btn" onClick={() => setRows(rows.filter((_, idx) => idx !== i))}>×</button>}
                             {requiresApproval(boot.payment_types, r.payment_type_id) && (
                                 <input
                                     className="pos-approval"
-                                    aria-label="Kode approval"
-                                    placeholder={r.status === 'confirmed' ? 'Kode approval *' : 'Kode approval'}
+                                    aria-label="Approval code"
+                                    placeholder={r.status === 'confirmed' ? 'Approval code *' : 'Approval code'}
                                     maxLength={50}
                                     value={r.approval_code || ''}
                                     onChange={(e) => setRow(i, { approval_code: e.target.value })}
@@ -1598,26 +1612,26 @@ function PaymentModal({ boot, currency, totals, onClose, onConfirm }) {
 
                     return qrUrl ? (
                         <div className="pos-pay-qr" key={`qr-${i}`}>
-                            <img src={qrUrl} alt="QR pembayaran" />
-                            <span>Minta pelanggan memindai QR ini untuk membayar {fmt(Number(r.amount || 0), currency)}.</span>
+                            <img src={qrUrl} alt="Payment QR" />
+                            <span>Ask the customer to scan this QR code to pay {fmt(Number(r.amount || 0), currency)}.</span>
                         </div>
                     ) : null;
                 })}
 
                 <button className="btn btn-tonal btn-sm" onClick={() => setRows([...rows, { payment_type_id: boot.payment_types[0]?.id || '', amount: 0, status: 'confirmed' }])}>
-                    + Metode lain
+                    + Another method
                 </button>
 
                 <div className="pos-pay-summary">
-                    <div><span>Dibayar</span><span className="money">{fmt(paid, currency)}</span></div>
-                    <div><span>Kembali</span><span className="money">{fmt(change, currency)}</span></div>
+                    <div><span>Paid</span><span className="money">{fmt(paid, currency)}</span></div>
+                    <div><span>Change</span><span className="money">{fmt(change, currency)}</span></div>
                 </div>
 
-                {hasPending && <div className="pos-pending-note">Ada pembayaran pending — akan dikonfirmasi setelah tersinkron.</div>}
+                {hasPending && <div className="pos-pending-note">There is a pending payment — it will be confirmed after syncing.</div>}
 
                 <div className="pos-modal-actions">
-                    <button className="btn btn-outline" onClick={onClose}>Batal</button>
-                    <button className="btn btn-filled" onClick={() => onConfirm(normalizePayments(rows, boot.payment_types))} disabled={paid <= 0 || needsApproval}>Konfirmasi</button>
+                    <button className="btn btn-outline" onClick={onClose}>Cancel</button>
+                    <button className="btn btn-filled" onClick={() => onConfirm(normalizePayments(rows, boot.payment_types))} disabled={paid <= 0 || needsApproval}>Confirm</button>
                 </div>
             </div>
         </div>
@@ -1628,7 +1642,7 @@ function ReceiptModal({ sale, currency, meta, onClose }) {
     return (
         <div className="pos-modal">
             <div className="pos-modal-card">
-                <h2>Struk {sale.number}</h2>
+                <h2>Receipt {sale.number}</h2>
                 <div className="pos-receipt">
                     {sale.lines?.map((l, i) => (
                         <React.Fragment key={i}>
@@ -1638,23 +1652,23 @@ function ReceiptModal({ sale, currency, meta, onClose }) {
                             </div>
                             {l.discount > 0 && (
                                 <div className="pos-receipt-line pos-receipt-promo">
-                                    <span>{l.promotion_name || 'Diskon'}</span>
+                                    <span>{l.promotion_name || 'Discount'}</span>
                                     <span className="money">−{fmt(l.discount, currency)}</span>
                                 </div>
                             )}
                         </React.Fragment>
                     ))}
-                    {sale.discount_total > 0 && <div className="pos-saving"><span>Hemat</span><span className="money">−{fmt(sale.discount_total, currency)}</span></div>}
+                    {sale.discount_total > 0 && <div className="pos-saving"><span>You saved</span><span className="money">−{fmt(sale.discount_total, currency)}</span></div>}
                     <div className="pos-grand"><span>TOTAL</span><span className="money">{fmt(sale.total, currency)}</span></div>
-                    <div><span>Bayar</span><span className="money">{fmt(sale.paid_total, currency)}</span></div>
-                    <div><span>Kembali</span><span className="money">{fmt(sale.change_total, currency)}</span></div>
+                    <div><span>Paid</span><span className="money">{fmt(sale.paid_total, currency)}</span></div>
+                    <div><span>Change</span><span className="money">{fmt(sale.change_total, currency)}</span></div>
                     {sale.points_earned > 0 && (
-                        <div><span>Poin diperoleh</span><span className="money">+{sale.points_earned}</span></div>
+                        <div><span>Points earned</span><span className="money">+{sale.points_earned}</span></div>
                     )}
                 </div>
                 <div className="pos-modal-actions">
-                    <button className="btn btn-outline" onClick={onClose}>Tutup</button>
-                    <button className="btn btn-filled" onClick={() => printReceipt(sale, meta)}>Cetak</button>
+                    <button className="btn btn-outline" onClick={onClose}>Close</button>
+                    <button className="btn btn-filled" onClick={() => printReceipt(sale, meta)}>Print</button>
                 </div>
             </div>
         </div>
@@ -1699,7 +1713,7 @@ function HoldsModal({ online, cartEmpty, onClose, onResume }) {
     const resume = async (item) => {
         setError(null);
         if (!cartEmpty) {
-            setError('Keranjang masih berisi. Selesaikan atau tahan transaksi saat ini dulu.');
+            setError('The cart still has items. Finish or hold the current transaction first.');
             return;
         }
         let stock = null;
@@ -1719,23 +1733,23 @@ function HoldsModal({ online, cartEmpty, onClose, onResume }) {
     return (
         <div className="pos-modal">
             <div className="pos-modal-card">
-                <h2>Transaksi Ditahan</h2>
+                <h2>Held Transactions</h2>
                 <p className="card-subtitle" style={{ marginTop: 0 }}>
-                    Hanya menampilkan tahan milik akun kasir yang sedang login.
+                    Only holds from the signed-in cashier account are shown.
                 </p>
                 {error && <div className="md-snackbar error">{error}</div>}
-                {items.length === 0 && <div className="empty-state">Tidak ada transaksi ditahan.</div>}
+                {items.length === 0 && <div className="empty-state">No held transactions.</div>}
                 {items.map((it) => (
                     <div key={it.client_uuid} className="pos-hold-row">
-                        <span>{(it.payload?.cart || []).length} item · {new Date(it.updated_at || Date.now()).toLocaleTimeString('id-ID')}</span>
+                        <span>{(it.payload?.cart || []).length} items · {new Date(it.updated_at || Date.now()).toLocaleTimeString('id-ID')}</span>
                         <div>
-                            <button className="btn btn-filled btn-sm" onClick={() => resume(it)}>Lanjutkan</button>
-                            <button className="btn btn-outline btn-sm" onClick={() => cancel(it)}>Hapus</button>
+                            <button className="btn btn-filled btn-sm" onClick={() => resume(it)}>Resume</button>
+                            <button className="btn btn-outline btn-sm" onClick={() => cancel(it)}>Delete</button>
                         </div>
                     </div>
                 ))}
                 <div className="pos-modal-actions">
-                    <button className="btn btn-outline" onClick={onClose}>Tutup</button>
+                    <button className="btn btn-outline" onClick={onClose}>Close</button>
                 </div>
             </div>
         </div>
@@ -1763,12 +1777,12 @@ function ReturnModal({ onClose, onDone, onError }) {
             .filter(([, q]) => Number(q) > 0)
             .map(([sale_line_id, qty]) => ({ sale_line_id, qty: Number(qty) }));
         if (lines.length === 0) {
-            onError('Pilih qty retur.');
+            onError('Select a return quantity.');
             return;
         }
         try {
             const res = await api.createReturn({ sale_id: sale.id, refund_method: refund, lines });
-            onDone(`Retur ${res.data.number} berhasil.`);
+            onDone(`Return ${res.data.number} completed.`);
         } catch (e) {
             onError(e.message);
         }
@@ -1777,10 +1791,10 @@ function ReturnModal({ onClose, onDone, onError }) {
     return (
         <div className="pos-modal">
             <div className="pos-modal-card">
-                <h2>Retur Penjualan</h2>
+                <h2>Sales Return</h2>
                 <div className="pos-pay-row">
-                    <input placeholder="Nomor struk" value={number} onChange={(e) => setNumber(e.target.value)} />
-                    <button className="btn btn-tonal" onClick={lookup}>Cari</button>
+                    <input placeholder="Receipt number" value={number} onChange={(e) => setNumber(e.target.value)} />
+                    <button className="btn btn-tonal" onClick={lookup}>Search</button>
                 </div>
 
                 {sale && (
@@ -1788,22 +1802,22 @@ function ReturnModal({ onClose, onDone, onError }) {
                         <div className="pos-receipt">
                             {sale.lines.map((l) => (
                                 <div key={l.sale_line_id} className="pos-return-line">
-                                    <span>{l.sku} · {l.name} <small>(sisa {l.returnable})</small></span>
+                                    <span>{l.sku} · {l.name} <small>({l.returnable} left)</small></span>
                                     <input type="number" min="0" max={l.returnable} value={qtys[l.sale_line_id] || ''} onChange={(e) => setQtys({ ...qtys, [l.sale_line_id]: e.target.value })} />
                                 </div>
                             ))}
                         </div>
                         <select value={refund} onChange={(e) => setRefund(e.target.value)}>
-                            <option value="cash">Tunai</option>
+                            <option value="cash">Cash</option>
                             <option value="transfer">Transfer</option>
-                            <option value="none">Tanpa refund</option>
+                            <option value="none">No refund</option>
                         </select>
                     </>
                 )}
 
                 <div className="pos-modal-actions">
-                    <button className="btn btn-outline" onClick={onClose}>Batal</button>
-                    <button className="btn btn-filled" onClick={submit} disabled={!sale}>Proses Retur</button>
+                    <button className="btn btn-outline" onClick={onClose}>Cancel</button>
+                    <button className="btn btn-filled" onClick={submit} disabled={!sale}>Process Return</button>
                 </div>
             </div>
         </div>
@@ -1811,35 +1825,35 @@ function ReturnModal({ onClose, onDone, onError }) {
 }
 
 function DeviceModal({ onClose }) {
-    const [status, setStatus] = useState(hasUsbPrinter() ? 'Printer USB tersambung' : 'Belum ada printer USB');
+    const [status, setStatus] = useState(hasUsbPrinter() ? 'USB printer connected' : 'No USB printer yet');
     const [autoPrint, setAutoPrintState] = useState(getAutoPrint());
 
     const connect = async () => {
         try {
             const name = await connectUsbPrinter();
-            setStatus(`Tersambung: ${name}`);
+            setStatus(`Connected: ${name}`);
         } catch (e) {
-            setStatus(`Gagal: ${e.message}. Cetak akan memakai dialog HTML.`);
+            setStatus(`Failed: ${e.message}. Printing will use the HTML dialog.`);
         }
     };
 
     return (
         <div className="pos-modal">
             <div className="pos-modal-card">
-                <h2>Perangkat</h2>
+                <h2>Devices</h2>
                 <p className="card-subtitle">{status}</p>
-                <p className="card-subtitle">Jika WebUSB tidak tersedia, struk dicetak lewat dialog cetak browser. Agar struk langsung keluar tanpa dialog, jalankan Chrome dengan opsi <code>--kiosk-printing</code>.</p>
+                <p className="card-subtitle">If WebUSB is not available, receipts are printed through the browser print dialog. To print receipts without a dialog, run Chrome with the <code>--kiosk-printing</code> option.</p>
                 <label className="pos-check">
                     <input
                         type="checkbox"
                         checked={autoPrint}
                         onChange={(e) => { setAutoPrintState(e.target.checked); setAutoPrint(e.target.checked); }}
                     />
-                    Cetak struk otomatis setelah pembayaran
+                    Print the receipt automatically after payment
                 </label>
                 <div className="pos-modal-actions">
-                    <button className="btn btn-outline" onClick={onClose}>Tutup</button>
-                    <button className="btn btn-filled" onClick={connect}>Sambungkan Printer USB</button>
+                    <button className="btn btn-outline" onClick={onClose}>Close</button>
+                    <button className="btn btn-filled" onClick={connect}>Connect USB Printer</button>
                 </div>
             </div>
         </div>
@@ -1854,18 +1868,18 @@ function SessionPromptModal({ prompt, name, onAcknowledge, onDecline }) {
     return (
         <div className="pos-modal">
             <div className="pos-modal-card">
-                <h2>{prompt.greeting || 'Selamat datang'}{name ? `, ${name}` : ''}!</h2>
+                <h2>{prompt.greeting || 'Welcome'}{name ? `, ${name}` : ''}!</h2>
                 <p>Business date: <strong>{formatIsoDate(prompt.posting_date)}</strong></p>
                 {backdated && (
                     <p className="pos-session-warning">
-                        EOD {formatIsoDate(prompt.backdate_date)} belum dijalankan. Jika Anda melanjutkan, semua transaksi
-                        akan tercatat sebagai transaksi {formatIsoDate(prompt.backdate_date)} (termasuk tanggal posting di SAP).
-                        Lanjutkan?
+                        EOD for {formatIsoDate(prompt.backdate_date)} has not been run. If you continue, all transactions
+                        will be recorded as {formatIsoDate(prompt.backdate_date)} transactions (including the SAP posting date).
+                        Continue?
                     </p>
                 )}
                 <div className="pos-modal-actions">
-                    {backdated && <button className="btn btn-outline" onClick={onDecline}>Tidak, batalkan login</button>}
-                    <button className="btn btn-filled" onClick={onAcknowledge}>{backdated ? 'Ya, lanjutkan' : 'Mulai'}</button>
+                    {backdated && <button className="btn btn-outline" onClick={onDecline}>No, cancel sign-in</button>}
+                    <button className="btn btn-filled" onClick={onAcknowledge}>{backdated ? 'Yes, continue' : 'Start'}</button>
                 </div>
             </div>
         </div>
@@ -1876,7 +1890,7 @@ function LogoutForm() {
     return (
         <form method="POST" action="/logout">
             <input type="hidden" name="_token" value={document.querySelector('meta[name="csrf-token"]')?.content} />
-            <button className="btn btn-outline btn-sm" type="submit">Keluar</button>
+            <button className="btn btn-outline btn-sm" type="submit">Sign out</button>
         </form>
     );
 }
@@ -1911,35 +1925,35 @@ function CustomerModal({ onClose, onSelect }) {
     return (
         <div className="pos-modal">
             <div className="pos-modal-card">
-                <h2>Pelanggan / Member</h2>
+                <h2>Customer / Member</h2>
 
                 <div className="pos-pay-row">
-                    <input placeholder="Cari nomor HP, kode, atau nama…" value={q}
+                    <input placeholder="Search by phone, code, or name…" value={q}
                         onChange={(e) => { setQ(e.target.value); search(e.target.value); }} autoFocus />
                 </div>
 
                 <div className="pos-receipt" style={{ maxHeight: 200, overflowY: 'auto' }}>
                     {results.map((c) => (
                         <div key={c.id} className="pos-return-line">
-                            <span>{c.name} <small>{c.phone || c.code} · {c.level} · {c.points_balance} poin</small></span>
-                            <button className="btn btn-tonal btn-sm" onClick={() => onSelect(c)}>Pilih</button>
+                            <span>{c.name} <small>{c.phone || c.code} · {c.level} · {c.points_balance} points</small></span>
+                            <button className="btn btn-tonal btn-sm" onClick={() => onSelect(c)}>Select</button>
                         </div>
                     ))}
-                    {results.length === 0 && <div className="empty-state">Tidak ada pelanggan.</div>}
+                    {results.length === 0 && <div className="empty-state">No customers.</div>}
                 </div>
 
                 <hr />
-                <h3 style={{ fontSize: 14 }}>Daftar Baru</h3>
+                <h3 style={{ fontSize: 14 }}>Register New</h3>
                 {error && <div className="md-snackbar error">{error}</div>}
                 <div className="pos-delivery">
-                    <input placeholder="Nama *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-                    <input placeholder="Nomor HP" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-                    <input placeholder="Kode (opsional)" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
-                    <button className="btn btn-filled btn-sm" onClick={register} disabled={!form.name}>Daftarkan</button>
+                    <input placeholder="Name *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                    <input placeholder="Phone number" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                    <input placeholder="Code (optional)" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
+                    <button className="btn btn-filled btn-sm" onClick={register} disabled={!form.name}>Register</button>
                 </div>
 
                 <div className="pos-modal-actions">
-                    <button className="btn btn-outline" onClick={onClose}>Tutup</button>
+                    <button className="btn btn-outline" onClick={onClose}>Close</button>
                 </div>
             </div>
         </div>

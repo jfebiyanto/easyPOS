@@ -272,3 +272,12 @@
 @media (prefers-reduced-motion: reduce) {
     .pos-panel { transition: none; }
 }
+
+/* Gerbang Open Store / Start Shift: hitung modal awal per denominasi. */
+.pos-shift-count { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 14px; }
+.pos-shift-count th, .pos-shift-count td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--color-outline, #ddd); }
+.pos-shift-count td:last-child, .pos-shift-count th:last-child { text-align: right; }
+.pos-shift-count input, .pos-shift-amount input, .pos-session-warning input { width: 100%; padding: 8px; border: 1px solid var(--color-outline, #bbb); border-radius: var(--radius-sm, 6px); }
+.pos-shift-count input { max-width: 110px; }
+.pos-shift-amount { display: grid; gap: 6px; margin: 8px 0; font-size: 14px; }
+.pos-session-warning input { margin-top: 8px; }

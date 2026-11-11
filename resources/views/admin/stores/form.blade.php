@@ -49,6 +49,12 @@
                 @error('currency') <div class="error">{{ $message }}</div> @enderror
                 <div class="hint">Options come from: <a href="{{ route('admin.currencies.index') }}">the Currencies module</a>.</div>
             </div>
+            <div class="field @error('opening_float') has-error @enderror">
+                <label for="opening_float">Standard Opening Float (Rp)</label>
+                <input type="number" id="opening_float" name="opening_float" step="1" min="0" value="{{ old('opening_float', (int) ($store->opening_float ?? 0)) }}">
+                <div class="hint">Change money given to each cashier at the start of a shift (SOP). 0 means no opening float.</div>
+                @error('opening_float') <div class="error">{{ $message }}</div> @enderror
+            </div>
             <div class="field">
                 <div class="checkbox-row">
                     <input type="checkbox" id="ppn_enabled" name="ppn_enabled" value="1" @checked(old('ppn_enabled', $store->exists ? $store->ppn_enabled : ($company->ppn_enabled ?? false)))>

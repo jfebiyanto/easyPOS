@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Pos;
 
 use App\Http\Controllers\Controller;
+use App\Models\CashierShift;
 use App\Models\CompanyDetail;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
@@ -25,7 +26,9 @@ use App\Support\SaleService;
 use App\Support\SaleStock;
 use App\Support\Sap\SapCustomerSync;
 use App\Support\Sap\SapReturnPosting;
+use App\Support\ShiftService;
 use App\Support\StockService;
+use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -47,7 +50,7 @@ class PosController extends Controller
         $company = CompanyDetail::current();
         $store = $this->store($request);
 
-        abort_unless($store, 422, 'Kasir belum ditugaskan ke gerai.');
+        abort_unless($store, 422, 'The cashier has not been assigned to a store.');
 
         $paymentTypes = PaymentType::where('company_id', $company->id)
             ->where('is_active', true)
@@ -74,8 +77,59 @@ class PosController extends Controller
             'cashier' => $request->user()->only(['id', 'name', 'role']),
             'payment_types' => $paymentTypes,
             'business' => store_business_status($store->id),
+            'shift_gate' => ShiftService::gate($store, $request->user()),
+            'shift' => ShiftService::summary($request->user(), $store),
             'prompt' => $this->sessionPrompt($request, $store),
         ]);
+    }
+
+    /**
+     * Open Store: kasir membuka toko untuk business date aktif sekaligus memulai shift-nya dengan menghitung modal awal.
+     */
+    public function openStore(Request $request): JsonResponse
+    {
+        return $this->beginShift($request, opening: true);
+    }
+
+    /**
+     * Mulai shift kasir pada toko yang sudah dibuka kasir lain (atau kasir ini di shift sebelumnya).
+     */
+    public function startShift(Request $request): JsonResponse
+    {
+        return $this->beginShift($request, opening: false);
+    }
+
+    /**
+     * Akhiri shift kasir ini (toko tetap terbuka sampai EOD).
+     */
+    public function endShift(Request $request): JsonResponse
+    {
+        ShiftService::endShift($request->user(), CashierShift::ENDED_LOGOUT);
+
+        return response()->json(['data' => ['ended' => true]]);
+    }
+
+    private function beginShift(Request $request, bool $opening): JsonResponse
+    {
+        $store = $this->store($request);
+        abort_unless($store, 422, 'The cashier has not been assigned to a store.');
+
+        $data = $request->validate([
+            'denominations' => ['nullable', 'array'],
+            'denominations.*' => ['nullable', 'integer', 'min:0'],
+            'amount' => ['nullable', 'numeric', 'min:0'],
+            'remark' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $opening
+                ? ShiftService::openStore($store, $request->user(), $data)
+                : ShiftService::startShift($store, $request->user(), $data);
+        } catch (DomainException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['data' => ShiftService::gate($store, $request->user()) + ['shift' => ShiftService::summary($request->user(), $store)]]);
     }
 
     /**
@@ -85,7 +139,7 @@ class PosController extends Controller
     public function acknowledgeSession(Request $request): JsonResponse
     {
         $store = $this->store($request);
-        abort_unless($store, 422, 'Kasir belum ditugaskan ke gerai.');
+        abort_unless($store, 422, 'The cashier has not been assigned to a store.');
 
         $lockedDate = store_business_status($store->id)['locked_date'];
         if ($lockedDate) {
@@ -119,7 +173,7 @@ class PosController extends Controller
     public function products(Request $request): JsonResponse
     {
         $store = $this->store($request);
-        abort_unless($store, 422, 'Kasir belum ditugaskan ke gerai.');
+        abort_unless($store, 422, 'The cashier has not been assigned to a store.');
 
         $query = Product::where('company_id', current_company_id())
             ->where('is_active', true)
@@ -155,7 +209,7 @@ class PosController extends Controller
     public function promotions(Request $request): JsonResponse
     {
         $store = $this->store($request);
-        abort_unless($store, 422, 'Kasir belum ditugaskan ke gerai.');
+        abort_unless($store, 422, 'The cashier has not been assigned to a store.');
 
         $promotions = Promotion::where('company_id', current_company_id())
             ->where('is_active', true)
@@ -216,7 +270,7 @@ class PosController extends Controller
     public function saveCart(Request $request): JsonResponse
     {
         $store = $this->store($request);
-        abort_unless($store, 422, 'Kasir belum ditugaskan ke gerai.');
+        abort_unless($store, 422, 'The cashier has not been assigned to a store.');
 
         $request->validate([
             'payload' => ['required', 'array'],
@@ -227,7 +281,7 @@ class PosController extends Controller
         ]);
 
         $payload = $request->input('payload');
-        abort_if(strlen((string) json_encode($payload)) > 500_000, 413, 'Keranjang terlalu besar.');
+        abort_if(strlen((string) json_encode($payload)) > 500_000, 413, 'The cart is too large.');
 
         $query = PosActiveCart::where('company_id', current_company_id())->where('cashier_id', $request->user()->id);
 
@@ -255,7 +309,7 @@ class PosController extends Controller
      */
     public function restoreCart(Request $request): JsonResponse
     {
-        $this->store($request) ?: abort(422, 'Kasir belum ditugaskan ke gerai.');
+        $this->store($request) ?: abort(422, 'The cashier has not been assigned to a store.');
 
         $cart = PosActiveCart::where('company_id', current_company_id())->where('cashier_id', $request->user()->id)->first();
 
@@ -284,7 +338,7 @@ class PosController extends Controller
     public function cartEvent(Request $request): JsonResponse
     {
         $store = $this->store($request);
-        abort_unless($store, 422, 'Kasir belum ditugaskan ke gerai.');
+        abort_unless($store, 422, 'The cashier has not been assigned to a store.');
 
         $data = $request->validate([
             'event' => ['required', Rule::in(['cancelled', 'item_removed', 'qty_reduced', 'left_open', 'duplicate_tab'])],
@@ -377,12 +431,12 @@ class PosController extends Controller
             ? Store::find($originStoreId)
             : $assignedStore;
 
-        abort_unless($store, 422, 'Kasir belum ditugaskan ke gerai.');
+        abort_unless($store, 422, 'The cashier has not been assigned to a store.');
 
         abort_if(
             ($data['origin'] ?? 'online') !== 'offline' && $originStoreId && $originStoreId !== $store->id,
             409,
-            'Penugasan gerai Anda berubah. Muat ulang POS sebelum melanjutkan.'
+            'Your store assignment changed. Reload POS before continuing.'
         );
 
         $data['store_id'] = $store->id;
@@ -396,12 +450,22 @@ class PosController extends Controller
             abort_if(
                 $postingDate !== $calendarDate && ! $this->backdateAcknowledged($store->id, $postingDate),
                 409,
-                "Konfirmasi tanggal bisnis {$postingDate} diperlukan. Muat ulang POS."
+                "Confirmation of business date {$postingDate} is required. Reload POS."
             );
             abort_if(
                 StoreClosure::isClosed($store->id, $postingDate),
                 422,
-                "EOD tanggal {$postingDate} sudah ditutup. Buka ulang EOD di Management Console untuk melanjutkan transaksi."
+                "EOD for {$postingDate} is closed. Reopen EOD in the Management Console to continue transacting."
+            );
+            abort_unless(
+                StoreClosure::isOpen($store->id, $postingDate),
+                422,
+                "The store has not been opened for {$postingDate}. Open the store first."
+            );
+            abort_unless(
+                ShiftService::hasActiveShift($request->user(), $store->id),
+                422,
+                'You have not started a shift. Start a shift first.'
             );
         }
 
@@ -442,7 +506,7 @@ class PosController extends Controller
     public function todaySales(Request $request): JsonResponse
     {
         $store = $this->store($request);
-        abort_unless($store, 422, 'Kasir belum ditugaskan ke gerai.');
+        abort_unless($store, 422, 'The cashier has not been assigned to a store.');
 
         $postingDate = store_business_status($store->id)['posting_date'];
 
@@ -518,7 +582,7 @@ class PosController extends Controller
             ->first();
 
         if (! $sale) {
-            return response()->json(['message' => 'Transaksi tidak ditemukan.'], 404);
+            return response()->json(['message' => 'Transaction not found.'], 404);
         }
 
         $returned = DB::table('sales_return_lines')
@@ -554,7 +618,7 @@ class PosController extends Controller
     public function storeReturn(Request $request): JsonResponse
     {
         $store = $this->store($request);
-        abort_unless($store, 422, 'Kasir belum ditugaskan ke gerai.');
+        abort_unless($store, 422, 'The cashier has not been assigned to a store.');
 
         $data = $request->validate([
             'sale_id' => ['required', Rule::exists('sales', 'id')->where('company_id', current_company_id())],
@@ -568,11 +632,11 @@ class PosController extends Controller
         $company = CompanyDetail::current();
         $sale = Sale::where('company_id', $company->id)->findOrFail($data['sale_id']);
 
-        abort_if($sale->isVoid(), 422, 'Transaksi void tidak dapat diretur.');
-        abort_if($sale->store_id !== $store->id, 422, 'Retur hanya dapat dilakukan di gerai asal penjualan.');
+        abort_if($sale->isVoid(), 422, 'A void transaction cannot be returned.');
+        abort_if($sale->store_id !== $store->id, 422, 'Returns can only be made at the store where the sale was made.');
 
         if ($company->return_window_days && $sale->sold_at && $sale->sold_at->diffInDays(now()) > $company->return_window_days) {
-            abort(422, 'Retur melewati batas waktu yang diizinkan.');
+            abort(422, 'The return is past the allowed time window.');
         }
 
         $usesWarehouse = SaleStock::usesWarehouseLedger($sale->id);
@@ -604,7 +668,7 @@ class PosController extends Controller
                     ->first();
 
                 $remainingQty = (float) $line->qty - (float) $already->qty;
-                abort_if($qty > $remainingQty, 422, "Qty retur melebihi sisa untuk {$line->sku_snapshot}.");
+                abort_if($qty > $remainingQty, 422, "Return quantity exceeds the remaining quantity for {$line->sku_snapshot}.");
 
                 // Refund memakai harga bersih yang benar-benar dibayar (setelah promosi, termasuk PPN)
                 // per unit. Sisa terakhir mengambil selisihnya agar total refund tidak melebihi baris.
@@ -672,7 +736,7 @@ class PosController extends Controller
     public function storeHold(Request $request): JsonResponse
     {
         $store = $this->store($request);
-        abort_unless($store, 422, 'Kasir belum ditugaskan ke gerai.');
+        abort_unless($store, 422, 'The cashier has not been assigned to a store.');
 
         $data = $request->validate([
             'client_uuid' => ['required', 'uuid'],
@@ -685,9 +749,9 @@ class PosController extends Controller
         abort_if(
             $existing && ($existing->company_id !== current_company_id() || $existing->cashier_id !== $request->user()->id),
             409,
-            'ID transaksi ditahan sudah dipakai.'
+            'The held transaction ID is already in use.'
         );
-        abort_if($existing?->status === 'finalized', 409, 'Transaksi ditahan sudah menjadi penjualan.');
+        abort_if($existing?->status === 'finalized', 409, 'The held transaction has already become a sale.');
 
         $draft = SaleDraft::updateOrCreate(
             ['client_uuid' => $data['client_uuid']],
@@ -713,19 +777,19 @@ class PosController extends Controller
 
         $draft->update(['status' => 'cancelled']);
 
-        return response()->json(['message' => 'Transaksi ditahan dibatalkan.']);
+        return response()->json(['message' => 'Held transaction deleted.']);
     }
 
     public function consumeHold(Request $request, SaleDraft $draft): JsonResponse
     {
         abort_unless($draft->company_id === current_company_id(), 404);
         abort_unless($draft->cashier_id === $request->user()->id, 403);
-        abort_unless($draft->store_id === $this->store($request)?->id, 409, 'Transaksi ditahan ini milik gerai lain.');
+        abort_unless($draft->store_id === $this->store($request)?->id, 409, 'This held transaction belongs to another store.');
 
         $consumed = SaleDraft::whereKey($draft->id)->where('status', 'held')->update(['status' => 'resumed']);
-        abort_if($consumed === 0, 409, 'Transaksi ditahan sudah dilanjutkan atau dibatalkan.');
+        abort_if($consumed === 0, 409, 'The held transaction was already resumed or deleted.');
 
-        return response()->json(['message' => 'Tahan diambil untuk dilanjutkan.', 'data' => [
+        return response()->json(['message' => 'Hold retrieved for resuming.', 'data' => [
             'id' => $draft->id,
             'client_uuid' => $draft->client_uuid,
             'stock' => $this->holdStock($draft),
@@ -760,7 +824,7 @@ class PosController extends Controller
 
         SaleDraft::whereKey($draft->id)->where('status', 'resumed')->update(['status' => 'held']);
 
-        return response()->json(['message' => 'Transaksi dikembalikan ke daftar tahan.']);
+        return response()->json(['message' => 'Transaction returned to the held list.']);
     }
 
     public function customers(Request $request): JsonResponse
@@ -790,12 +854,12 @@ class PosController extends Controller
             'address' => ['nullable', 'string', 'max:500'],
         ]);
 
-        abort_if(blank($data['phone'] ?? null) && blank($data['code'] ?? null), 422, 'Nomor HP atau kode customer wajib diisi.');
+        abort_if(blank($data['phone'] ?? null) && blank($data['code'] ?? null), 422, 'A phone number or customer code is required.');
 
         $companyId = current_company_id();
 
         if (filled($data['phone'] ?? null)) {
-            abort_if(Customer::where('company_id', $companyId)->where('phone', $data['phone'])->exists(), 422, 'Nomor HP sudah terdaftar.');
+            abort_if(Customer::where('company_id', $companyId)->where('phone', $data['phone'])->exists(), 422, 'This phone number is already registered.');
         }
         $sapActive = (bool) CompanyDetail::find($companyId)?->sapIntegrationActive();
 
@@ -805,7 +869,7 @@ class PosController extends Controller
         } elseif (blank($data['code'] ?? null)) {
             $data['code'] = 'CUST-'.str_pad((string) (Customer::where('company_id', $companyId)->count() + 1), 5, '0', STR_PAD_LEFT);
         } else {
-            abort_if(Customer::where('company_id', $companyId)->where('code', $data['code'])->exists(), 422, 'Kode customer sudah dipakai.');
+            abort_if(Customer::where('company_id', $companyId)->where('code', $data['code'])->exists(), 422, 'This customer code is already in use.');
         }
 
         // POS tidak memilih grup: pakai grup default (selama integrasi SAP aktif hanya grup dari SAP).

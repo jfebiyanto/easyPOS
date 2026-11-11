@@ -64,7 +64,7 @@ class SaleStock
 
         if ($after < 0) {
             $sku = Product::whereKey($productId)->value('sku') ?? $productId;
-            abort(422, "Stok tidak mencukupi untuk produk {$sku} (saldo akan menjadi {$after}).");
+            abort(422, "Insufficient stock for product {$sku} (balance would become {$after}).");
         }
     }
 

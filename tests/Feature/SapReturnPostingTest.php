@@ -27,11 +27,12 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use ReflectionMethod;
+use Tests\Concerns\StartsShift;
 use Tests\TestCase;
 
 class SapReturnPostingTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, StartsShift;
 
     private CompanyDetail $company;
 
@@ -81,6 +82,7 @@ class SapReturnPostingTest extends TestCase
             'company_id' => $this->company->id, 'product_group_id' => $group->id, 'unit_id' => $unit->id,
             'sku' => 'INDF-0001', 'name' => 'Indomie', 'base_price' => 4000, 'track_stock' => true, 'is_active' => true,
         ]);
+        $this->startShiftFor($this->cashier);
     }
 
     private function makeStore(string $code, Warehouse $warehouse, Customer $customer): Store

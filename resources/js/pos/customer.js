@@ -4,11 +4,11 @@ export function customerPanel(selected, defaultCustomer) {
     const customer = selected || defaultCustomer;
 
     if (!customer) {
-        return { code: null, name: 'Tanpa pelanggan', isSelected: false, isDefault: false };
+        return { code: null, name: 'No customer', isSelected: false, isDefault: false };
     }
 
     return {
-        code: customer.code || 'Kode belum ada',
+        code: customer.code || 'No code yet',
         name: customer.name,
         isSelected: Boolean(selected),
         isDefault: !selected,

@@ -204,6 +204,16 @@
                 <span class="material-symbols-rounded">schedule</span>
                 <strong data-business-time>{{ now($business['timezone'])->format('H:i:s') }}</strong>
             </span>
+            @if ($activeStore && ! $business['closed'])
+                <span class="status-bar-item">
+                    <span class="material-symbols-rounded">{{ $business['opened'] ? 'storefront' : 'door_front' }}</span>
+                    @if ($business['opened'])
+                        Store {{ $activeStore->code }} is open · {{ $business['active_shifts'] }} shift(s) active
+                    @else
+                        Store {{ $activeStore->code }} has not been opened for {{ \Illuminate\Support\Carbon::parse($business['posting_date'])->locale('id')->translatedFormat('j F Y') }}
+                    @endif
+                </span>
+            @endif
             @if ($business['closed'])
                 <a class="status-bar-item status-bar-warning" href="{{ route('admin.eod.index', ['store' => $activeStore->id, 'date' => $business['business_date']]) }}">
                     <span class="material-symbols-rounded">lock</span>

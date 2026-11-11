@@ -18,11 +18,12 @@ use App\Support\StockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Tests\Concerns\StartsShift;
 use Tests\TestCase;
 
 class CustomerLoyaltyTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, StartsShift;
 
     private CompanyDetail $company;
 
@@ -129,6 +130,7 @@ class CustomerLoyaltyTest extends TestCase
         ]);
 
         StockService::record($this->store->id, $this->product->id, StockLedger::TYPE_OPENING, 100);
+        $this->startShiftFor($this->cashier);
     }
 
     private function sell(float $qty = 1, ?string $customerId = null): Sale

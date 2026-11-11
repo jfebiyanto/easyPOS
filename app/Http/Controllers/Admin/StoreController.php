@@ -169,6 +169,7 @@ class StoreController extends Controller
                 'required', 'string', 'max:10',
                 new ValidStoreCurrency($id ? Store::whereKey($id)->value('currency') : null),
             ],
+            'opening_float' => ['nullable', 'numeric', 'min:0', 'max:999999999999'],
             'is_active' => ['sometimes', 'boolean'],
             'sales_price_list_id' => ['nullable', 'string', Rule::exists('price_lists', 'id')->where('company_id', current_company_id())],
             'purchase_price_list_id' => ['nullable', 'string', Rule::exists('price_lists', 'id')->where('company_id', current_company_id())],
@@ -190,6 +191,7 @@ class StoreController extends Controller
         ]);
 
         $data['currency'] = strtoupper(trim($data['currency']));
+        $data['opening_float'] = $data['opening_float'] ?? 0;
         unset($data['sales_price_list_id']);
 
         return $data;

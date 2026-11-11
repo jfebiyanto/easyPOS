@@ -13,11 +13,12 @@ use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Tests\Concerns\StartsShift;
 use Tests\TestCase;
 
 class PosCartTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, StartsShift;
 
     private CompanyDetail $company;
 
@@ -55,6 +56,7 @@ class PosCartTest extends TestCase
             'company_id' => $this->company->id, 'code' => 'CASH', 'order_number' => 1, 'count_type' => 'summary', 'is_active' => true,
         ]);
         $this->cash->stores()->sync([$this->store->id]);
+        $this->startShiftFor($this->cashier);
     }
 
     /**

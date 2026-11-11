@@ -36,6 +36,9 @@ async function req(method, url, body, init = {}) {
 export const api = {
     bootstrap: () => req('GET', '/pos/bootstrap'),
     acknowledgeSession: () => req('POST', '/pos/session/acknowledge'),
+    openStore: (body) => req('POST', '/pos/store/open', body),
+    startShift: (body) => req('POST', '/pos/shift/start', body),
+    endShift: () => req('POST', '/pos/shift/end'),
     logout: () => req('POST', '/logout'),
     products: (q = '') => req('GET', '/pos/products' + (q ? `?q=${encodeURIComponent(q)}` : '')),
     promotions: () => req('GET', '/pos/promotions'),

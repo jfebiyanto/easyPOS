@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\ShiftService;
 use App\Traits\HasUuid7;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
@@ -12,7 +13,7 @@ class StoreClosure extends Model
     use HasUuid7;
 
     protected $fillable = [
-        'company_id', 'store_id', 'business_date', 'opened_at', 'closed_at',
+        'company_id', 'store_id', 'business_date', 'opened_at', 'opened_by', 'closed_at',
         'sales_total', 'cash_expected', 'cash_counted', 'cash_variance', 'closed_by', 'note',
         'reopened_at', 'reopened_by', 'reopen_reason',
     ];
@@ -34,6 +35,11 @@ class StoreClosure extends Model
     public function store()
     {
         return $this->belongsTo(Store::class);
+    }
+
+    public function openedBy()
+    {
+        return $this->belongsTo(User::class, 'opened_by');
     }
 
     public function reopenedBy()
@@ -90,13 +96,42 @@ class StoreClosure extends Model
     }
 
     /**
-     * Kas tunai yang seharusnya ada di laci pada tanggal bisnis (jumlah tipe jenis cash, setelah kembalian).
+     * Kas tunai yang harus disetor pada tanggal bisnis: penjualan tunai (tipe jenis cash, setelah kembalian)
+     * ditambah modal awal semua shift kasir. Mis. modal 200 ribu + penjualan 700 ribu = 900 ribu.
      */
     public static function expectedCash(string $storeId, string $companyId, string $date): float
     {
         $cashTypeIds = PaymentType::where('company_id', $companyId)->where('kind', PaymentType::KIND_CASH)->pluck('id')->all();
+        $cashSales = array_sum(array_intersect_key(static::expectedByPaymentType($storeId, $date), array_flip($cashTypeIds)));
 
-        return round(array_sum(array_intersect_key(static::expectedByPaymentType($storeId, $date), array_flip($cashTypeIds))), 2);
+        return round($cashSales + ShiftService::openingFloatTotal($storeId, $date), 2);
+    }
+
+    /**
+     * Hitung kas per pecahan hanya bila ada tipe pembayaran tunai aktif toko ber-Count Type Detail;
+     * selain itu (Summary) kas cukup dikonfirmasi tanpa menghitung pecahan. Dipakai EOD dan modal awal shift.
+     */
+    public static function requiresDenominationCount(Store $store, string $companyId): bool
+    {
+        return PaymentType::where('company_id', $companyId)
+            ->where('kind', PaymentType::KIND_CASH)
+            ->where('is_active', true)
+            ->where('count_type', 'detail')
+            ->whereHas('stores', fn ($q) => $q->where('stores.id', $store->id))
+            ->exists();
+    }
+
+    /**
+     * Apakah toko sudah dibuka (Open Store) untuk tanggal bisnis ini dan belum di-EOD.
+     */
+    public static function isOpen(string $storeId, string $date): bool
+    {
+        return static::query()
+            ->where('store_id', $storeId)
+            ->whereDate('business_date', $date)
+            ->whereNotNull('opened_at')
+            ->whereNull('closed_at')
+            ->exists();
     }
 
     /**

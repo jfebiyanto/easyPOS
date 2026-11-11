@@ -13,11 +13,12 @@ use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Tests\Concerns\StartsShift;
 use Tests\TestCase;
 
 class PosSessionTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, StartsShift;
 
     private const CHROME = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36';
 
@@ -46,6 +47,7 @@ class PosSessionTest extends TestCase
             'company_id' => $this->company->id, 'store_id' => $this->store->id, 'name' => 'Owner', 'username' => 'owner1',
             'role' => User::ROLE_OWNER, 'is_active' => true, 'password' => 'password',
         ]);
+        $this->startShiftFor($this->cashier);
     }
 
     /**

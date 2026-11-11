@@ -46,6 +46,66 @@
     $canReopen = $isClosed && $businessDate === company_today();
 @endphp
 
+@if ($storeId && ! $closure?->opened_at)
+    <div class="md-snackbar">
+        <span class="material-symbols-rounded">storefront</span>
+        The store was not opened for {{ $businessDate }}. A cashier opens the store from the POS (Open Store), so there is nothing to close for this date.
+    </div>
+@endif
+
+@if ($closure?->opened_at)
+    <div class="card">
+        <h2 class="card-title">Store Opening &amp; Cashier Shifts</h2>
+        <p class="card-subtitle">
+            Opened by <strong>{{ $closure->openedBy?->name ?? '-' }}</strong>
+            at {{ $closure->opened_at->timezone(company_timezone())->format('d/m/Y H:i') }}
+            · Total opening float: <span class="money">Rp {{ number_format($openingFloatTotal, 0, ',', '.') }}</span> (included in expected cash)
+        </p>
+        @if ($activeShifts->isNotEmpty())
+            <div class="md-snackbar">
+                <span class="material-symbols-rounded">pending_actions</span>
+                {{ $activeShifts->count() }} cashier shift(s) are still active ({{ $activeShifts->map(fn ($shift) => $shift->user?->name)->implode(', ') }}). EOD can only be closed after every shift has ended.
+            </div>
+            @unless ($readOnly ?? false)
+                <form method="POST" action="{{ route('admin.eod.force-end-shifts') }}" style="margin-bottom:12px;">
+                    @csrf
+                    <input type="hidden" name="business_date" value="{{ $businessDate }}">
+                    <input type="hidden" name="store_id" value="{{ $storeId }}">
+                    <button type="submit" class="btn btn-tonal"><span class="material-symbols-rounded">stop_circle</span> Force End Shift</button>
+                </form>
+            @endunless
+        @endif
+        <div class="table-wrap">
+            <table class="md-table">
+                <thead>
+                    <tr><th>Cashier</th><th>Started</th><th>Ended</th><th style="text-align:right;">Standard</th><th style="text-align:right;">Counted</th><th style="text-align:right;">Difference</th><th>Remark</th></tr>
+                </thead>
+                <tbody>
+                    @forelse ($shifts as $shift)
+                        <tr>
+                            <td>{{ $shift->user?->name ?? '-' }}@if ($shift->opened_store) <span class="hint">· opened the store</span>@endif</td>
+                            <td>{{ $shift->started_at->timezone(company_timezone())->format('H:i') }}</td>
+                            <td>
+                                @if ($shift->ended_at)
+                                    {{ $shift->ended_at->timezone(company_timezone())->format('H:i') }} · {{ \App\Models\CashierShift::ENDED_LABELS[$shift->ended_reason] ?? $shift->ended_reason }}
+                                @else
+                                    Active
+                                @endif
+                            </td>
+                            <td style="text-align:right;" class="money">{{ 'Rp '.number_format($shift->opening_float_expected, 0, ',', '.') }}</td>
+                            <td style="text-align:right;" class="money">{{ 'Rp '.number_format($shift->opening_float, 0, ',', '.') }}</td>
+                            <td style="text-align:right;" class="money">{{ (float) $shift->opening_float_variance === 0.0 ? '-' : 'Rp '.number_format($shift->opening_float_variance, 0, ',', '.') }}</td>
+                            <td>{{ $shift->opening_float_remark ?? '' }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="7"><div class="empty-state">No cashier shifts on this date.</div></td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+@endif
+
 @if ($isClosed)
     <div class="md-snackbar success">
         <span class="material-symbols-rounded">lock</span>
@@ -180,7 +240,7 @@
         @endif
 
         <div class="form-actions">
-            <button type="submit" class="btn btn-filled" @disabled(! $storeId || $isClosed)>
+            <button type="submit" class="btn btn-filled" @disabled(! $storeId || $isClosed || ! $isOpen || $activeShifts->isNotEmpty())>
                 <span class="material-symbols-rounded">lock</span> Close Store
             </button>
         </div>

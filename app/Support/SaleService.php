@@ -272,7 +272,7 @@ class SaleService
 
         if ($clientSentPromotions && $mismatched !== []) {
             throw new HttpResponseException(response()->json([
-                'message' => 'Promosi berubah. Keranjang dihitung ulang, periksa total sebelum membayar.',
+                'message' => 'Promotions changed. The cart was recalculated; check the total before paying.',
                 'lines' => $calculated['lines'],
                 'bonus_hints' => $calculated['bonus_hints'],
             ], 409));
@@ -286,9 +286,9 @@ class SaleService
      */
     public static function void(Sale $sale, User $user, string $reason): Sale
     {
-        abort_if($sale->isVoid(), 422, 'Transaksi sudah void.');
+        abort_if($sale->isVoid(), 422, 'The transaction is already void.');
         // Pembatalan dokumen SAP B1 belum didukung: stok easyPOS akan berselisih dengan SAP.
-        abort_if($sale->sap_invoice_doc_entry !== null, 422, 'Transaksi sudah diposting ke SAP B1 dan tidak dapat di-void dari easyPOS.');
+        abort_if($sale->sap_invoice_doc_entry !== null, 422, 'The transaction has been posted to SAP B1 and cannot be voided from easyPOS.');
 
         return DB::transaction(function () use ($sale, $user, $reason) {
             $usesWarehouse = SaleStock::usesWarehouseLedger($sale->id);

@@ -30,19 +30,19 @@ export default function SingleTabGate({ children }) {
     }, [acquire]);
 
     if (status === 'active') return children;
-    if (status === 'checking') return <div className="pos-loading">Memuat POS…</div>;
+    if (status === 'checking') return <div className="pos-loading">Loading POS…</div>;
 
     return (
         <div className="pos-loading">
             <div className="pos-boot-error" role="alertdialog" aria-labelledby="pos-tab-title">
-                <h2 id="pos-tab-title">POS sedang dibuka di tab lain</h2>
+                <h2 id="pos-tab-title">POS is open in another tab</h2>
                 <p>
                     {status === 'lost'
-                        ? 'POS dipindahkan ke tab lain di browser ini.'
-                        : 'Untuk mencegah transaksi ganda, POS hanya boleh terbuka di satu tab per browser.'}
-                    {' '}Tutup tab ini, atau pindahkan POS ke tab ini. Keranjang yang sedang berjalan tidak hilang.
+                        ? 'POS was moved to another tab in this browser.'
+                        : 'To prevent duplicate transactions, POS can be open in only one tab per browser.'}
+                    {' '}Close this tab, or move POS to this tab. The cart in progress is not lost.
                 </p>
-                <button className="btn btn-filled" onClick={() => acquire(true)}>Pindahkan POS ke tab ini</button>
+                <button className="btn btn-filled" onClick={() => acquire(true)}>Move POS to this tab</button>
             </div>
         </div>
     );

@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\CashierShift;
 use App\Models\PosSession;
 use App\Models\Store;
 use App\Models\User;
+use App\Support\ShiftService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -73,6 +75,9 @@ class LoginController extends Controller
     {
         // Sesi POS yang aktif di browser ini berakhir bersama login-nya (sesi di perangkat lain tidak disentuh).
         if ($user = $request->user()) {
+            // Logout mengakhiri shift kasir; toko tetap terbuka sampai EOD.
+            ShiftService::endShift($user, CashierShift::ENDED_LOGOUT);
+
             $active = PosSession::activeFor($user);
             if ($active && $active->session_hash === PosSession::hashFor($request)) {
                 $active->end(PosSession::ENDED_LOGOUT);

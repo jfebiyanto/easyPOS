@@ -14,10 +14,10 @@ describe('customerPanel', () => {
     });
 
     it('menulis tanpa pelanggan bila gerai tidak punya default', () => {
-        expect(customerPanel(null, null)).toEqual({ code: null, name: 'Tanpa pelanggan', isSelected: false, isDefault: false });
+        expect(customerPanel(null, null)).toEqual({ code: null, name: 'No customer', isSelected: false, isDefault: false });
     });
 
     it('menandai pelanggan yang belum punya kode', () => {
-        expect(customerPanel({ id: 'c', code: null, name: 'Baru' }, retail).code).toBe('Kode belum ada');
+        expect(customerPanel({ id: 'c', code: null, name: 'Baru' }, retail).code).toBe('No code yet');
     });
 });

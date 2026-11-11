@@ -80,14 +80,14 @@ class StockService
 
         if ($after < 0) {
             $sku = Product::whereKey($productId)->value('sku') ?? $productId;
-            abort(422, "Stok tidak mencukupi untuk produk {$sku} (saldo akan menjadi {$after}).");
+            abort(422, "Insufficient stock for product {$sku} (balance would become {$after}).");
         }
     }
 
     /**
      * Saldo seluruh produk pada satu store.
      *
-     * @return Collection<int,\App\Models\StockLedger>
+     * @return Collection<int,StockLedger>
      */
     public static function ledgerFor(string $storeId, string $productId): Collection
     {

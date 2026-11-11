@@ -24,11 +24,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Concerns\StartsShift;
 use Tests\TestCase;
 
 class PosTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, StartsShift;
 
     private CompanyDetail $company;
 
@@ -107,6 +108,7 @@ class PosTest extends TestCase
         $this->cash->stores()->sync([$this->store->id]);
 
         StockService::record($this->store->id, $this->product->id, StockLedger::TYPE_OPENING, 10);
+        $this->startShiftFor($this->cashier);
     }
 
     private function salePayload(array $overrides = []): array
@@ -275,6 +277,7 @@ class PosTest extends TestCase
     public function test_bootstrap_menampilkan_tanggal_bisnis_dan_tanggal_eod_yang_tertunda(): void
     {
         $this->travelTo(now('Asia/Jakarta')->subDay()->setTime(10, 0));
+        $this->startShiftFor($this->cashier);
         $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload())->assertCreated();
         $yesterday = company_today();
         $this->travelBack();
@@ -318,6 +321,7 @@ class PosTest extends TestCase
     public function test_daftar_transaksi_memakai_tanggal_posting_saat_eod_tertunda(): void
     {
         $this->travelTo(now('Asia/Jakarta')->subDay()->setTime(10, 0));
+        $this->startShiftFor($this->cashier);
         $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload())->assertCreated();
         $yesterday = company_today();
         $this->travelBack();
@@ -528,7 +532,7 @@ class PosTest extends TestCase
         $this->actingAs($this->cashier)
             ->postJson('/pos/sales', $this->salePayload(['store_id' => $this->store->id]))
             ->assertStatus(409)
-            ->assertJsonPath('message', 'Penugasan gerai Anda berubah. Muat ulang POS sebelum melanjutkan.');
+            ->assertJsonPath('message', 'Your store assignment changed. Reload POS before continuing.');
 
         $this->assertSame(0, Sale::count());
     }
@@ -551,6 +555,7 @@ class PosTest extends TestCase
     public function test_bootstrap_meminta_konfirmasi_bila_eod_tertunda_dan_tidak_lagi_setelah_dikonfirmasi(): void
     {
         $this->travelTo(now('Asia/Jakarta')->subDay()->setTime(10, 0));
+        $this->startShiftFor($this->cashier);
         $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload())->assertCreated();
         $yesterday = company_today();
         $this->travelBack();
@@ -571,6 +576,7 @@ class PosTest extends TestCase
     public function test_login_baru_meminta_konfirmasi_tanggal_bisnis_lagi(): void
     {
         $this->travelTo(now('Asia/Jakarta')->subDay()->setTime(10, 0));
+        $this->startShiftFor($this->cashier);
         $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload())->assertCreated();
         $yesterday = company_today();
         $this->travelBack();
@@ -588,15 +594,15 @@ class PosTest extends TestCase
     public static function greetingTimes(): array
     {
         return [
-            '05.59 malam' => ['05:59', 'Selamat malam'],
-            '06.00 pagi' => ['06:00', 'Selamat pagi'],
-            '09.59 pagi' => ['09:59', 'Selamat pagi'],
-            '10.00 siang' => ['10:00', 'Selamat siang'],
-            '14.59 siang' => ['14:59', 'Selamat siang'],
-            '15.00 sore' => ['15:00', 'Selamat sore'],
-            '17.59 sore' => ['17:59', 'Selamat sore'],
-            '18.00 malam' => ['18:00', 'Selamat malam'],
-            '00.00 malam' => ['00:00', 'Selamat malam'],
+            '05.59 malam' => ['05:59', 'Good evening'],
+            '06.00 pagi' => ['06:00', 'Good morning'],
+            '09.59 pagi' => ['09:59', 'Good morning'],
+            '10.00 siang' => ['10:00', 'Good afternoon'],
+            '14.59 siang' => ['14:59', 'Good afternoon'],
+            '15.00 sore' => ['15:00', 'Good evening'],
+            '17.59 sore' => ['17:59', 'Good evening'],
+            '18.00 malam' => ['18:00', 'Good evening'],
+            '00.00 malam' => ['00:00', 'Good evening'],
         ];
     }
 

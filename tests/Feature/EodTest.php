@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\CashierShift;
 use App\Models\CompanyDetail;
 use App\Models\Currency;
 use App\Models\PaymentType;
@@ -14,14 +15,16 @@ use App\Models\Store;
 use App\Models\StoreClosure;
 use App\Models\Unit;
 use App\Models\User;
+use App\Support\ShiftService;
 use App\Support\StockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Tests\Concerns\StartsShift;
 use Tests\TestCase;
 
 class EodTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, StartsShift;
 
     private CompanyDetail $company;
 
@@ -58,6 +61,7 @@ class EodTest extends TestCase
         $idr->denominations()->create(['value' => 10000, 'is_active' => true]);
 
         StockService::record($this->store->id, $this->product->id, StockLedger::TYPE_OPENING, 100);
+        $this->startShiftFor($this->cashier);
     }
 
     private function sell(float $qty = 1): Sale
@@ -79,6 +83,7 @@ class EodTest extends TestCase
 
         $this->sell(1);
 
+        $this->endShifts();
         $this->actingAs($this->owner)->post(route('admin.eod.store'), [
             'store_id' => $this->store->id,
             'business_date' => company_today(),
@@ -100,6 +105,7 @@ class EodTest extends TestCase
 
         $this->actingAs($this->owner)->get(route('admin.eod.index'))->assertOk()->assertViewHas('cashExpected', 10000.0);
 
+        $this->endShifts();
         $this->actingAs($this->owner)->post(route('admin.eod.store'), [
             'store_id' => $this->store->id,
             'business_date' => company_today(),
@@ -113,7 +119,7 @@ class EodTest extends TestCase
     public function test_tanggal_bisnis_eod_tetap_di_tanggal_yang_belum_ditutup(): void
     {
         $oldest = now()->subDays(2)->toDateString();
-        $this->sell(1)->update(['business_date' => $oldest]);
+        $this->backdate($this->sell(1), $oldest);
 
         $this->actingAs($this->owner)->get(route('admin.eod.index'))->assertOk()->assertViewHas('businessDate', $oldest);
 
@@ -125,17 +131,18 @@ class EodTest extends TestCase
     public function test_eod_tanggal_berikutnya_ditolak_selama_tanggal_sebelumnya_belum_ditutup(): void
     {
         $oldest = now()->subDay()->toDateString();
-        $this->sell(1)->update(['business_date' => $oldest]);
+        $this->backdate($this->sell(1), $oldest);
         $this->actingAs($this->cashier)->postJson('/pos/session/acknowledge')->assertOk();
         $this->sell(1);
 
+        $this->endShifts();
         $this->actingAs($this->owner)->post(route('admin.eod.store'), [
             'store_id' => $this->store->id,
             'business_date' => company_today(),
             'denominations' => [10000 => 1],
             'confirm' => [$this->cash->id => 1],
         ])->assertSessionHas('error');
-        $this->assertSame(0, StoreClosure::count());
+        $this->assertSame(0, StoreClosure::whereNotNull('closed_at')->count());
     }
 
     public function test_count_type_summary_cukup_konfirmasi_tanpa_hitung_pecahan(): void
@@ -145,6 +152,7 @@ class EodTest extends TestCase
         $this->actingAs($this->owner)->get(route('admin.eod.index'))->assertOk()
             ->assertViewHas('countByDenomination', false)->assertSee('Confirm Payment Methods');
 
+        $this->endShifts();
         $this->actingAs($this->owner)->post(route('admin.eod.store'), [
             'store_id' => $this->store->id,
             'business_date' => company_today(),
@@ -167,11 +175,12 @@ class EodTest extends TestCase
         $this->actingAs($this->owner)->get(route('admin.eod.index'))->assertOk()
             ->assertViewHas('countByDenomination', true)->assertSee('Count Cash by Denomination');
 
+        $this->endShifts();
         $this->actingAs($this->owner)->post(route('admin.eod.store'), [
             'store_id' => $this->store->id,
             'business_date' => company_today(),
         ])->assertSessionHasErrors('denominations');
-        $this->assertSame(0, StoreClosure::count());
+        $this->assertSame(0, StoreClosure::whereNotNull('closed_at')->count());
 
         $this->post(route('admin.eod.store'), [
             'store_id' => $this->store->id,
@@ -204,8 +213,9 @@ class EodTest extends TestCase
 
         // Hanya tunai yang dikonfirmasi: QRIS masih kurang.
         $this->post(route('admin.eod.store'), $payload + ['confirm' => [$this->cash->id => 1]])->assertSessionHasErrors('confirm');
-        $this->assertSame(0, StoreClosure::count());
+        $this->assertSame(0, StoreClosure::whereNotNull('closed_at')->count());
 
+        $this->endShifts();
         $this->post(route('admin.eod.store'), $payload + ['confirm' => [$this->cash->id => 1, $qris->id => 1]])->assertSessionHasNoErrors();
 
         $closure = StoreClosure::firstOrFail();
@@ -225,6 +235,7 @@ class EodTest extends TestCase
     {
         $this->sell(1);
 
+        $this->endShifts();
         $this->actingAs($this->owner)->post(route('admin.eod.store'), [
             'store_id' => $this->store->id,
             'business_date' => company_today(),
@@ -255,7 +266,7 @@ class EodTest extends TestCase
     public function test_transaksi_ditolak_409_sampai_kasir_mengonfirmasi_pencatatan_ke_tanggal_eod_tertunda(): void
     {
         $yesterday = now()->subDay()->toDateString();
-        $this->sell(1)->update(['business_date' => $yesterday]);
+        $this->backdate($this->sell(1), $yesterday);
 
         $this->actingAs($this->cashier)->postJson('/pos/sales', $this->salePayload())->assertStatus(409);
 
@@ -265,7 +276,7 @@ class EodTest extends TestCase
     public function test_setelah_konfirmasi_transaksi_hari_ini_dicatat_sebagai_tanggal_eod_tertunda(): void
     {
         $yesterday = now()->subDay()->toDateString();
-        $this->sell(1)->update(['business_date' => $yesterday]);
+        $this->backdate($this->sell(1), $yesterday);
 
         $this->actingAs($this->cashier)->postJson('/pos/session/acknowledge')
             ->assertOk()
@@ -281,7 +292,7 @@ class EodTest extends TestCase
     public function test_transaksi_offline_tidak_perlu_konfirmasi_dan_dicatat_ke_tanggal_eod_tertunda(): void
     {
         $yesterday = now()->subDay()->toDateString();
-        $this->sell(1)->update(['business_date' => $yesterday]);
+        $this->backdate($this->sell(1), $yesterday);
 
         $payload = $this->salePayload('offline');
         $this->actingAs($this->cashier)->postJson('/pos/sales', $payload)->assertStatus(201);
@@ -292,8 +303,9 @@ class EodTest extends TestCase
     public function test_setelah_eod_tertunda_selesai_transaksi_kembali_dicatat_ke_hari_ini(): void
     {
         $yesterday = now()->subDay()->toDateString();
-        $this->sell(1)->update(['business_date' => $yesterday]);
+        $this->backdate($this->sell(1), $yesterday);
 
+        $this->endShifts();
         $this->actingAs($this->owner)->post(route('admin.eod.store'), [
             'store_id' => $this->store->id,
             'business_date' => $yesterday,
@@ -301,6 +313,7 @@ class EodTest extends TestCase
             'confirm' => [$this->cash->id => 1],
         ])->assertRedirect();
 
+        $this->startShiftFor($this->cashier);
         $payload = $this->salePayload();
         $this->actingAs($this->cashier)->postJson('/pos/sales', $payload)->assertStatus(201);
 
@@ -310,9 +323,9 @@ class EodTest extends TestCase
     public function test_beberapa_hari_belum_eod_dicatat_ke_tanggal_tertua(): void
     {
         $oldest = now()->subDays(2)->toDateString();
-        $this->sell(1)->update(['business_date' => $oldest]);
+        $this->backdate($this->sell(1), $oldest);
         $this->actingAs($this->cashier)->postJson('/pos/session/acknowledge')->assertOk();
-        $this->sell(1)->update(['business_date' => now()->subDay()->toDateString()]);
+        $this->backdate($this->sell(1), now()->subDay()->toDateString());
 
         $payload = $this->salePayload();
         $this->actingAs($this->cashier)->postJson('/pos/sales', $payload)->assertStatus(201);
@@ -322,6 +335,7 @@ class EodTest extends TestCase
 
     private function close(string $date): void
     {
+        $this->endShifts();
         $this->actingAs($this->owner)->post(route('admin.eod.store'), [
             'store_id' => $this->store->id,
             'business_date' => $date,
@@ -357,6 +371,7 @@ class EodTest extends TestCase
         $this->postOnlineSale()->assertStatus(422);
 
         $this->reopen(company_today(), 'Ada transaksi susulan')->assertSessionHas('success');
+        $this->startShiftFor($this->cashier);
 
         $closure = StoreClosure::first();
         $this->assertNull($closure->closed_at);
@@ -378,12 +393,12 @@ class EodTest extends TestCase
     public function test_eod_tanggal_lalu_tidak_dapat_dibuka_ulang(): void
     {
         $yesterday = now(company_timezone())->subDay()->toDateString();
-        $this->sell(1)->update(['business_date' => $yesterday]);
+        $this->backdate($this->sell(1), $yesterday);
         $this->close($yesterday);
 
         $this->reopen($yesterday, 'Koreksi kas')->assertSessionHas('error');
 
-        $this->assertNotNull(StoreClosure::first()->closed_at);
+        $this->assertNotNull(StoreClosure::whereDate('business_date', $yesterday)->first()->closed_at);
     }
 
     public function test_eod_yang_sudah_ditutup_tidak_dapat_ditutup_ulang_tanpa_dibuka(): void
@@ -391,6 +406,7 @@ class EodTest extends TestCase
         $this->sell(1);
         $this->close(company_today());
 
+        $this->endShifts();
         $this->actingAs($this->owner)->post(route('admin.eod.store'), [
             'store_id' => $this->store->id,
             'business_date' => company_today(),
@@ -418,5 +434,110 @@ class EodTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame('resolved', $sale->refresh()->stock_review_status);
+    }
+
+    /**
+     * Memundurkan transaksi ke tanggal lama beserta status toko dibuka pada tanggal itu (seperti hasil backfill migration).
+     */
+    private function backdate(Sale $sale, string $date): void
+    {
+        $sale->update(['business_date' => $date]);
+        StoreClosure::firstOrCreate(
+            ['store_id' => $this->store->id, 'business_date' => $date],
+            ['company_id' => $this->company->id, 'opened_at' => now(), 'opened_by' => $this->cashier->id],
+        );
+    }
+
+    private function endShifts(): void
+    {
+        ShiftService::endActiveShifts($this->store->id, CashierShift::ENDED_CLOSED_BY_ADMIN);
+    }
+
+    private function eodPayload(?string $date = null): array
+    {
+        return [
+            'store_id' => $this->store->id,
+            'business_date' => $date ?? company_today(),
+            'denominations' => [10000 => 1],
+            'confirm' => [$this->cash->id => 1],
+        ];
+    }
+
+    public function test_modal_dijumlahkan_ke_kas_diharapkan_200rb_plus_700rb_dan_tidak_masuk_penjualan(): void
+    {
+        $second = User::create(['company_id' => $this->company->id, 'store_id' => $this->store->id, 'name' => 'Kasir 2', 'username' => 'kasir2', 'role' => User::ROLE_CASHIER, 'is_active' => true, 'password' => 'password']);
+        $this->startShiftFor($second, $this->store, 200000);
+        $this->sell(70);
+
+        $this->actingAs($this->owner)->get(route('admin.eod.index'))->assertOk()
+            ->assertViewHas('cashExpected', 900000.0)
+            ->assertViewHas('salesTotal', 700000.0)
+            ->assertViewHas('openingFloatTotal', 200000.0);
+
+        $this->endShifts();
+        $this->actingAs($this->owner)->post(route('admin.eod.store'), $this->eodPayload())->assertSessionHasNoErrors();
+
+        $closure = StoreClosure::firstOrFail();
+        $this->assertSame(900000.0, (float) $closure->cash_expected);
+        $this->assertSame(700000.0, (float) $closure->sales_total);
+    }
+
+    public function test_eod_ditolak_untuk_toko_yang_belum_dibuka(): void
+    {
+        $other = Store::create(['company_id' => $this->company->id, 'code' => 'STR002', 'name' => 'Gerai Renovasi', 'pic_name' => 'PIC', 'currency' => 'IDR']);
+
+        $this->actingAs($this->owner)->post(route('admin.eod.store'), ['store_id' => $other->id] + $this->eodPayload())->assertSessionHas('error');
+
+        $this->assertSame(0, StoreClosure::where('store_id', $other->id)->count());
+    }
+
+    public function test_eod_ditolak_selama_ada_shift_kasir_aktif(): void
+    {
+        $this->actingAs($this->cashier)->getJson('/pos/bootstrap')->assertOk();
+        $this->actingAs($this->owner)->post(route('admin.eod.store'), $this->eodPayload())->assertSessionHas('error');
+
+        $this->assertSame(0, StoreClosure::whereNotNull('closed_at')->count());
+    }
+
+    public function test_force_end_shift_lalu_eod_berhasil(): void
+    {
+        $this->actingAs($this->owner)->post(route('admin.eod.force-end-shifts'), ['store_id' => $this->store->id, 'business_date' => company_today()])
+            ->assertSessionHas('success');
+
+        $this->assertSame('closed_by_admin', CashierShift::firstOrFail()->ended_reason);
+        $this->actingAs($this->owner)->post(route('admin.eod.store'), $this->eodPayload())->assertSessionHasNoErrors();
+        $this->assertTrue(StoreClosure::isClosed($this->store->id, company_today()));
+    }
+
+    public function test_store_manager_tidak_bisa_force_end_shift_gerai_lain(): void
+    {
+        $other = Store::create(['company_id' => $this->company->id, 'code' => 'STR002', 'name' => 'Gerai B', 'pic_name' => 'PIC', 'currency' => 'IDR']);
+        $manager = User::create(['company_id' => $this->company->id, 'store_id' => $other->id, 'name' => 'SM', 'username' => 'sm1', 'role' => User::ROLE_STORE_MANAGER, 'is_active' => true, 'password' => 'password']);
+
+        $this->actingAs($manager)->post(route('admin.eod.force-end-shifts'), ['store_id' => $this->store->id, 'business_date' => company_today()])
+            ->assertSessionHas('error');
+
+        $this->assertTrue(ShiftService::hasActiveShift($this->cashier, $this->store->id));
+    }
+
+    public function test_halaman_eod_menampilkan_pembuka_toko_variance_dan_remark_modal(): void
+    {
+        $second = User::create(['company_id' => $this->company->id, 'store_id' => $this->store->id, 'name' => 'Kasir Dua', 'username' => 'kasir2', 'role' => User::ROLE_CASHIER, 'is_active' => true, 'password' => 'password']);
+        $this->store->update(['opening_float' => 200000]);
+        ShiftService::startShift($this->store, $second, ['amount' => 150000, 'remark' => 'Uang receh kurang 50 ribu']);
+
+        $this->actingAs($this->owner)->get(route('admin.eod.index'))->assertOk()
+            ->assertSee('Opened by')->assertSee('Kasir Dua')->assertSee('Uang receh kurang 50 ribu');
+    }
+
+    public function test_buka_ulang_eod_mengembalikan_toko_ke_open_dan_kasir_start_shift_lagi(): void
+    {
+        $this->close(company_today());
+
+        $this->assertFalse(StoreClosure::isOpen($this->store->id, company_today()));
+        $this->reopen(company_today(), 'Koreksi')->assertSessionHasNoErrors();
+
+        $this->assertTrue(StoreClosure::isOpen($this->store->id, company_today()));
+        $this->actingAs($this->cashier)->postJson('/pos/shift/start', ['amount' => 0])->assertOk();
     }
 }

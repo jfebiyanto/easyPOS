@@ -13,11 +13,12 @@ use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Tests\Concerns\StartsShift;
 use Tests\TestCase;
 
 class CancellationReportTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, StartsShift;
 
     private const CHROME = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36';
 
@@ -68,6 +69,8 @@ class CancellationReportTest extends TestCase
         ]);
         $this->cash = PaymentType::create(['company_id' => $this->company->id, 'code' => 'CASH', 'order_number' => 1, 'count_type' => 'summary', 'is_active' => true]);
         $this->cash->stores()->sync([$this->storeA->id, $this->storeB->id]);
+        $this->startShiftFor($this->cashierA);
+        $this->startShiftFor($this->cashierB);
     }
 
     /**

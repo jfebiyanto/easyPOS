@@ -20,11 +20,12 @@ use App\Support\StockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use Tests\Concerns\StartsShift;
 use Tests\TestCase;
 
 class ReportTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, StartsShift;
 
     private CompanyDetail $company;
 
@@ -64,6 +65,7 @@ class ReportTest extends TestCase
         $this->member = Customer::create(['company_id' => $this->company->id, 'code' => 'CUST-1', 'name' => 'Member Satu', 'phone' => '0812', 'is_member' => true, 'member_level_id' => $silver->id, 'points_balance' => 0, 'is_active' => true]);
 
         StockService::record($this->store->id, $this->product->id, StockLedger::TYPE_OPENING, 100);
+        $this->startShiftFor($this->cashier);
     }
 
     private function sell(float $qty, ?string $customerId): Sale

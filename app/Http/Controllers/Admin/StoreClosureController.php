@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Admin\Concerns\ScopesToStore;
 use App\Http\Controllers\Concerns\AuthorizesCompany;
 use App\Http\Controllers\Controller;
+use App\Models\CashierShift;
 use App\Models\CompanyDetail;
 use App\Models\Currency;
 use App\Models\PaymentType;
@@ -12,6 +13,7 @@ use App\Models\Sale;
 use App\Models\Store;
 use App\Models\StoreClosure;
 use App\Support\ActivityLogger;
+use App\Support\ShiftService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -47,6 +49,12 @@ class StoreClosureController extends Controller
 
         $countByDenomination = $store && $this->requiresDenominationCount($store, $company->id);
 
+        if ($store) {
+            ShiftService::expireStaleShifts($store->id);
+        }
+
+        $closure = $store ? StoreClosure::with('openedBy')->where('store_id', $store->id)->whereDate('business_date', $businessDate)->first() : null;
+
         $denominations = ! $countByDenomination ? collect() : Currency::where('company_id', $company->id)
             ->where('code', $company->base_currency_code)
             ->first()
@@ -66,7 +74,11 @@ class StoreClosureController extends Controller
             'countByDenomination' => $countByDenomination,
             'paymentLines' => $store ? $this->paymentLines($store, $company->id, $businessDate) : collect(),
             'stores' => $this->reportStores($request),
-            'closure' => $store ? StoreClosure::where('store_id', $store->id)->whereDate('business_date', $businessDate)->first() : null,
+            'closure' => $closure,
+            'isOpen' => $closure?->opened_at !== null && $closure->closed_at === null,
+            'shifts' => $store ? CashierShift::with('user')->where('store_id', $store->id)->whereDate('business_date', $businessDate)->orderBy('started_at')->get() : collect(),
+            'activeShifts' => $store ? ShiftService::activeShifts($store->id) : collect(),
+            'openingFloatTotal' => $store ? ShiftService::openingFloatTotal($store->id, $businessDate) : 0.0,
         ]);
     }
 
@@ -101,6 +113,17 @@ class StoreClosureController extends Controller
             return back()->withInput()->withErrors(['confirm' => 'Confirm every payment method before closing: '.$unconfirmed->implode(', ').'.']);
         }
 
+        // EOD hanya untuk toko yang dibuka kasir lewat Open Store, dan hanya setelah semua shift kasir berakhir.
+        if (! StoreClosure::isOpen($store->id, $businessDate)) {
+            return back()->withInput()->with('error', "The store was not opened for {$businessDate}, so there is nothing to close.");
+        }
+
+        ShiftService::expireStaleShifts($store->id);
+        $activeShifts = ShiftService::activeShifts($store->id);
+        if ($activeShifts->isNotEmpty()) {
+            return back()->withInput()->with('error', 'Cashier shifts are still active: '.$activeShifts->map(fn (CashierShift $shift) => $shift->user?->name)->implode(', ').'. End the shifts first (Force End Shift).');
+        }
+
         if ($countByDenomination && empty($data['denominations'])) {
             return back()->withInput()->withErrors(['denominations' => 'Enter the cash count per denomination.']);
         }
@@ -130,29 +153,15 @@ class StoreClosureController extends Controller
         DB::transaction(function () use ($store, $company, $businessDate, $salesTotal, $cashExpected, $data, $request, $countByDenomination, &$cashCounted) {
             $closure = StoreClosure::where('store_id', $store->id)
                 ->whereDate('business_date', $businessDate)
-                ->first();
+                ->firstOrFail();
 
-            if ($closure) {
-                $closure->update([
-                    'closed_at' => now(),
-                    'sales_total' => $salesTotal,
-                    'cash_expected' => $cashExpected,
-                    'closed_by' => $request->user()->id,
-                    'note' => $data['note'] ?? null,
-                ]);
-            } else {
-                $closure = StoreClosure::create([
-                    'company_id' => $company->id,
-                    'store_id' => $store->id,
-                    'business_date' => $businessDate,
-                    'opened_at' => now(),
-                    'closed_at' => now(),
-                    'sales_total' => $salesTotal,
-                    'cash_expected' => $cashExpected,
-                    'closed_by' => $request->user()->id,
-                    'note' => $data['note'] ?? null,
-                ]);
-            }
+            $closure->update([
+                'closed_at' => now(),
+                'sales_total' => $salesTotal,
+                'cash_expected' => $cashExpected,
+                'closed_by' => $request->user()->id,
+                'note' => $data['note'] ?? null,
+            ]);
 
             $closure->payments()->delete();
             foreach ($this->paymentLines($store, $company->id, $businessDate) as $line) {
@@ -240,6 +249,26 @@ class StoreClosureController extends Controller
     }
 
     /**
+     * Force End Shift: Owner/Store Manager mengakhiri semua shift kasir aktif di toko agar EOD bisa dijalankan.
+     */
+    public function forceEndShifts(Request $request): RedirectResponse
+    {
+        $storeId = $this->resolveStoreId($request, $request->input('store_id'));
+        abort_unless($storeId && in_array($storeId, $this->allowedStoreIds($request), true), 422, 'Invalid store.');
+
+        $data = $request->validate(['business_date' => ['required', 'date']]);
+        $store = Store::findOrFail($storeId);
+
+        $ended = ShiftService::endActiveShifts($store->id, CashierShift::ENDED_CLOSED_BY_ADMIN);
+
+        $redirect = redirect()->route('admin.eod.index', ['store' => $store->id, 'date' => Carbon::parse($data['business_date'])->toDateString()]);
+
+        return $ended > 0
+            ? $redirect->with('success', "{$ended} cashier shift(s) ended.")
+            : $redirect->with('error', 'There are no active cashier shifts to end.');
+    }
+
+    /**
      * Daftar tipe pembayaran yang harus dikonfirmasi pada EOD: semua tipe aktif gerai ini ditambah tipe
      * (mis. sudah nonaktif) yang masih punya pembayaran pada tanggal itu, beserta nominal yang diharapkan.
      *
@@ -250,21 +279,34 @@ class StoreClosureController extends Controller
         $expected = StoreClosure::expectedByPaymentType($store->id, $businessDate);
         $countByDenomination = $this->requiresDenominationCount($store, $companyId);
 
+        $openingFloat = ShiftService::openingFloatTotal($store->id, $businessDate);
+        $floatAssigned = false;
+
         return PaymentType::where('company_id', $companyId)
             ->where(fn ($q) => $q
                 ->where(fn ($q) => $q->where('is_active', true)->whereHas('stores', fn ($q) => $q->where('stores.id', $store->id)))
                 ->orWhereIn('id', array_keys($expected)))
             ->orderBy('order_number')
             ->get()
-            ->map(fn (PaymentType $type) => [
-                'id' => $type->id,
-                'code' => $type->code,
-                'description' => $type->description,
-                'kind' => $type->kind,
-                'count_type' => $type->count_type,
-                'expected' => $expected[$type->id] ?? 0.0,
-                'counted_by_denomination' => $countByDenomination && $type->isCash(),
-            ])
+            ->map(function (PaymentType $type) use ($expected, $countByDenomination, $openingFloat, &$floatAssigned) {
+                $amount = $expected[$type->id] ?? 0.0;
+
+                // Modal awal shift ada di laci tunai: ikut dihitung pada tipe tunai pertama.
+                if ($type->isCash() && ! $floatAssigned) {
+                    $amount = round($amount + $openingFloat, 2);
+                    $floatAssigned = true;
+                }
+
+                return [
+                    'id' => $type->id,
+                    'code' => $type->code,
+                    'description' => $type->description,
+                    'kind' => $type->kind,
+                    'count_type' => $type->count_type,
+                    'expected' => $amount,
+                    'counted_by_denomination' => $countByDenomination && $type->isCash(),
+                ];
+            })
             ->values();
     }
 
@@ -274,12 +316,7 @@ class StoreClosureController extends Controller
      */
     private function requiresDenominationCount(Store $store, string $companyId): bool
     {
-        return PaymentType::where('company_id', $companyId)
-            ->where('kind', PaymentType::KIND_CASH)
-            ->where('is_active', true)
-            ->where('count_type', 'detail')
-            ->whereHas('stores', fn ($q) => $q->where('stores.id', $store->id))
-            ->exists();
+        return StoreClosure::requiresDenominationCount($store, $companyId);
     }
 
     private function reportStores(Request $request): Collection

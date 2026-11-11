@@ -29,11 +29,12 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use Tests\Concerns\StartsShift;
 use Tests\TestCase;
 
 class SapSalePostingTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, StartsShift;
 
     private CompanyDetail $company;
 
@@ -94,6 +95,7 @@ class SapSalePostingTest extends TestCase
             'company_id' => $this->company->id, 'product_group_id' => $group->id, 'unit_id' => $unit->id,
             'sku' => 'INDF-0001', 'name' => 'Indomie', 'base_price' => 4000, 'track_stock' => true, 'is_active' => true,
         ]);
+        $this->startShiftFor($this->cashier);
     }
 
     /**
@@ -529,7 +531,7 @@ class SapSalePostingTest extends TestCase
         WarehouseStockService::record($this->store->warehouse, $this->product->id, WarehouseStockLedger::TYPE_PURCHASE, 1);
 
         $this->expectException(HttpException::class);
-        $this->expectExceptionMessage('Stok tidak mencukupi untuk produk INDF-0001');
+        $this->expectExceptionMessage('Insufficient stock for product INDF-0001');
 
         $this->sell();
     }

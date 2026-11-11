@@ -2,18 +2,18 @@
 // Aksi didefinisikan di sini; App.jsx hanya memetakan id aksi ke handler.
 
 export const FUNCTION_KEYS = [
-    { key: 'F1', action: 'return', label: 'Retur' },
-    { key: 'F2', action: 'customer', label: 'Pelanggan' },
-    { key: 'F3', action: 'searchProduct', label: 'Cari Produk' },
+    { key: 'F1', action: 'return', label: 'Return' },
+    { key: 'F2', action: 'customer', label: 'Customer' },
+    { key: 'F3', action: 'searchProduct', label: 'Find Product' },
     { key: 'F4', action: null, label: '' },
-    { key: 'F5', action: 'editItem', label: 'Ubah Item', needsCart: true },
-    { key: 'F6', action: 'transactions', label: 'Transaksi' },
-    { key: 'F7', action: 'delivery', label: 'Pengiriman' },
-    { key: 'F8', action: 'removeItem', label: 'Hapus Item', needsCart: true },
-    { key: 'F9', action: 'cancelSale', label: 'Batal Transaksi', needsCart: true },
-    { key: 'F10', action: 'holdOrRecall', label: 'Tahan / Daftar' },
-    { key: 'F11', action: 'quickPay', label: 'Bayar Cepat', needsCart: true, needsCash: true },
-    { key: 'F12', action: 'pay', label: 'Bayar', needsCart: true, primary: true },
+    { key: 'F5', action: 'editItem', label: 'Edit Item', needsCart: true },
+    { key: 'F6', action: 'transactions', label: 'Transactions' },
+    { key: 'F7', action: 'delivery', label: 'Delivery' },
+    { key: 'F8', action: 'removeItem', label: 'Remove Item', needsCart: true },
+    { key: 'F9', action: 'cancelSale', label: 'Cancel Sale', needsCart: true },
+    { key: 'F10', action: 'holdOrRecall', label: 'Hold / Recall' },
+    { key: 'F11', action: 'quickPay', label: 'Quick Pay', needsCart: true, needsCash: true },
+    { key: 'F12', action: 'pay', label: 'Pay', needsCart: true, primary: true },
 ];
 
 // Status tiap tombol: dialog terbuka menonaktifkan semuanya (dialog tidak boleh bertumpuk),

@@ -11,8 +11,17 @@ class Store extends Model
 
     protected $fillable = [
         'company_id', 'code', 'name', 'address', 'pic_name', 'pic_phone',
-        'ppn_enabled', 'ppn_rate', 'currency', 'is_active', 'purchase_price_list_id', 'warehouse_id', 'default_customer_id',
+        'ppn_enabled', 'ppn_rate', 'currency', 'opening_float', 'is_active', 'purchase_price_list_id', 'warehouse_id', 'default_customer_id',
     ];
+
+    /**
+     * Modal awal standar (SOP) yang diberikan ke tiap kasir. Titik tunggal agar nanti bisa diganti
+     * pengaturan per terminal POS tanpa mengubah alur shift.
+     */
+    public function openingFloatStandard(): float
+    {
+        return (float) $this->opening_float;
+    }
 
     public function defaultCustomer()
     {

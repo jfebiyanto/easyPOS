@@ -35,6 +35,9 @@ Route::middleware('auth')->prefix('pos')->name('pos.')->group(function () {
         Route::post('/sales/{sale}/void', [PosController::class, 'voidSale'])->name('sales.void');
         Route::post('/returns', [PosController::class, 'storeReturn'])->name('returns.store');
         Route::get('/customers', [PosController::class, 'customers'])->name('customers.index');
+        Route::post('/store/open', [PosController::class, 'openStore'])->name('store.open');
+        Route::post('/shift/start', [PosController::class, 'startShift'])->name('shift.start');
+        Route::post('/shift/end', [PosController::class, 'endShift'])->name('shift.end');
         Route::post('/customers', [PosController::class, 'storeCustomer'])->name('customers.store');
         Route::put('/cart', [PosController::class, 'saveCart'])->name('cart.save');
         Route::post('/cart/restore', [PosController::class, 'restoreCart'])->name('cart.restore');
@@ -136,6 +139,7 @@ Route::prefix('admin')
         Route::get('/eod', [Admin\StoreClosureController::class, 'index'])->name('eod.index');
         Route::post('/eod', [Admin\StoreClosureController::class, 'store'])->name('eod.store');
         Route::post('/eod/reopen', [Admin\StoreClosureController::class, 'reopen'])->name('eod.reopen');
+        Route::post('/eod/force-end-shifts', [Admin\StoreClosureController::class, 'forceEndShifts'])->name('eod.force-end-shifts');
         Route::get('/stock-review', [Admin\StockReviewController::class, 'index'])->name('stock-review.index');
         Route::post('/stock-review/{sale}/resolve', [Admin\StockReviewController::class, 'resolve'])->name('stock-review.resolve');
 

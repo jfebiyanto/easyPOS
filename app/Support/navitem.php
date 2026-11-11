@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\CashierShift;
 use App\Models\CompanyDetail;
 use App\Models\Store;
 use App\Models\StoreClosure;
@@ -72,7 +73,10 @@ if (! function_exists('store_business_status')) {
      * `locked_date` bila ada, selain itu tanggal hari ini.
      * `closed` = EOD tanggal posting sudah ditutup sehingga transaksi terkunci sampai dibuka ulang.
      *
-     * @return array{business_date: string, posting_date: string, timezone: string, server_time: string, locked_date: ?string, closed: bool}
+     * `opened` = toko sudah dibuka kasir (Open Store) untuk tanggal posting dan belum di-EOD;
+     * `active_shifts` = jumlah shift kasir yang sedang berjalan di toko.
+     *
+     * @return array{business_date: string, posting_date: string, timezone: string, server_time: string, locked_date: ?string, closed: bool, opened: bool, active_shifts: int}
      */
     function store_business_status(?string $storeId): array
     {
@@ -87,6 +91,8 @@ if (! function_exists('store_business_status')) {
             'server_time' => now()->toIso8601String(),
             'locked_date' => $lockedDate,
             'closed' => $storeId && StoreClosure::isClosed($storeId, $postingDate),
+            'opened' => $storeId && StoreClosure::isOpen($storeId, $postingDate),
+            'active_shifts' => $storeId ? CashierShift::active()->where('store_id', $storeId)->count() : 0,
         ];
     }
 }
@@ -101,10 +107,10 @@ if (! function_exists('login_greeting')) {
         $hour = (int) ($at ? Carbon::parse($at) : now())->setTimezone(company_timezone())->format('G');
 
         return match (true) {
-            $hour >= 6 && $hour < 10 => 'Selamat pagi',
-            $hour >= 10 && $hour < 15 => 'Selamat siang',
-            $hour >= 15 && $hour < 18 => 'Selamat sore',
-            default => 'Selamat malam',
+            $hour >= 6 && $hour < 10 => 'Good morning',
+            $hour >= 10 && $hour < 15 => 'Good afternoon',
+            $hour >= 15 && $hour < 18 => 'Good evening',
+            default => 'Good evening',
         };
     }
 }

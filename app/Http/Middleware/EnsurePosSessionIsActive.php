@@ -82,7 +82,7 @@ class EnsurePosSessionIsActive
         }
 
         return response()->json([
-            'message' => 'Akun ini sedang memakai POS di perangkat atau browser lain.',
+            'message' => 'This account is using POS on another device or browser.',
             'code' => 'pos_session_active',
             'active_session' => $active->summary(),
         ], 409);
