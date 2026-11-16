@@ -92,6 +92,7 @@ class StoreClosureController extends Controller
             'note' => ['nullable', 'string', 'max:500'],
             'denominations' => ['array'],
             'denominations.*' => ['nullable', 'integer', 'min:0'],
+            'cash_amount' => ['nullable', 'numeric', 'min:0'],
             'override_review' => ['sometimes', 'boolean'],
         ]);
 
@@ -104,9 +105,10 @@ class StoreClosureController extends Controller
             return back()->withInput()->with('error', "EOD for {$businessDate} is already closed. Reopen EOD first.");
         }
 
-        // Setiap tipe pembayaran wajib dikonfirmasi; tipe tunai yang dihitung per pecahan dikonfirmasi lewat hitungan itu.
-        $unconfirmed = $this->paymentLines($store, $company->id, $businessDate)
-            ->filter(fn (array $line) => ! ($line['counted_by_denomination'] ?? false) && ! $request->boolean('confirm.'.$line['id']))
+        // Setiap tipe pembayaran wajib dikonfirmasi; tipe tunai dikonfirmasi lewat hitungan kas (per pecahan atau jumlah).
+        $paymentLines = $this->paymentLines($store, $company->id, $businessDate);
+        $unconfirmed = $paymentLines
+            ->filter(fn (array $line) => $line['kind'] !== PaymentType::KIND_CASH && ! $request->boolean('confirm.'.$line['id']))
             ->pluck('code');
 
         if ($unconfirmed->isNotEmpty()) {
@@ -126,6 +128,11 @@ class StoreClosureController extends Controller
 
         if ($countByDenomination && empty($data['denominations'])) {
             return back()->withInput()->withErrors(['denominations' => 'Enter the cash count per denomination.']);
+        }
+
+        $countsCashAmount = ! $countByDenomination && $paymentLines->contains('kind', PaymentType::KIND_CASH);
+        if ($countsCashAmount && ! isset($data['cash_amount'])) {
+            return back()->withInput()->withErrors(['cash_amount' => 'Enter the counted cash amount.']);
         }
 
         $unclosedPrior = StoreClosure::unclosedPriorDate($store->id, Carbon::parse($businessDate)->toDateString());
@@ -149,8 +156,19 @@ class StoreClosureController extends Controller
 
         $cashExpected = StoreClosure::expectedCash($store->id, $company->id, $businessDate);
 
-        $cashCounted = 0.0;
-        DB::transaction(function () use ($store, $company, $businessDate, $salesTotal, $cashExpected, $data, $request, $countByDenomination, &$cashCounted) {
+        // Count Type Summary: kas dihitung sebagai satu jumlah; tanpa tipe tunai tidak ada kas yang dihitung.
+        $cashCounted = match (true) {
+            $countByDenomination => (float) collect($data['denominations'])->map(fn ($count, $value) => (float) $value * max(0, (int) $count))->sum(),
+            $countsCashAmount => round((float) $data['cash_amount'], 2),
+            default => $cashExpected,
+        };
+        $cashVariance = round($cashCounted - $cashExpected, 2);
+
+        if ($cashVariance !== 0.0 && trim((string) ($data['note'] ?? '')) === '') {
+            return back()->withInput()->withErrors(['note' => 'Counted cash differs from expected cash by Rp '.number_format($cashVariance, 0, ',', '.').'. Explain the difference in Remarks.']);
+        }
+
+        DB::transaction(function () use ($store, $businessDate, $salesTotal, $cashExpected, $cashCounted, $cashVariance, $data, $request, $countByDenomination, $paymentLines) {
             $closure = StoreClosure::where('store_id', $store->id)
                 ->whereDate('business_date', $businessDate)
                 ->firstOrFail();
@@ -164,7 +182,7 @@ class StoreClosureController extends Controller
             ]);
 
             $closure->payments()->delete();
-            foreach ($this->paymentLines($store, $company->id, $businessDate) as $line) {
+            foreach ($paymentLines as $line) {
                 $closure->payments()->create([
                     'payment_type_id' => $line['id'],
                     'payment_code' => $line['code'],
@@ -180,23 +198,16 @@ class StoreClosureController extends Controller
                 if ($count <= 0) {
                     continue;
                 }
-                $subtotal = (float) $value * $count;
-                $cashCounted += $subtotal;
                 $closure->denominations()->create([
                     'denomination_value' => (float) $value,
                     'count' => $count,
-                    'subtotal' => $subtotal,
+                    'subtotal' => (float) $value * $count,
                 ]);
-            }
-
-            // Count Type Summary: kas cukup dikonfirmasi, dianggap sama dengan yang diharapkan.
-            if (! $countByDenomination) {
-                $cashCounted = $cashExpected;
             }
 
             $closure->update([
                 'cash_counted' => $cashCounted,
-                'cash_variance' => round($cashCounted - $cashExpected, 2),
+                'cash_variance' => $cashVariance,
             ]);
         });
 

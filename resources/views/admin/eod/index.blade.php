@@ -171,7 +171,7 @@
                             <td>{{ \App\Models\PaymentType::COUNT_TYPES[$line['count_type']] ?? $line['count_type'] }}</td>
                             <td style="text-align:right;" class="money">{{ 'Rp '.number_format($line['expected'], 0, ',', '.') }}</td>
                             <td style="text-align:center;">
-                                @if ($line['counted_by_denomination'])
+                                @if ($line['kind'] === \App\Models\PaymentType::KIND_CASH)
                                     <span class="hint">Counted below</span>
                                 @else
                                     <input type="checkbox" name="confirm[{{ $line['id'] }}]" value="1" aria-label="Confirm {{ $line['code'] }}" @checked(old('confirm.'.$line['id'])) @disabled($isClosed)>
@@ -218,16 +218,51 @@
                         <th colspan="2" style="text-align:right;">Total Counted Cash</th>
                         <th style="text-align:right;" class="money" id="cash-total">Rp 0</th>
                     </tr>
+                    <tr>
+                        <th colspan="2" style="text-align:right;">Expected Cash</th>
+                        <th style="text-align:right;" class="money">Rp {{ number_format($cashExpected, 0, ',', '.') }}</th>
+                    </tr>
+                    <tr>
+                        <th colspan="2" style="text-align:right;">Difference</th>
+                        <th style="text-align:right;" class="money" id="cash-variance" data-expected="{{ $cashExpected }}">Rp 0</th>
+                    </tr>
                 </tfoot>
+            </table>
+        </div>
+    </div>
+    @elseif ($paymentLines->contains('kind', \App\Models\PaymentType::KIND_CASH))
+    <div class="card">
+        <h2 class="card-title">Count Cash</h2>
+        <p class="card-subtitle">Enter the total cash counted in the store. Change the amount if it differs from the expected cash.</p>
+
+        <div class="field @error('cash_amount') has-error @enderror">
+            <label for="cash_amount">Counted Cash <span style="color: var(--md-error);">*</span></label>
+            <input type="number" id="cash_amount" name="cash_amount" min="0" step="any" required
+                   value="{{ old('cash_amount', round($cashExpected, 2)) }}" @disabled($isClosed)>
+            @error('cash_amount') <div class="error">{{ $message }}</div> @enderror
+        </div>
+        <div class="table-wrap">
+            <table class="md-table">
+                <tbody>
+                    <tr>
+                        <th style="text-align:right;">Expected Cash</th>
+                        <td style="text-align:right;" class="money">Rp {{ number_format($cashExpected, 0, ',', '.') }}</td>
+                    </tr>
+                    <tr>
+                        <th style="text-align:right;">Difference</th>
+                        <td style="text-align:right;" class="money" id="cash-variance" data-expected="{{ $cashExpected }}">Rp 0</td>
+                    </tr>
+                </tbody>
             </table>
         </div>
     </div>
     @endif
 
     <div class="card">
-        <div class="field">
-            <label for="note">Notes</label>
+        <div class="field @error('note') has-error @enderror">
+            <label for="note">Remarks <span id="note-required" style="color: var(--md-error); display:none;">* required, counted cash differs from expected</span></label>
             <input type="text" id="note" name="note" value="{{ old('note') }}" maxlength="500">
+            @error('note') <div class="error">{{ $message }}</div> @enderror
         </div>
 
         @if (auth()->user()->isSuperuser() && $reviewCount > 0)
@@ -252,7 +287,9 @@
 (function () {
     var inputs = document.querySelectorAll('.denom-input');
     var total = document.getElementById('cash-total');
-    if (!total) { return; }
+    var amount = document.getElementById('cash_amount');
+    var variance = document.getElementById('cash-variance');
+    if (!variance) { return; }
 
     function fmt(n) { return 'Rp ' + n.toLocaleString('id-ID'); }
 
@@ -266,10 +303,17 @@
             var cell = document.querySelector('[data-subtotal="' + value + '"]');
             if (cell) cell.textContent = fmt(sub);
         });
-        total.textContent = fmt(sum);
+        if (total) { total.textContent = fmt(sum); }
+        if (amount) { sum = parseFloat(amount.value || '0') || 0; }
+
+        var diff = Math.round(sum - parseFloat(variance.dataset.expected));
+        variance.textContent = fmt(diff);
+        document.getElementById('note').required = diff !== 0;
+        document.getElementById('note-required').style.display = diff !== 0 ? 'inline' : 'none';
     }
 
     inputs.forEach(function (input) { input.addEventListener('input', recalc); });
+    if (amount) { amount.addEventListener('input', recalc); }
     recalc();
 })();
 </script>

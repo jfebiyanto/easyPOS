@@ -88,7 +88,7 @@ class EodTest extends TestCase
             'store_id' => $this->store->id,
             'business_date' => company_today(),
             'denominations' => [10000 => 1],
-            'confirm' => [$this->cash->id => 1],
+            'cash_amount' => $this->expectedCash(),
         ])->assertRedirect();
 
         $this->assertSame(10000.0, (float) StoreClosure::firstOrFail()->cash_expected);
@@ -110,7 +110,7 @@ class EodTest extends TestCase
             'store_id' => $this->store->id,
             'business_date' => company_today(),
             'denominations' => [10000 => 1],
-            'confirm' => [$this->cash->id => 1],
+            'cash_amount' => $this->expectedCash(),
         ])->assertRedirect();
 
         $this->assertSame(10000.0, (float) StoreClosure::firstOrFail()->cash_expected);
@@ -140,24 +140,28 @@ class EodTest extends TestCase
             'store_id' => $this->store->id,
             'business_date' => company_today(),
             'denominations' => [10000 => 1],
-            'confirm' => [$this->cash->id => 1],
+            'cash_amount' => $this->expectedCash(),
         ])->assertSessionHas('error');
         $this->assertSame(0, StoreClosure::whereNotNull('closed_at')->count());
     }
 
-    public function test_count_type_summary_cukup_konfirmasi_tanpa_hitung_pecahan(): void
+    private function expectedCash(?string $date = null): float
+    {
+        return StoreClosure::expectedCash($this->store->id, $this->company->id, $date ?? company_today());
+    }
+
+    public function test_count_type_summary_cukup_isi_jumlah_kas_tanpa_hitung_pecahan(): void
     {
         $this->sell(3);
 
         $this->actingAs($this->owner)->get(route('admin.eod.index'))->assertOk()
-            ->assertViewHas('countByDenomination', false)->assertSee('Confirm Payment Methods');
+            ->assertViewHas('countByDenomination', false)->assertSee('Counted Cash');
 
         $this->endShifts();
-        $this->actingAs($this->owner)->post(route('admin.eod.store'), [
-            'store_id' => $this->store->id,
-            'business_date' => company_today(),
-            'confirm' => [$this->cash->id => 1],
-        ])->assertRedirect()->assertSessionHasNoErrors();
+        $payload = ['store_id' => $this->store->id, 'business_date' => company_today()];
+        $this->actingAs($this->owner)->post(route('admin.eod.store'), $payload)->assertSessionHasErrors('cash_amount');
+
+        $this->post(route('admin.eod.store'), $payload + ['cash_amount' => 30000])->assertRedirect()->assertSessionHasNoErrors();
 
         $closure = StoreClosure::firstOrFail();
         $this->assertNotNull($closure->closed_at);
@@ -186,9 +190,47 @@ class EodTest extends TestCase
             'store_id' => $this->store->id,
             'business_date' => company_today(),
             'denominations' => [10000 => 1],
-            'confirm' => [$this->cash->id => 1],
+            'cash_amount' => $this->expectedCash(),
         ])->assertSessionHasNoErrors();
         $this->assertSame(1, StoreClosure::firstOrFail()->denominations()->count());
+    }
+
+    public function test_eod_dengan_selisih_kas_wajib_remark_lalu_berhasil(): void
+    {
+        $this->cash->update(['count_type' => 'detail']);
+        $this->sell(1);
+        $this->endShifts();
+
+        $payload = [
+            'store_id' => $this->store->id,
+            'business_date' => company_today(),
+            'denominations' => [10000 => 2],
+        ];
+
+        $this->actingAs($this->owner)->post(route('admin.eod.store'), $payload)->assertSessionHasErrors('note');
+        $this->assertSame(0, StoreClosure::whereNotNull('closed_at')->count());
+
+        $this->post(route('admin.eod.store'), $payload + ['note' => 'Kembalian kurang diberikan'])->assertSessionHasNoErrors();
+
+        $closure = StoreClosure::firstOrFail();
+        $this->assertNotNull($closure->closed_at);
+        $this->assertSame(10000.0, (float) $closure->cash_variance);
+        $this->assertSame('Kembalian kurang diberikan', $closure->note);
+    }
+
+    public function test_count_type_summary_selisih_kas_wajib_remark(): void
+    {
+        $this->sell(1);
+        $this->endShifts();
+
+        $payload = ['store_id' => $this->store->id, 'business_date' => company_today(), 'cash_amount' => 8000];
+
+        $this->actingAs($this->owner)->post(route('admin.eod.store'), $payload)->assertSessionHasErrors('note');
+        $this->post(route('admin.eod.store'), $payload + ['note' => 'Uang palsu ditemukan'])->assertSessionHasNoErrors();
+
+        $closure = StoreClosure::firstOrFail();
+        $this->assertSame(8000.0, (float) $closure->cash_counted);
+        $this->assertSame(-2000.0, (float) $closure->cash_variance);
     }
 
     public function test_semua_tipe_pembayaran_tampil_dan_wajib_dikonfirmasi_per_tipe(): void
@@ -212,11 +254,11 @@ class EodTest extends TestCase
         $payload = ['store_id' => $this->store->id, 'business_date' => company_today()];
 
         // Hanya tunai yang dikonfirmasi: QRIS masih kurang.
-        $this->post(route('admin.eod.store'), $payload + ['confirm' => [$this->cash->id => 1]])->assertSessionHasErrors('confirm');
+        $this->post(route('admin.eod.store'), $payload + ['cash_amount' => $this->expectedCash()])->assertSessionHasErrors('confirm');
         $this->assertSame(0, StoreClosure::whereNotNull('closed_at')->count());
 
         $this->endShifts();
-        $this->post(route('admin.eod.store'), $payload + ['confirm' => [$this->cash->id => 1, $qris->id => 1]])->assertSessionHasNoErrors();
+        $this->post(route('admin.eod.store'), $payload + ['cash_amount' => $this->expectedCash(), 'confirm' => [$qris->id => 1]])->assertSessionHasNoErrors();
 
         $closure = StoreClosure::firstOrFail();
         $this->assertSame(10000.0, (float) $closure->cash_expected);
@@ -240,7 +282,7 @@ class EodTest extends TestCase
             'store_id' => $this->store->id,
             'business_date' => company_today(),
             'denominations' => [10000 => 1],
-            'confirm' => [$this->cash->id => 1],
+            'cash_amount' => $this->expectedCash(),
         ])->assertRedirect();
 
         $closure = StoreClosure::first();
@@ -310,7 +352,7 @@ class EodTest extends TestCase
             'store_id' => $this->store->id,
             'business_date' => $yesterday,
             'denominations' => [10000 => 1],
-            'confirm' => [$this->cash->id => 1],
+            'cash_amount' => $this->expectedCash($yesterday),
         ])->assertRedirect();
 
         $this->startShiftFor($this->cashier);
@@ -340,7 +382,7 @@ class EodTest extends TestCase
             'store_id' => $this->store->id,
             'business_date' => $date,
             'denominations' => [10000 => 1],
-            'confirm' => [$this->cash->id => 1],
+            'cash_amount' => $this->expectedCash($date),
         ])->assertSessionHasNoErrors();
     }
 
@@ -459,7 +501,7 @@ class EodTest extends TestCase
             'store_id' => $this->store->id,
             'business_date' => $date ?? company_today(),
             'denominations' => [10000 => 1],
-            'confirm' => [$this->cash->id => 1],
+            'cash_amount' => $this->expectedCash($date),
         ];
     }
 
