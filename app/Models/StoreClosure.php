@@ -157,15 +157,23 @@ class StoreClosure extends Model
     }
 
     /**
-     * Tanggal bisnis tertua yang belum ditutup untuk store (lebih lama dari $date).
+     * Tanggal bisnis tertua yang belum ditutup untuk store (lebih lama dari $date):
+     * tanggal yang punya transaksi, atau yang sudah di-Open Store, tetapi belum di-EOD.
      */
     public static function unclosedPriorDate(string $storeId, string $date): ?string
     {
+        $opened = static::query()
+            ->where('store_id', $storeId)
+            ->where('business_date', '<', $date)
+            ->whereNotNull('opened_at')
+            ->pluck('business_date');
+
         $prior = Sale::query()
             ->where('store_id', $storeId)
             ->where('business_date', '<', $date)
             ->distinct()
             ->pluck('business_date')
+            ->concat($opened)
             ->map(fn ($d) => Carbon::parse($d)->toDateString())
             ->unique()
             ->sort()

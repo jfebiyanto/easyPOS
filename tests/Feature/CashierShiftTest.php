@@ -312,6 +312,20 @@ class CashierShiftTest extends TestCase
         $this->assertNull(store_business_status($this->store->id)['locked_date']);
     }
 
+    public function test_toko_dibuka_tanpa_transaksi_dan_belum_eod_mengunci_tanggal_bisnis(): void
+    {
+        $opened = now(company_timezone())->subDays(6)->toDateString();
+        $closure = StoreClosure::create(['company_id' => $this->company->id, 'store_id' => $this->store->id, 'business_date' => $opened, 'opened_at' => now(), 'opened_by' => $this->cashier->id]);
+
+        $this->assertSame($opened, ShiftService::postingDate($this->store));
+        $this->assertSame($opened, store_business_status($this->store->id)['posting_date']);
+        $this->actingAs($this->owner)->withSession(['active_store_id' => $this->store->id])
+            ->get(route('admin.eod.index'))->assertOk()->assertViewHas('businessDate', $opened);
+
+        $closure->update(['closed_at' => now()]);
+        $this->assertSame(company_today(), ShiftService::postingDate($this->store));
+    }
+
     public function test_is_open_benar_hanya_untuk_toko_yang_dibuka_dan_belum_eod(): void
     {
         $date = company_today();
